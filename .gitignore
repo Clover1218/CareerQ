@@ -1,5 +1,6 @@
 # 编辑锁 / 临时文件
 .*.editing
+.*_editing
 
 # 密钥与本地配置
 .env
