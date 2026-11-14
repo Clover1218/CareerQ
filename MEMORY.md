@@ -14,8 +14,8 @@
 | 技术方案 | `docs/技术方案-职问桥.md`（**v0.5 实施版**，Spring Boot + 自建部署） |
 | 接口契约 | `docs/接口契约-职问桥.md`（前后端联调唯一依据，v1.1） |
 | 实施计划 | `docs/实施计划-职问桥.md`（M0—M6 里程碑，进行中） |
-| 开发平台 | **自建部署**：前端静态（Nginx/CDN）+ Spring Boot + PostgreSQL；Qoder Sites 不再强制 |
-| Web 技术栈 | 前端：**Vue3 + TypeScript**（队友负责）；后端：**Spring Boot 3 + Java 21 + PostgreSQL/MySQL + Flyway**（用户负责） |
+| 开发平台 | **自建部署**：前端静态（Nginx/CDN）+ Spring Boot + MySQL 8；Qoder Sites 不再强制 |
+| Web 技术栈 | 前端：**Vue3 + TypeScript**（队友负责）；后端：**Spring Boot 3 + Java 21 + MySQL 8 + Flyway**（用户负责） |
 | 鉴权 | **Cookie 会话 + CSRF Token**（2026-11-14 定） |
 | ⚠️ 分工 | **用户本人负责 Spring Boot 后端与前后端连接**；前端界面由队友负责；Qoder Sites 与 Spring Boot 的关系待确认 |
 | ✅ 已裁决 | 2026-11-14：采用**方案 C（公开提问 + 私密工单混合）**；Qoder Sites 强制。详见 `docs/流程v2评估-私密问答与公开沉淀.md` |
@@ -85,7 +85,7 @@
 - 2026-11-14 前后端约定锁定：前端 **Vue3 + TypeScript**；鉴权 **Cookie 会话 + CSRF Token**；Qoder Sites 暂按「只托管前端静态资源」推进，后端 Spring Boot 独立部署。
 - ⚠️ 路径不一致待确认：`MEMORY.md` 速查表「工作区」写 `D:\CareerQ`，本会话实际为 `E:\CareerQ`。
 - 2026-11-14 脱离比赛：Qoder Sites 强制取消，改自建部署；技术方案升 **v0.5 实施版**，新建 `docs/实施计划-职问桥.md`（M0—M6）。环境实测：**Java 11 不满足 Spring Boot 3（需 JDK 21）**，Maven/Node 可用，Docker 与 PostgreSQL 未装。下一步 M0。
-- 待确认：JDK 21 安装方式；数据库选 PostgreSQL 还是 MySQL（默认 PostgreSQL）；短信服务商；部署域名。
+- 2026-11-14 M0/M1 完成：JDK 21（Temurin 21.0.13）已装且 JAVA_HOME 已设；数据库定 **MySQL 8**（dev 用 H2 MySQL 模式）；`backend/` 骨架建成，`mvn test` 通过，Flyway V1 全量表迁移成功。下一步 M2 鉴权。
 
 ## 五、项目概要（职问桥）
 
