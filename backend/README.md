@@ -53,6 +53,21 @@ mvn -f backend/pom.xml spring-boot:run -Dspring-boot.run.profiles=prod
 - 约定：迁移脚本保持 MySQL 方言中立，确保 H2（MySQL 模式）与 MySQL 8 都能执行。
 - 已包含 `V1__init.sql`：用户、HR 资料、问题（公开/私密）、回答、追问、观点帖、标签、互动、举报、审核记录、词库、审计日志、公开沉淀表。
 
+## 已实现接口（M2–M3）
+
+| 方法 | 路径 | 说明 | 权限 |
+|---|---|---|---|
+| POST | `/api/v1/auth/sms-code` | 发送验证码（dev 固定 123456） | 公开 |
+| POST | `/api/v1/auth/login` | 登录，返回会话 Cookie | 公开 |
+| POST | `/api/v1/auth/logout` | 登出 | 登录 |
+| GET | `/api/v1/me` | 当前用户 | 登录 |
+| POST | `/api/v1/questions` | 提问（`scope`=public/private） | 登录 |
+| GET | `/api/v1/questions?tag=&cursor=&limit=` | 公开问题列表 | 公开 |
+| GET | `/api/v1/questions/{id}` | 问题详情 + 回答列表 | 公开（私密仅作者/运营） |
+| POST | `/api/v1/questions/{id}/answers` | 回答（自动发布/转人工） | HR |
+| GET | `/api/v1/hr/question-pool` | HR 未答问题池 | HR |
+| POST | `/api/v1/interactions` | 点赞/收藏/有用 | 登录 |
+
 ## 认证（dev）
 
 dev 环境短信验证码固定为 `123456`，不发送真实短信（`careerq.sms.dev-mode=true`）。

@@ -86,6 +86,7 @@
 - ⚠️ 路径不一致待确认：`MEMORY.md` 速查表「工作区」写 `D:\CareerQ`，本会话实际为 `E:\CareerQ`。
 - 2026-11-14 脱离比赛：Qoder Sites 强制取消，改自建部署；技术方案升 **v0.5 实施版**，新建 `docs/实施计划-职问桥.md`（M0—M6）。环境实测：**Java 11 不满足 Spring Boot 3（需 JDK 21）**，Maven/Node 可用，Docker 与 PostgreSQL 未装。下一步 M0。
 - 2026-11-14 ⚠️ 同机并发事故：另一会话中途切换分支并把未提交 M2 改动收进 `wip/m2-auth`；已 ff 合并回 `ds/private-qna-flow`。教训：动手前确认分支 + 建锁，提交前再确认分支。
+- 2026-11-14 M3 完成：公开问答核心（提问/列表/详情/回答/标签/互动/HR 问题池），`mvn test` 8/8 通过；手机号/HR 角色、CSRF、403 处理均已验证。下一步 M4 私密工单。
 - 2026-11-14 M2 完成：短信验证码（dev 固定 123456）+ 会话登录/登出 + `/api/v1/me` + 401/403 JSON；`mvn test` 5/5 通过；真实 HTTP 冒烟通过。下一步 M3 公开问答。
 - 2026-11-14 M0/M1 完成：JDK 21（Temurin 21.0.13）已装且 JAVA_HOME 已设；数据库定 **MySQL 8**（dev 用 H2 MySQL 模式）；`backend/` 骨架建成，`mvn test` 通过，Flyway V1 全量表迁移成功。下一步 M2 鉴权。
 

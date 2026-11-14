@@ -6,7 +6,8 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: validate
+      # schema 以 Flyway 迁移为准（H2/MySQL 的 TEXT 等类型差异不参与 Hibernate 校验）
+      ddl-auto: none
   flyway:
     enabled: true
     locations: classpath:db/migration
