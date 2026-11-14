@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 
 @Service
-public class AnswerService {
+public class AnswerService implements com.careerq.service.AnswerService {
 
     private static final String PUBLISHED = "published";
 

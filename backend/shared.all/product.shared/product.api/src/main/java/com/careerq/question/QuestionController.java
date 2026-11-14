@@ -1,5 +1,7 @@
 package com.careerq.question;
 
+import com.careerq.service.QuestionService;
+
 import com.careerq.common.ApiResponse;
 import com.careerq.common.PageResult;
 import com.careerq.question.QuestionDtos.CreateRequest;

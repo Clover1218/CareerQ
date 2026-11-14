@@ -1,6 +1,7 @@
 package com.careerq.interaction;
 
 import com.careerq.answer.Answer;
+import com.careerq.service.InteractionService.Request;
 import com.careerq.answer.AnswerRepository;
 import com.careerq.common.BusinessException;
 import com.careerq.common.ErrorCode;
@@ -15,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Set;
 
 @Service
-public class InteractionService {
+public class InteractionService implements com.careerq.service.InteractionService {
 
     private static final Set<String> TARGET_TYPES = Set.of("answer", "question", "post");
     private static final Set<String> TYPES = Set.of("like", "favorite", "useful");
@@ -32,8 +33,6 @@ public class InteractionService {
         this.questionRepository = questionRepository;
     }
 
-    public record Request(@NotBlank String targetType, @NotNull Long targetId, @NotBlank String type) {
-    }
 
     @Transactional
     public void interact(AuthUser user, Request request) {

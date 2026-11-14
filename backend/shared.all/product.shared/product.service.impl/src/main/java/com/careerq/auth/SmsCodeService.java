@@ -16,7 +16,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * dev 模式下使用固定验证码（不发送真实短信），prod 模式生成随机码并预留供应商接入点。
  */
 @Service
-public class SmsCodeService {
+public class SmsCodeService implements com.careerq.service.SmsCodeService {
 
     private static final Logger log = LoggerFactory.getLogger(SmsCodeService.class);
     private static final Duration TTL = Duration.ofMinutes(5);

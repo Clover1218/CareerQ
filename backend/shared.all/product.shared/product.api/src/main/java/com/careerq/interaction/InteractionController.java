@@ -1,5 +1,7 @@
 package com.careerq.interaction;
 
+import com.careerq.service.InteractionService;
+
 import com.careerq.common.ApiResponse;
 import com.careerq.security.AuthUsers;
 import jakarta.validation.Valid;

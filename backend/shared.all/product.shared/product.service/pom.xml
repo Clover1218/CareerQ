@@ -12,7 +12,7 @@
 
     <artifactId>product.service</artifactId>
     <name>product.service</name>
-    <description>服务层对外契约：DTO、通用响应、登录主体（接口层）</description>
+    <description>服务层契约：Service 接口、DTO、通用响应、登录主体、领域模型</description>
 
     <dependencies>
         <dependency>
@@ -31,10 +31,10 @@
             <groupId>jakarta.validation</groupId>
             <artifactId>jakarta.validation-api</artifactId>
         </dependency>
-        <!-- GlobalExceptionHandler 的日志 -->
         <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
 </project>

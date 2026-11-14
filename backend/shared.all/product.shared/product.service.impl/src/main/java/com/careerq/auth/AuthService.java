@@ -28,7 +28,7 @@ import java.util.HexFormat;
  * 登录/登出/当前用户。手机号只存 SHA-256 哈希（MVP 不落明文）。
  */
 @Service
-public class AuthService {
+public class AuthService implements com.careerq.service.AuthService {
 
     private final UserRepository userRepository;
     private final SmsCodeService smsCodeService;

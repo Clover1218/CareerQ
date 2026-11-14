@@ -1,9 +1,11 @@
 package com.careerq.hr;
 
+import com.careerq.service.QuestionService;
+
 import com.careerq.common.ApiResponse;
 import com.careerq.common.PageResult;
 import com.careerq.question.QuestionDtos.QuestionView;
-import com.careerq.question.QuestionService;
+
 import com.careerq.security.AuthUsers;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;

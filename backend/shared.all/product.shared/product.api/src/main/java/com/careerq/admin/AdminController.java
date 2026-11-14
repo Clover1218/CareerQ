@@ -1,12 +1,13 @@
 package com.careerq.admin;
 
-import com.careerq.admin.AdminService.DecideRequest;
-import com.careerq.admin.AdminService.HandleReportRequest;
-import com.careerq.admin.AdminService.QueueItem;
-import com.careerq.admin.AdminService.WordRequest;
+import com.careerq.service.AdminService.DecideRequest;
+import com.careerq.service.AdminService.HandleReportRequest;
+import com.careerq.service.AdminService.QueueItem;
+import com.careerq.service.AdminService.WordRequest;
 import com.careerq.common.ApiResponse;
-import com.careerq.moderation.ModerationWord;
-import com.careerq.report.Report;
+import com.careerq.service.AdminService.WordView;
+import com.careerq.service.AdminService.ReportView;
+import com.careerq.service.AdminService;
 import com.careerq.security.AuthUsers;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -48,17 +49,17 @@ public class AdminController {
     }
 
     @GetMapping("/moderation/words")
-    public ApiResponse<List<ModerationWord>> words() {
+    public ApiResponse<List<WordView>> words() {
         return ApiResponse.ok(adminService.words());
     }
 
     @PostMapping("/moderation/words")
-    public ApiResponse<ModerationWord> upsertWord(@Valid @RequestBody WordRequest request) {
+    public ApiResponse<WordView> upsertWord(@Valid @RequestBody WordRequest request) {
         return ApiResponse.ok(adminService.upsertWord(request));
     }
 
     @GetMapping("/reports")
-    public ApiResponse<List<Report>> reports(@RequestParam(required = false) String status) {
+    public ApiResponse<List<ReportView>> reports(@RequestParam(required = false) String status) {
         return ApiResponse.ok(adminService.reports(status));
     }
 

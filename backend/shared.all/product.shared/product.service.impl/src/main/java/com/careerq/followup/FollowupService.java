@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
-public class FollowupService {
+public class FollowupService implements com.careerq.service.FollowupService {
 
     private static final String PUBLISHED = "published";
 

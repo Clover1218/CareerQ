@@ -1,5 +1,9 @@
 package com.careerq.auth;
 
+import com.careerq.service.SmsCodeService;
+
+import com.careerq.service.AuthService;
+
 import com.careerq.auth.AuthDtos.LoginRequest;
 import com.careerq.auth.AuthDtos.LoginResult;
 import com.careerq.auth.AuthDtos.SmsCodeRequest;

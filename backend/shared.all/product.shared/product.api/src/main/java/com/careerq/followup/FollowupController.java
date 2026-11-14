@@ -1,5 +1,7 @@
 package com.careerq.followup;
 
+import com.careerq.service.FollowupService;
+
 import com.careerq.common.ApiResponse;
 import com.careerq.followup.FollowupDtos.CreateRequest;
 import com.careerq.followup.FollowupDtos.FollowupView;

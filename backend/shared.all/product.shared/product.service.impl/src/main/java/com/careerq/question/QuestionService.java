@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.Set;
 
 @Service
-public class QuestionService {
+public class QuestionService implements com.careerq.service.QuestionService {
 
     private static final String PUBLIC = "public";
     private static final String PRIVATE = "private";

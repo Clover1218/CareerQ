@@ -6,9 +6,9 @@
 backend/（聚合 pom）
 └── shared.all/
     └── product.shared/
-        ├── product.service/       服务层契约：DTO、通用响应、登录主体
-        ├── product.service.impl/  业务实现：实体、仓储、服务
-        └── product.api/           Web 层与可执行应用：Controller、配置、资源、测试
+        ├── product.service/       服务层契约：Service 接口、DTO、通用响应、登录主体
+        ├── product.service.impl/  服务实现 + 可执行应用：实体、仓储、实现、启动类、配置、资源、测试
+        └── product.api/           API 层：Controller、请求参数、API 异常处理
 ```
 
 构建命令统一走聚合 pom：`mvn -f backend/pom.xml test`。
@@ -27,7 +27,7 @@ backend/（聚合 pom）
 ```bash
 # 在仓库根目录
 mvn -f backend/pom.xml install -DskipTests
-mvn -f backend/pom.xml -pl shared.all/product.shared/product.api spring-boot:run
+mvn -f backend/pom.xml -pl shared.all/product.shared/product.service.impl spring-boot:run
 ```
 
 启动后：
@@ -59,7 +59,7 @@ mvn -f backend/pom.xml test
 
 ```bash
 mvn -f backend/pom.xml install -DskipTests
-mvn -f backend/pom.xml -pl shared.all/product.shared/product.api spring-boot:run -Dspring-boot.run.profiles=prod
+mvn -f backend/pom.xml -pl shared.all/product.shared/product.service.impl spring-boot:run -Dspring-boot.run.profiles=prod
 ```
 
 ## 数据库迁移
@@ -106,7 +106,7 @@ mvn -f backend/pom.xml -pl shared.all/product.shared/product.api spring-boot:run
 # Windows PowerShell
 $env:SPRING_PROFILES_ACTIVE = "dev,demo"
 mvn -f backend/pom.xml install -DskipTests
-mvn -f backend/pom.xml -pl shared.all/product.shared/product.api spring-boot:run
+mvn -f backend/pom.xml -pl shared.all/product.shared/product.service.impl spring-boot:run
 ```
 
 演示账号（dev 验证码固定 `123456`）：学生 `13800000001`、HR `13800000002`、运营 `13800000003`。

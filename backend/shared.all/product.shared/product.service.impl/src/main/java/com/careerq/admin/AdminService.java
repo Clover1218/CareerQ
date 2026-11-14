@@ -13,6 +13,11 @@ import com.careerq.question.Question;
 import com.careerq.question.QuestionRepository;
 import com.careerq.report.Report;
 import com.careerq.report.ReportRepository;
+import com.careerq.service.AdminService.HandleReportRequest;
+import com.careerq.service.AdminService.QueueItem;
+import com.careerq.service.AdminService.ReportView;
+import com.careerq.service.AdminService.WordRequest;
+import com.careerq.service.AdminService.WordView;
 import com.careerq.security.AuthUser;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.stereotype.Service;
@@ -27,7 +32,7 @@ import java.util.Map;
 import java.util.Set;
 
 @Service
-public class AdminService {
+public class AdminService implements com.careerq.service.AdminService {
 
     private static final String PENDING_HUMAN = "pending_human";
     private static final Set<String> DECISIONS = Set.of("approve", "reject", "remove");
@@ -53,18 +58,6 @@ public class AdminService {
         this.moderationService = moderationService;
     }
 
-    public record QueueItem(String targetType, Long targetId, String title, String snippet,
-                            String status, LocalDateTime createdAt) {
-    }
-
-    public record DecideRequest(@NotBlank String decision, String note) {
-    }
-
-    public record HandleReportRequest(@NotBlank String decision, String note) {
-    }
-
-    public record WordRequest(@NotBlank String word, String category, String action) {
-    }
 
     @Transactional(readOnly = true)
     public List<QueueItem> queue() {
@@ -124,8 +117,10 @@ public class AdminService {
     }
 
     @Transactional(readOnly = true)
-    public List<Report> reports(String status) {
-        return reportRepository.findByStatusOrderByIdAsc(status == null || status.isBlank() ? "pending" : status);
+    @Override
+    public List<ReportView> reports(String status) {
+        return reportRepository.findByStatusOrderByIdAsc(status == null || status.isBlank() ? "pending" : status)
+                .stream().map(this::toReportView).toList();
     }
 
     @Transactional
@@ -167,18 +162,20 @@ public class AdminService {
     }
 
     @Transactional(readOnly = true)
-    public List<ModerationWord> words() {
-        return wordRepository.findAll();
+    @Override
+    public List<WordView> words() {
+        return wordRepository.findAll().stream().map(this::toWordView).toList();
     }
 
     @Transactional
-    public ModerationWord upsertWord(WordRequest request) {
+    @Override
+    public WordView upsertWord(WordRequest request) {
         String word = request.word().trim();
         ModerationWord item = wordRepository.findByWord(word).orElseGet(ModerationWord::new);
         item.setWord(word);
         item.setCategory(request.category() == null ? "custom" : request.category());
         item.setAction("block".equals(request.action()) ? "block" : "review");
-        return wordRepository.save(item);
+        return toWordView(wordRepository.save(item));
     }
 
     @Transactional(readOnly = true)
@@ -192,6 +189,16 @@ public class AdminService {
         result.put("publicPostsPublished", publicPostRepository.countByStatus("published"));
         result.put("reportsPending", reportRepository.countByStatus("pending"));
         return result;
+    }
+
+    private ReportView toReportView(Report report) {
+        return new ReportView(report.getId(), report.getReporterId(), report.getTargetType(), report.getTargetId(),
+                report.getReason(), report.getDetail(), report.getStatus(),
+                report.getHandledBy(), report.getHandledAt(), report.getCreatedAt());
+    }
+
+    private WordView toWordView(ModerationWord word) {
+        return new WordView(word.getId(), word.getWord(), word.getCategory(), word.getAction(), word.getUpdatedAt());
     }
 
     private String snippet(String text) {
