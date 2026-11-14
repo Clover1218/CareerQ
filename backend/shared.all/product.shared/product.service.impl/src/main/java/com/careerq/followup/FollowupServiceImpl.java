@@ -1,33 +1,35 @@
 package com.careerq.followup;
 
-import com.careerq.dao.FollowupDao;
-import com.careerq.dataobject.FollowupDO;
 import com.careerq.common.BusinessException;
+import com.careerq.common.ErrorCode;
+import com.careerq.dao.FollowupDao;
+import com.careerq.dao.QuestionDao;
+import com.careerq.dataobject.FollowupDO;
+import com.careerq.dataobject.QuestionDO;
 import com.careerq.followup.FollowupDtos.CreateRequest;
 import com.careerq.followup.FollowupDtos.FollowupView;
-import com.careerq.common.ErrorCode;
-import com.careerq.dataobject.QuestionDO;
-import com.careerq.dao.QuestionDao;
 import com.careerq.security.AuthUser;
+import com.careerq.service.FollowupService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 @Service
-public class FollowupService implements com.careerq.service.FollowupService {
+public class FollowupServiceImpl implements FollowupService {
 
     private static final String PUBLISHED = "published";
 
     private final FollowupDao followupDao;
     private final QuestionDao questionDao;
 
-    public FollowupService(FollowupDao followupDao, QuestionDao questionDao) {
+    public FollowupServiceImpl(FollowupDao followupDao, QuestionDao questionDao) {
         this.followupDao = followupDao;
         this.questionDao = questionDao;
     }
 
 
+    @Override
     @Transactional
     public FollowupView create(AuthUser sender, Long questionId, CreateRequest request) {
         QuestionDO question = questionDao.findById(questionId)
@@ -45,6 +47,7 @@ public class FollowupService implements com.careerq.service.FollowupService {
         return toView(followup);
     }
 
+    @Override
     @Transactional(readOnly = true)
     public List<FollowupView> list(AuthUser current, Long questionId) {
         QuestionDO question = questionDao.findById(questionId)

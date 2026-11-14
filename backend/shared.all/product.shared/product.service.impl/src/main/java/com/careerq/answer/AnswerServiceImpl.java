@@ -1,22 +1,23 @@
 package com.careerq.answer;
 
-import com.careerq.dao.AnswerDao;
-import com.careerq.dataobject.AnswerDO;
 import com.careerq.answer.AnswerDtos.AnswerView;
 import com.careerq.answer.AnswerDtos.CreateRequest;
 import com.careerq.common.BusinessException;
 import com.careerq.common.ErrorCode;
 import com.careerq.common.UserBrief;
-import com.careerq.moderation.ModerationService;
-import com.careerq.dataobject.QuestionDO;
+import com.careerq.dao.AnswerDao;
 import com.careerq.dao.QuestionDao;
-import com.careerq.security.AuthUser;
 import com.careerq.dao.UserDao;
+import com.careerq.dataobject.AnswerDO;
+import com.careerq.dataobject.QuestionDO;
+import com.careerq.security.AuthUser;
+import com.careerq.service.AnswerService;
+import com.careerq.service.ModerationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-public class AnswerService implements com.careerq.service.AnswerService {
+public class AnswerServiceImpl implements AnswerService {
 
     private static final String PUBLISHED = "published";
 
@@ -25,16 +26,17 @@ public class AnswerService implements com.careerq.service.AnswerService {
     private final UserDao userDao;
     private final ModerationService moderationService;
 
-    public AnswerService(AnswerDao answerDao,
-                         QuestionDao questionDao,
-                         UserDao userDao,
-                         ModerationService moderationService) {
+    public AnswerServiceImpl(AnswerDao answerDao,
+                             QuestionDao questionDao,
+                             UserDao userDao,
+                             ModerationService moderationService) {
         this.answerDao = answerDao;
         this.questionDao = questionDao;
         this.userDao = userDao;
         this.moderationService = moderationService;
     }
 
+    @Override
     @Transactional
     public AnswerView create(AuthUser hr, Long questionId, CreateRequest request) {
         QuestionDO question = questionDao.findByIdForUpdate(questionId)

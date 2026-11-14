@@ -1,13 +1,14 @@
 package com.careerq.interaction;
 
-import com.careerq.dao.InteractionDao;
-import com.careerq.dataobject.InteractionDO;
-import com.careerq.service.InteractionService.Request;
-import com.careerq.dao.AnswerDao;
 import com.careerq.common.BusinessException;
 import com.careerq.common.ErrorCode;
+import com.careerq.dao.AnswerDao;
+import com.careerq.dao.InteractionDao;
 import com.careerq.dao.QuestionDao;
+import com.careerq.dataobject.InteractionDO;
 import com.careerq.security.AuthUser;
+import com.careerq.service.InteractionService;
+import com.careerq.service.InteractionService.Request;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Set;
 
 @Service
-public class InteractionService implements com.careerq.service.InteractionService {
+public class InteractionServiceImpl implements InteractionService {
 
     private static final Set<String> TARGET_TYPES = Set.of("answer", "question", "post");
     private static final Set<String> TYPES = Set.of("like", "favorite", "useful");
@@ -24,15 +25,16 @@ public class InteractionService implements com.careerq.service.InteractionServic
     private final AnswerDao answerDao;
     private final QuestionDao questionDao;
 
-    public InteractionService(InteractionDao interactionDao,
-                              AnswerDao answerDao,
-                              QuestionDao questionDao) {
+    public InteractionServiceImpl(InteractionDao interactionDao,
+                                  AnswerDao answerDao,
+                                  QuestionDao questionDao) {
         this.interactionDao = interactionDao;
         this.answerDao = answerDao;
         this.questionDao = questionDao;
     }
 
 
+    @Override
     @Transactional
     public void interact(AuthUser user, Request request) {
         String targetType = request.targetType().trim().toLowerCase();

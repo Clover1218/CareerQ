@@ -1,24 +1,25 @@
 package com.careerq.admin;
 
-import com.careerq.dataobject.AnswerDO;
-import com.careerq.dao.AnswerDao;
 import com.careerq.common.BusinessException;
 import com.careerq.common.ErrorCode;
-import com.careerq.moderation.ModerationService;
-import com.careerq.dataobject.ModerationWordDO;
+import com.careerq.dao.AnswerDao;
 import com.careerq.dao.ModerationWordDao;
-import com.careerq.dataobject.PublicPostDO;
 import com.careerq.dao.PublicPostDao;
-import com.careerq.dataobject.QuestionDO;
 import com.careerq.dao.QuestionDao;
-import com.careerq.dataobject.ReportDO;
 import com.careerq.dao.ReportDao;
+import com.careerq.dataobject.AnswerDO;
+import com.careerq.dataobject.ModerationWordDO;
+import com.careerq.dataobject.PublicPostDO;
+import com.careerq.dataobject.QuestionDO;
+import com.careerq.dataobject.ReportDO;
+import com.careerq.security.AuthUser;
+import com.careerq.service.AdminService;
 import com.careerq.service.AdminService.HandleReportRequest;
 import com.careerq.service.AdminService.QueueItem;
 import com.careerq.service.AdminService.ReportView;
 import com.careerq.service.AdminService.WordRequest;
 import com.careerq.service.AdminService.WordView;
-import com.careerq.security.AuthUser;
+import com.careerq.service.ModerationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,7 +32,7 @@ import java.util.Map;
 import java.util.Set;
 
 @Service
-public class AdminService implements com.careerq.service.AdminService {
+public class AdminServiceImpl implements AdminService {
 
     private static final String PENDING_HUMAN = "pending_human";
     private static final Set<String> DECISIONS = Set.of("approve", "reject", "remove");
@@ -43,12 +44,12 @@ public class AdminService implements com.careerq.service.AdminService {
     private final ModerationWordDao wordDao;
     private final ModerationService moderationService;
 
-    public AdminService(QuestionDao questionDao,
-                        AnswerDao answerDao,
-                        PublicPostDao publicPostDao,
-                        ReportDao reportDao,
-                        ModerationWordDao wordDao,
-                        ModerationService moderationService) {
+    public AdminServiceImpl(QuestionDao questionDao,
+                            AnswerDao answerDao,
+                            PublicPostDao publicPostDao,
+                            ReportDao reportDao,
+                            ModerationWordDao wordDao,
+                            ModerationService moderationService) {
         this.questionDao = questionDao;
         this.answerDao = answerDao;
         this.publicPostDao = publicPostDao;
@@ -58,6 +59,7 @@ public class AdminService implements com.careerq.service.AdminService {
     }
 
 
+    @Override
     @Transactional(readOnly = true)
     public List<QueueItem> queue() {
         List<QueueItem> items = new ArrayList<>();
@@ -77,6 +79,7 @@ public class AdminService implements com.careerq.service.AdminService {
         return items;
     }
 
+    @Override
     @Transactional
     public void decide(AuthUser operator, String targetType, Long targetId, String decision, String note) {
         String normalized = decision.trim().toLowerCase();
@@ -100,13 +103,14 @@ public class AdminService implements com.careerq.service.AdminService {
         moderationService.recordHuman(targetType, targetId, normalized, operator.getId(), note);
     }
 
-    @Transactional(readOnly = true)
     @Override
+    @Transactional(readOnly = true)
     public List<ReportView> reports(String status) {
         return reportDao.findByStatusOrderByIdAsc(status == null || status.isBlank() ? "pending" : status)
                 .stream().map(this::toReportView).toList();
     }
 
+    @Override
     @Transactional
     public void handleReport(AuthUser operator, Long reportId, String decision, String note) {
         ReportDO report = reportDao.findByIdForUpdate(reportId)
@@ -136,14 +140,14 @@ public class AdminService implements com.careerq.service.AdminService {
         };
     }
 
-    @Transactional(readOnly = true)
     @Override
+    @Transactional(readOnly = true)
     public List<WordView> words() {
         return wordDao.findAll().stream().map(this::toWordView).toList();
     }
 
-    @Transactional
     @Override
+    @Transactional
     public WordView upsertWord(WordRequest request) {
         String word = request.word().trim();
         String category = request.category() == null ? "custom" : request.category();
@@ -152,6 +156,7 @@ public class AdminService implements com.careerq.service.AdminService {
         return toWordView(wordDao.findByWord(word));
     }
 
+    @Override
     @Transactional(readOnly = true)
     public Map<String, Object> metrics() {
         Map<String, Object> result = new LinkedHashMap<>();

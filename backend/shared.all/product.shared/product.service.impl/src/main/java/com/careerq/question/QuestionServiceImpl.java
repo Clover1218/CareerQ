@@ -1,26 +1,27 @@
 package com.careerq.question;
 
-import com.careerq.dao.QuestionDao;
-import com.careerq.dataobject.QuestionDO;
-import com.careerq.dataobject.AnswerDO;
 import com.careerq.answer.AnswerDtos.AnswerView;
-import com.careerq.dao.AnswerDao;
 import com.careerq.common.BusinessException;
 import com.careerq.common.ErrorCode;
 import com.careerq.common.PageResult;
 import com.careerq.common.UserBrief;
-import com.careerq.followup.FollowupService;
-import com.careerq.followup.FollowupDtos.FollowupView;
-import com.careerq.moderation.ModerationService;
-import com.careerq.dataobject.PublicPostDO;
+import com.careerq.dao.AnswerDao;
 import com.careerq.dao.PublicPostDao;
+import com.careerq.dao.QuestionDao;
+import com.careerq.dao.TagDao;
+import com.careerq.dao.UserDao;
+import com.careerq.dataobject.AnswerDO;
+import com.careerq.dataobject.PublicPostDO;
+import com.careerq.dataobject.QuestionDO;
+import com.careerq.dataobject.TagDO;
+import com.careerq.followup.FollowupDtos.FollowupView;
 import com.careerq.question.QuestionDtos.CreateRequest;
 import com.careerq.question.QuestionDtos.QuestionDetail;
 import com.careerq.question.QuestionDtos.QuestionView;
 import com.careerq.security.AuthUser;
-import com.careerq.dataobject.TagDO;
-import com.careerq.dao.TagDao;
-import com.careerq.dao.UserDao;
+import com.careerq.service.FollowupService;
+import com.careerq.service.ModerationService;
+import com.careerq.service.QuestionService;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,7 +32,7 @@ import java.util.List;
 import java.util.Set;
 
 @Service
-public class QuestionService implements com.careerq.service.QuestionService {
+public class QuestionServiceImpl implements QuestionService {
 
     private static final String PUBLIC = "public";
     private static final String PRIVATE = "private";
@@ -50,13 +51,13 @@ public class QuestionService implements com.careerq.service.QuestionService {
     private final FollowupService followupService;
     private final PublicPostDao publicPostDao;
 
-    public QuestionService(QuestionDao questionDao,
-                           AnswerDao answerDao,
-                           TagDao tagDao,
-                           UserDao userDao,
-                           ModerationService moderationService,
-                           FollowupService followupService,
-                           PublicPostDao publicPostDao) {
+    public QuestionServiceImpl(QuestionDao questionDao,
+                               AnswerDao answerDao,
+                               TagDao tagDao,
+                               UserDao userDao,
+                               ModerationService moderationService,
+                               FollowupService followupService,
+                               PublicPostDao publicPostDao) {
         this.questionDao = questionDao;
         this.answerDao = answerDao;
         this.tagDao = tagDao;
@@ -66,6 +67,7 @@ public class QuestionService implements com.careerq.service.QuestionService {
         this.publicPostDao = publicPostDao;
     }
 
+    @Override
     @Transactional
     public QuestionView create(AuthUser author, CreateRequest request) {
         String scope = normalizeScope(request.scope());
@@ -85,12 +87,14 @@ public class QuestionService implements com.careerq.service.QuestionService {
         return toView(question, false);
     }
 
+    @Override
     @Transactional(readOnly = true)
     public PageResult<QuestionView> list(String tag, Long cursor, int limit) {
         String tagFilter = tag == null || tag.isBlank() ? null : tag;
         return listPage(PUBLIC, PUBLISHED, tagFilter, false, cursor, limit);
     }
 
+    @Override
     @Transactional(readOnly = true)
     public QuestionDetail detail(AuthUser current, Long id) {
         QuestionDO question = questionDao.findById(id)
@@ -117,17 +121,20 @@ public class QuestionService implements com.careerq.service.QuestionService {
         return new QuestionDetail(toView(question, maskAuthor), answers, followups);
     }
 
+    @Override
     @Transactional(readOnly = true)
     public PageResult<QuestionView> hrQuestionPool(Long cursor, int limit) {
         return listPage(PUBLIC, PUBLISHED, null, true, cursor, limit);
     }
 
     /** HR 私密待认领池：只返回 open 状态的私密问题，作者信息匿名化。 */
+    @Override
     @Transactional(readOnly = true)
     public PageResult<QuestionView> hrPrivatePool(Long cursor, int limit) {
         return listPage(PRIVATE, OPEN, null, false, cursor, limit);
     }
 
+    @Override
     @Transactional
     public QuestionView claim(AuthUser hr, Long id) {
         QuestionDO question = requireOwnedPrivate(id);
@@ -140,6 +147,7 @@ public class QuestionService implements com.careerq.service.QuestionService {
         return toView(question, true);
     }
 
+    @Override
     @Transactional
     public QuestionView close(AuthUser author, Long id) {
         QuestionDO question = requireOwnedPrivate(id);
@@ -159,6 +167,7 @@ public class QuestionService implements com.careerq.service.QuestionService {
     }
 
     /** 关闭后的私密问答脱敏公开：生成待审核的 public_post。 */
+    @Override
     @Transactional
     public QuestionView publish(AuthUser author, Long id) {
         QuestionDO question = requireOwnedPrivate(id);

@@ -1,5 +1,6 @@
 package com.careerq.auth;
 
+import com.careerq.service.SmsCodeService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,22 +17,23 @@ import java.util.concurrent.ThreadLocalRandom;
  * dev 模式下使用固定验证码（不发送真实短信），prod 模式生成随机码并预留供应商接入点。
  */
 @Service
-public class SmsCodeService implements com.careerq.service.SmsCodeService {
+public class SmsCodeServiceImpl implements SmsCodeService {
 
-    private static final Logger log = LoggerFactory.getLogger(SmsCodeService.class);
+    private static final Logger log = LoggerFactory.getLogger(SmsCodeServiceImpl.class);
     private static final Duration TTL = Duration.ofMinutes(5);
 
     private final boolean devMode;
     private final String devCode;
     private final Map<String, CodeEntry> codes = new ConcurrentHashMap<>();
 
-    public SmsCodeService(
+    public SmsCodeServiceImpl(
             @Value("${careerq.sms.dev-mode:true}") boolean devMode,
             @Value("${careerq.sms.dev-code:123456}") String devCode) {
         this.devMode = devMode;
         this.devCode = devCode;
     }
 
+    @Override
     public void send(String phone) {
         if (devMode) {
             log.info("[dev] 短信验证码 for {} = {}（固定码，不发送真实短信）", phone, devCode);
@@ -43,6 +45,7 @@ public class SmsCodeService implements com.careerq.service.SmsCodeService {
         log.info("已生成短信验证码 for {}（供应商未接入，仅记录）", phone);
     }
 
+    @Override
     public boolean verify(String phone, String code) {
         if (devMode) {
             return devCode.equals(code);

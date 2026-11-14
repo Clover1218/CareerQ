@@ -5,11 +5,13 @@ import com.careerq.auth.AuthDtos.LoginResult;
 import com.careerq.auth.AuthDtos.UserView;
 import com.careerq.common.BusinessException;
 import com.careerq.common.ErrorCode;
-import com.careerq.security.AuthUser;
-import com.careerq.dataobject.UserDO;
 import com.careerq.dao.UserDao;
+import com.careerq.dataobject.UserDO;
+import com.careerq.security.AuthUser;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import com.careerq.service.AuthService;
+import com.careerq.service.SmsCodeService;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
@@ -28,16 +30,17 @@ import java.util.HexFormat;
  * 登录/登出/当前用户。手机号只存 SHA-256 哈希（MVP 不落明文）。
  */
 @Service
-public class AuthService implements com.careerq.service.AuthService {
+public class AuthServiceImpl implements AuthService {
 
     private final UserDao userDao;
     private final SmsCodeService smsCodeService;
 
-    public AuthService(UserDao userDao, SmsCodeService smsCodeService) {
+    public AuthServiceImpl(UserDao userDao, SmsCodeService smsCodeService) {
         this.userDao = userDao;
         this.smsCodeService = smsCodeService;
     }
 
+    @Override
     @Transactional
     public LoginResult login(LoginRequest request, HttpServletRequest httpRequest) {
         if (!smsCodeService.verify(request.phone(), request.code())) {
@@ -61,6 +64,7 @@ public class AuthService implements com.careerq.service.AuthService {
         return new LoginResult(toView(user));
     }
 
+    @Override
     public void logout(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
         if (session != null) {
@@ -69,12 +73,13 @@ public class AuthService implements com.careerq.service.AuthService {
         SecurityContextHolder.clearContext();
     }
 
+    @Override
     public UserView me(Authentication authentication) {
         if (authentication == null || !(authentication.getPrincipal() instanceof AuthUser principal)) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
         return userDao.findById(principal.getId())
-                .map(AuthService::toView)
+                .map(AuthServiceImpl::toView)
                 .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
     }
 

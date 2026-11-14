@@ -1,7 +1,7 @@
 package com.careerq.security;
 
-import com.careerq.dataobject.UserDO;
 import com.careerq.dao.UserDao;
+import com.careerq.dataobject.UserDO;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -12,11 +12,11 @@ import org.springframework.stereotype.Service;
  * 由于本项目登录走「手机验证码 + 会话」，该实现主要用于框架装配与后续扩展。
  */
 @Service
-public class CareerQUserDetailsService implements UserDetailsService {
+public class CareerQUserDetailsServiceImpl implements UserDetailsService {
 
     private final UserDao userDao;
 
-    public CareerQUserDetailsService(UserDao userDao) {
+    public CareerQUserDetailsServiceImpl(UserDao userDao) {
         this.userDao = userDao;
     }
 
