@@ -6,12 +6,24 @@
 backend/（聚合 pom）
 └── shared.all/
     └── product.shared/
+        ├── product.do/            数据对象 DO：与表一一对应的纯 POJO
+        ├── product.dao/           数据访问 DAO：MyBatis Mapper（SSM）
         ├── product.service/       服务层契约：Service 接口、DTO、通用响应、登录主体
         ├── product.service.impl/  服务实现 + 可执行应用：实体、仓储、实现、启动类、配置、资源、测试
         └── product.api/           API 层：Controller、请求参数、API 异常处理
 ```
 
 构建命令统一走聚合 pom：`mvn -f backend/pom.xml test`。
+
+## 持久层：SSM（MyBatis）
+
+- **DO**：`product.do`，包 `com.careerq.dataobject`（`do` 是 Java 关键字，故包名用 dataobject），纯 POJO。
+- **DAO**：`product.dao`，包 `com.careerq.dao`，MyBatis `@Mapper` 注解 SQL。
+- 连接：复用 Spring Boot 数据源配置（dev=H2 MySQL 兼容模式，prod=MySQL 8），`mybatis.configuration.map-underscore-to-camel-case=true`。
+- 启动类 `@MapperScan("com.careerq.dao")`。
+- 当前已完成结构 + `UserDao`（CRUD/计数）并接入测试；其余 JPA Repository 仍在，后续按模块逐个迁移到 DAO。
+
+## 构建命令
 
 职问桥项目的后端服务。接口契约见 [`../docs/接口契约-职问桥.md`](../docs/接口契约-职问桥.md)，方案见 [`../docs/技术方案-职问桥.md`](../docs/技术方案-职问桥.md)。
 

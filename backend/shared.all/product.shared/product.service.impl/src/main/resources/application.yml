@@ -38,6 +38,12 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
+# SSM：MyBatis 连接 MySQL（dev 为 H2 MySQL 兼容模式）
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+    jdbc-type-for-null: "NULL"
+
 careerq:
   sms:
     # dev：固定验证码，不发送真实短信；prod 需改 false 并接入供应商
