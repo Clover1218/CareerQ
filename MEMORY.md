@@ -11,7 +11,8 @@
 | 对外名称 | **职问桥**　Slogan：让好问题遇见对的人，让经验公开沉淀 |
 | 定位 | 面向大学生与 HR 的公开、异步、结构化职业问答信息库，不做私聊社交 |
 | 策划书 | `docs/项目策划书-职问桥.md`（项目单一事实来源，改动须在提交正文说明） |
-| 技术方案 | `docs/技术方案-职问桥.md`（**v0.5 实施版**，Spring Boot + 自建部署） |
+| 后端结构 | 多模块 Maven：`backend`（聚合）→ `shared.all` → `product.shared` → `product.service.api`（契约/DTO/通用响应）+ `product.service.impl`（实体/仓储/服务）+ `product.api`（Controller/配置/资源/测试/可执行） |
+| 构建命令 | `mvn -f backend/pom.xml test`；打包 `mvn -f backend/pom.xml package -DskipTests`，jar 在 `product.api/target/` || 技术方案 | `docs/技术方案-职问桥.md`（**v0.5 实施版**，Spring Boot + 自建部署） |
 | 接口契约 | `docs/接口契约-职问桥.md`（前后端联调唯一依据，v1.1） |
 | 实施计划 | `docs/实施计划-职问桥.md`（M0—M6 里程碑，进行中） |
 | 开发平台 | **自建部署**：前端静态（Nginx/CDN）+ Spring Boot + MySQL 8；Qoder Sites 不再强制 |
@@ -93,6 +94,7 @@
 - ⚠️ 路径不一致待确认：`MEMORY.md` 速查表「工作区」写 `D:\CareerQ`，本会话实际为 `E:\CareerQ`。
 - 2026-11-14 脱离比赛：Qoder Sites 强制取消，改自建部署；技术方案升 **v0.5 实施版**，新建 `docs/实施计划-职问桥.md`（M0—M6）。环境实测：**Java 11 不满足 Spring Boot 3（需 JDK 21）**，Maven/Node 可用，Docker 与 PostgreSQL 未装。下一步 M0。
 - 2026-11-14 ⚠️ 同机并发事故：另一会话中途切换分支并把未提交 M2 改动收进 `wip/m2-auth`；已 ff 合并回 `ds/private-qna-flow`。教训：动手前确认分支 + 建锁，提交前再确认分支。
+- 2026-11-14 按用户模块结构重构 backend：拆为 `product.service.api` / `product.service.impl` / `product.api` 三模块（Maven 聚合），Java 21；`mvn test` 16/16、冒烟 14 项通过。模块名按用户更正为 `product.service.impl`。
 - 2026-11-14 联调资产：新增 `docs/前端联调指南-职问桥.md` 与 `docs/openapi.json`（25 个 path）、`scripts/export-openapi.ps1`；接口契约与实现对齐（幂等键、错误体）。Vue3 前端代码仍未入库，联调未开始。
 - 2026-11-14 M6 完成：CORS、demo 种子数据、部署说明（`docs/部署说明-职问桥.md`）、全链路冒烟脚本（14 项断言通过）。M0–M6 全部完成，待前端实际联调。
 - 2026-11-14 M5 完成：审核与举报（词库/机审/人审队列/审核留痕/举报处理/公开帖审核展示/指标计数），`mvn test` 16/16 通过。下一步 M6 联调与部署。

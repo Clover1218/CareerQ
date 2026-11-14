@@ -1,5 +1,18 @@
 # CareerQ 后端（Spring Boot）
 
+## 模块结构（多模块 Maven）
+
+```text
+backend/（聚合 pom）
+└── shared.all/
+    └── product.shared/
+        ├── product.service.api/   服务层契约：DTO、通用响应、登录主体
+        ├── product.service.impl/  业务实现：实体、仓储、服务
+        └── product.api/           Web 层与可执行应用：Controller、配置、资源、测试
+```
+
+构建命令统一走聚合 pom：`mvn -f backend/pom.xml test`。
+
 职问桥项目的后端服务。接口契约见 [`../docs/接口契约-职问桥.md`](../docs/接口契约-职问桥.md)，方案见 [`../docs/技术方案-职问桥.md`](../docs/技术方案-职问桥.md)。
 
 ## 环境要求
@@ -13,7 +26,8 @@
 
 ```bash
 # 在仓库根目录
-mvn -f backend/pom.xml spring-boot:run
+mvn -f backend/pom.xml install -DskipTests
+mvn -f backend/pom.xml -pl shared.all/product.shared/product.api spring-boot:run
 ```
 
 启动后：
@@ -44,7 +58,8 @@ mvn -f backend/pom.xml test
 | `DB_PASSWORD` | 数据库密码 |
 
 ```bash
-mvn -f backend/pom.xml spring-boot:run -Dspring-boot.run.profiles=prod
+mvn -f backend/pom.xml install -DskipTests
+mvn -f backend/pom.xml -pl shared.all/product.shared/product.api spring-boot:run -Dspring-boot.run.profiles=prod
 ```
 
 ## 数据库迁移
@@ -90,7 +105,8 @@ mvn -f backend/pom.xml spring-boot:run -Dspring-boot.run.profiles=prod
 ```bash
 # Windows PowerShell
 $env:SPRING_PROFILES_ACTIVE = "dev,demo"
-mvn -f backend/pom.xml spring-boot:run
+mvn -f backend/pom.xml install -DskipTests
+mvn -f backend/pom.xml -pl shared.all/product.shared/product.api spring-boot:run
 ```
 
 演示账号（dev 验证码固定 `123456`）：学生 `13800000001`、HR `13800000002`、运营 `13800000003`。

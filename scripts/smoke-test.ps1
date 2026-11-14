@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $root = Split-Path -Parent $PSScriptRoot
 $base = "http://localhost:$Port"
-$jar = Join-Path $root "backend\target\careerq-backend-0.1.0-SNAPSHOT.jar"
+$jar = (Get-ChildItem (Join-Path $root "backend") -Recurse -Filter "careerq-backend-0.1.0-SNAPSHOT.jar" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notmatch "\\classes\\" } | Select-Object -First 1).FullName
 $javaHome = $env:JAVA_HOME
 
 function Assert-True([bool]$condition, [string]$message) {
