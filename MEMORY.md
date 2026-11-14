@@ -14,7 +14,8 @@
 | 技术方案 | `docs/技术方案-职问桥.md`（**v0.4 Spring Boot 修订**，DeepSeek 协助，待评审） |
 | 接口契约 | `docs/接口契约-职问桥.md`（前后端联调唯一依据，v1 草案） |
 | 开发平台 | **Qoder Sites（比赛强制，承担范围待确认）**：可能仅托管前端静态资源；后端由 Spring Boot 独立部署 |
-| Web 技术栈 | 前端：响应式 Web（Vue3/TS 待确认）；后端：**Spring Boot 3 + Java 21 + PostgreSQL/MySQL + Flyway** |
+| Web 技术栈 | 前端：**Vue3 + TypeScript**（队友负责）；后端：**Spring Boot 3 + Java 21 + PostgreSQL/MySQL + Flyway**（用户负责） |
+| 鉴权 | **Cookie 会话 + CSRF Token**（2026-11-14 定） |
 | ⚠️ 分工 | **用户本人负责 Spring Boot 后端与前后端连接**；前端界面由队友负责；Qoder Sites 与 Spring Boot 的关系待确认 |
 | ✅ 已裁决 | 2026-11-14：采用**方案 C（公开提问 + 私密工单混合）**；Qoder Sites 强制。详见 `docs/流程v2评估-私密问答与公开沉淀.md` |
 | Web 技术栈 | 响应式 Web：Vue3 + TypeScript + Vite；FastAPI + PostgreSQL + Redis；Caddy/CDN |
@@ -80,6 +81,7 @@
 - 2026-11-14：用户提供流程 v2（**私密问答 → 可选公开沉淀**），与 v1「不做私聊、全部公开」直接冲突。DeepSeek 落档评估文档，给出 A/B/C 三方案。
 - 2026-11-14 用户裁决：采用**方案 C（公开提问 + 私密工单混合）**；**Qoder Sites 为比赛强制平台**。技术方案升级 **v0.3**（Qoder Sites 托管，FastAPI / PostgreSQL / Redis / Caddy 退出主线），策划书同步为混合形态。
 - 2026-11-14 后端栈修订：用户负责 **Spring Boot 后端与前后端连接**，前端界面由队友负责；技术方案升 **v0.4**（Sites 可能仅托管前端，后端 Spring Boot 独立部署），新增 `docs/接口契约-职问桥.md`。Qoder Sites 与 Spring Boot 的部署关系待确认。
+- 2026-11-14 前后端约定锁定：前端 **Vue3 + TypeScript**；鉴权 **Cookie 会话 + CSRF Token**；Qoder Sites 暂按「只托管前端静态资源」推进，后端 Spring Boot 独立部署。
 - ⚠️ 新阻塞：Qoder Sites **Free 套餐不含数据库与存储**，做 Agent App 须付费套餐；账号额度待确认。
 - ⚠️ 路径不一致待确认：`MEMORY.md` 速查表「工作区」写 `D:\CareerQ`，本会话实际为 `E:\CareerQ`。
 - 待确认：比赛截止时间、评审维度、是否需要真实可访问 Demo、云账号／已备案域名／HTTPS 证书／短信或邮件验证码服务，以及是否允许调用第三方大模型。
