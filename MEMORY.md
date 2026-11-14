@@ -85,6 +85,7 @@
 - 2026-11-14 前后端约定锁定：前端 **Vue3 + TypeScript**；鉴权 **Cookie 会话 + CSRF Token**；Qoder Sites 暂按「只托管前端静态资源」推进，后端 Spring Boot 独立部署。
 - ⚠️ 路径不一致待确认：`MEMORY.md` 速查表「工作区」写 `D:\CareerQ`，本会话实际为 `E:\CareerQ`。
 - 2026-11-14 脱离比赛：Qoder Sites 强制取消，改自建部署；技术方案升 **v0.5 实施版**，新建 `docs/实施计划-职问桥.md`（M0—M6）。环境实测：**Java 11 不满足 Spring Boot 3（需 JDK 21）**，Maven/Node 可用，Docker 与 PostgreSQL 未装。下一步 M0。
+- 2026-11-14 M2 完成：短信验证码（dev 固定 123456）+ 会话登录/登出 + `/api/v1/me` + 401/403 JSON；`mvn test` 5/5 通过；真实 HTTP 冒烟通过。下一步 M3 公开问答。
 - 2026-11-14 M0/M1 完成：JDK 21（Temurin 21.0.13）已装且 JAVA_HOME 已设；数据库定 **MySQL 8**（dev 用 H2 MySQL 模式）；`backend/` 骨架建成，`mvn test` 通过，Flyway V1 全量表迁移成功。下一步 M2 鉴权。
 
 ## 五、项目概要（职问桥）

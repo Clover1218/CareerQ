@@ -53,6 +53,26 @@ mvn -f backend/pom.xml spring-boot:run -Dspring-boot.run.profiles=prod
 - 约定：迁移脚本保持 MySQL 方言中立，确保 H2（MySQL 模式）与 MySQL 8 都能执行。
 - 已包含 `V1__init.sql`：用户、HR 资料、问题（公开/私密）、回答、追问、观点帖、标签、互动、举报、审核记录、词库、审计日志、公开沉淀表。
 
+## 认证（dev）
+
+dev 环境短信验证码固定为 `123456`，不发送真实短信（`careerq.sms.dev-mode=true`）。
+
+```bash
+# 1. 发送验证码（dev 下仅打日志）
+curl -X POST http://localhost:8080/api/v1/auth/sms-code \
+  -H "Content-Type: application/json" -d "{\"phone\":\"13800000000\"}"
+
+# 2. 登录（-c 保存会话 Cookie）
+curl -c cookies.txt -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" -d "{\"phone\":\"13800000000\",\"code\":\"123456\"}"
+
+# 3. 携带会话访问
+curl -b cookies.txt http://localhost:8080/api/v1/me
+
+# 4. 登出
+curl -b cookies.txt -X POST http://localhost:8080/api/v1/auth/logout
+```
+
 ## 目录结构
 
 ```text
