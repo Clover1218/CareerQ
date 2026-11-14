@@ -104,6 +104,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-test.ps1
 
 自动构建并启动后端（dev,demo，端口 18080），跑通「公开问答 → 审核 → 回答 → 互动 → 私密工单 → 脱敏公开 → 举报处理」并断言结果。
 
+## 前后端联调
+
+前端（Vue3）接入请见 [`../docs/前端联调指南-职问桥.md`](../docs/前端联调指南-职问桥.md)：
+登录三步（sms-code → login → csrf）、Cookie 会话、CSRF 头、Vite 代理、错误码与联调顺序。
+
+OpenAPI 契约：[`../docs/openapi.json`](../docs/openapi.json)（可用 `scripts/export-openapi.ps1` 重新导出）。
+
 ## 部署
 
 见 [`../docs/部署说明-职问桥.md`](../docs/部署说明-职问桥.md)（MySQL、环境变量、systemd、Caddy/Nginx 反向代理）。
