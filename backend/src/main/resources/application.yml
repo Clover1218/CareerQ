@@ -59,6 +59,11 @@ spring:
       enabled: true
       path: /h2-console
 
+careerq:
+  cors:
+    # 前端本地开发地址（Vite 默认 5173）；生产同域反代时留空即可
+    allowed-origins: http://localhost:5173,http://127.0.0.1:5173
+
 ---
 spring:
   config:

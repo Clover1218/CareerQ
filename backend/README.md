@@ -85,6 +85,29 @@ mvn -f backend/pom.xml spring-boot:run -Dspring-boot.run.profiles=prod
 | POST | `/api/v1/admin/reports/{id}/handle` | 处理举报（dismiss/remove） | OPERATOR/ADMIN |
 | GET | `/api/v1/admin/metrics` | 审核/举报计数 | OPERATOR/ADMIN |
 
+## 演示数据（demo profile）
+
+```bash
+# Windows PowerShell
+$env:SPRING_PROFILES_ACTIVE = "dev,demo"
+mvn -f backend/pom.xml spring-boot:run
+```
+
+演示账号（dev 验证码固定 `123456`）：学生 `13800000001`、HR `13800000002`、运营 `13800000003`。
+数据仅在库为空时写入，重复启动不会重复插入。
+
+## 冒烟测试
+
+```bash
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-test.ps1
+```
+
+自动构建并启动后端（dev,demo，端口 18080），跑通「公开问答 → 审核 → 回答 → 互动 → 私密工单 → 脱敏公开 → 举报处理」并断言结果。
+
+## 部署
+
+见 [`../docs/部署说明-职问桥.md`](../docs/部署说明-职问桥.md)（MySQL、环境变量、systemd、Caddy/Nginx 反向代理）。
+
 ## 认证（dev）
 
 dev 环境短信验证码固定为 `123456`，不发送真实短信（`careerq.sms.dev-mode=true`）。
