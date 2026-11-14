@@ -1,4 +1,4 @@
-package com.careerq.answer;
+package com.careerq.service.impl;
 
 import com.careerq.answer.AnswerDtos.AnswerView;
 import com.careerq.answer.AnswerDtos.CreateRequest;

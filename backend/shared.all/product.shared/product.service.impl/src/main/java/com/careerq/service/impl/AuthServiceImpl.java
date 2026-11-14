@@ -1,4 +1,4 @@
-package com.careerq.auth;
+package com.careerq.service.impl;
 
 import com.careerq.auth.AuthDtos.LoginRequest;
 import com.careerq.auth.AuthDtos.LoginResult;

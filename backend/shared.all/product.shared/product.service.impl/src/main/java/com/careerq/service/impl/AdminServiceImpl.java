@@ -1,4 +1,4 @@
-package com.careerq.admin;
+package com.careerq.service.impl;
 
 import com.careerq.common.BusinessException;
 import com.careerq.common.ErrorCode;

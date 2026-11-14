@@ -1,7 +1,8 @@
-package com.careerq.security;
+package com.careerq.service.impl;
 
 import com.careerq.dao.UserDao;
 import com.careerq.dataobject.UserDO;
+import com.careerq.security.AuthUser;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;

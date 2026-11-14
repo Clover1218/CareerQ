@@ -1,4 +1,4 @@
-package com.careerq.report;
+package com.careerq.service.impl;
 
 import com.careerq.dao.ReportDao;
 import com.careerq.dataobject.ReportDO;

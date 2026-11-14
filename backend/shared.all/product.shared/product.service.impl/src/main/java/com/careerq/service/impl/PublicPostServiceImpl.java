@@ -1,4 +1,4 @@
-package com.careerq.publicpost;
+package com.careerq.service.impl;
 
 import com.careerq.dao.PublicPostDao;
 import com.careerq.dataobject.PublicPostDO;

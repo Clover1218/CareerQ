@@ -1,4 +1,4 @@
-package com.careerq.question;
+package com.careerq.service.impl;
 
 import com.careerq.answer.AnswerDtos.AnswerView;
 import com.careerq.common.BusinessException;

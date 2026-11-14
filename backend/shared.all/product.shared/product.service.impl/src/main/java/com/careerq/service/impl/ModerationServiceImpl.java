@@ -1,4 +1,4 @@
-package com.careerq.moderation;
+package com.careerq.service.impl;
 
 import com.careerq.dao.ModerationRecordDao;
 import com.careerq.dao.ModerationWordDao;
