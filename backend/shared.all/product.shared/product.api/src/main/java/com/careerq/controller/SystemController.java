@@ -1,4 +1,4 @@
-package com.careerq.system;
+package com.careerq.controller;
 
 import com.careerq.common.ApiResponse;
 import org.springframework.web.bind.annotation.GetMapping;

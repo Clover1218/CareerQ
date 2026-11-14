@@ -1,4 +1,4 @@
-package com.careerq.admin;
+package com.careerq.controller;
 
 import com.careerq.service.AdminService.DecideRequest;
 import com.careerq.service.AdminService.HandleReportRequest;

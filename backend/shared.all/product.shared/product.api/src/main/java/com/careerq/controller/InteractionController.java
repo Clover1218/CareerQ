@@ -1,4 +1,4 @@
-package com.careerq.interaction;
+package com.careerq.controller;
 
 import com.careerq.service.InteractionService;
 

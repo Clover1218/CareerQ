@@ -1,14 +1,12 @@
-package com.careerq.auth;
-
-import com.careerq.service.SmsCodeService;
-
-import com.careerq.service.AuthService;
+package com.careerq.controller;
 
 import com.careerq.auth.AuthDtos.LoginRequest;
 import com.careerq.auth.AuthDtos.LoginResult;
 import com.careerq.auth.AuthDtos.SmsCodeRequest;
 import com.careerq.auth.AuthDtos.UserView;
 import com.careerq.common.ApiResponse;
+import com.careerq.service.AuthService;
+import com.careerq.service.SmsCodeService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;

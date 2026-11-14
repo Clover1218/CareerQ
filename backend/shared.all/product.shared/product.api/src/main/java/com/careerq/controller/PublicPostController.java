@@ -1,4 +1,4 @@
-package com.careerq.publicpost;
+package com.careerq.controller;
 
 import com.careerq.common.ApiResponse;
 import com.careerq.service.PublicPostService;

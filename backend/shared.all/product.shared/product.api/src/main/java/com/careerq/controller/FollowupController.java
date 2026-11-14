@@ -1,11 +1,10 @@
-package com.careerq.followup;
-
-import com.careerq.service.FollowupService;
+package com.careerq.controller;
 
 import com.careerq.common.ApiResponse;
 import com.careerq.followup.FollowupDtos.CreateRequest;
 import com.careerq.followup.FollowupDtos.FollowupView;
 import com.careerq.security.AuthUsers;
+import com.careerq.service.FollowupService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;

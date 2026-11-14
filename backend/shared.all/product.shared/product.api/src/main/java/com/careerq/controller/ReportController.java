@@ -1,4 +1,4 @@
-package com.careerq.report;
+package com.careerq.controller;
 
 import com.careerq.common.ApiResponse;
 import com.careerq.security.AuthUsers;

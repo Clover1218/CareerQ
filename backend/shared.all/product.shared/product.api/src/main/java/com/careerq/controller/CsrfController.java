@@ -1,4 +1,4 @@
-package com.careerq.auth;
+package com.careerq.controller;
 
 import com.careerq.common.ApiResponse;
 import org.springframework.security.web.csrf.CsrfToken;

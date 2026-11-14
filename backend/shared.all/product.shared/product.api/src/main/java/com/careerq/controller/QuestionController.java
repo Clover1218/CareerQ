@@ -1,4 +1,4 @@
-package com.careerq.question;
+package com.careerq.controller;
 
 import com.careerq.service.QuestionService;
 
