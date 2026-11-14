@@ -22,20 +22,4 @@ public class TagDO {
     public Long getId() {
         return id;
     }
-
-    public String getName() {
-        return name;
-    }
-
-    public String getSlug() {
-        return slug;
-    }
-
-    public String getCategory() {
-        return category;
-    }
-
-    public int getWeight() {
-        return weight;
-    }
 }

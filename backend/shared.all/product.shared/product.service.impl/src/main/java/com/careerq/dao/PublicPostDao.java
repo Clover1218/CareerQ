@@ -25,9 +25,6 @@ public interface PublicPostDao {
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(PublicPostDO publicPost);
 
-    @Select("select * from public_posts where id = #{id}")
-    Optional<PublicPostDO> findById(Long id);
-
     @Select("select * from public_posts where status = #{status} order by id")
     List<PublicPostDO> findByStatusOrderByIdAsc(String status);
 

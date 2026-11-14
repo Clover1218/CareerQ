@@ -82,10 +82,6 @@ public class QuestionDO {
         this.assignedHrId = assignedHrId;
     }
 
-    public LocalDateTime getClosedAt() {
-        return closedAt;
-    }
-
     public void setClosedAt(LocalDateTime closedAt) {
         this.closedAt = closedAt;
     }
@@ -94,31 +90,15 @@ public class QuestionDO {
         return firstAnswerAt;
     }
 
-    public void setFirstAnswerAt(LocalDateTime firstAnswerAt) {
-        this.firstAnswerAt = firstAnswerAt;
-    }
-
     public int getAnswerCount() {
         return answerCount;
-    }
-
-    public void setAnswerCount(int answerCount) {
-        this.answerCount = answerCount;
     }
 
     public int getUsefulCount() {
         return usefulCount;
     }
 
-    public void setUsefulCount(int usefulCount) {
-        this.usefulCount = usefulCount;
-    }
-
     public LocalDateTime getCreatedAt() {
         return createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
     }
 }

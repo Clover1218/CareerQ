@@ -23,11 +23,7 @@ public interface UserDao {
     int insert(UserDO user);
 
     @Select("select * from users where id = #{id}")
-    UserDO selectById(Long id);
-
-    default Optional<UserDO> findById(Long id) {
-        return Optional.ofNullable(selectById(id));
-    }
+    Optional<UserDO> findById(Long id);
 
     @Select("select * from users where phone_hash = #{phoneHash}")
     Optional<UserDO> findByPhoneHash(String phoneHash);

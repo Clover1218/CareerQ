@@ -25,28 +25,15 @@ public class ModerationWordDO {
         return word;
     }
 
-    public void setWord(String word) {
-        this.word = word;
-    }
-
     public String getCategory() {
         return category;
-    }
-
-    public void setCategory(String category) {
-        this.category = category;
     }
 
     public String getAction() {
         return action;
     }
 
-    public void setAction(String action) {
-        this.action = action;
-    }
-
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
     }
-
 }

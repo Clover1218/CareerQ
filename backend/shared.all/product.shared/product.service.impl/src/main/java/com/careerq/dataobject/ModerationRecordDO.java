@@ -27,75 +27,31 @@ public class ModerationRecordDO {
 
     private LocalDateTime createdAt = LocalDateTime.now();
 
-    public Long getId() {
-        return id;
-    }
-
-    public String getTargetType() {
-        return targetType;
-    }
-
     public void setTargetType(String targetType) {
         this.targetType = targetType;
-    }
-
-    public Long getTargetId() {
-        return targetId;
     }
 
     public void setTargetId(Long targetId) {
         this.targetId = targetId;
     }
 
-    public String getStage() {
-        return stage;
-    }
-
     public void setStage(String stage) {
         this.stage = stage;
-    }
-
-    public String getModelVersion() {
-        return modelVersion;
     }
 
     public void setModelVersion(String modelVersion) {
         this.modelVersion = modelVersion;
     }
 
-    public String getRiskLabels() {
-        return riskLabels;
-    }
-
-    public void setRiskLabels(String riskLabels) {
-        this.riskLabels = riskLabels;
-    }
-
-    public String getDecision() {
-        return decision;
-    }
-
     public void setDecision(String decision) {
         this.decision = decision;
-    }
-
-    public Long getOperatorId() {
-        return operatorId;
     }
 
     public void setOperatorId(Long operatorId) {
         this.operatorId = operatorId;
     }
 
-    public String getNote() {
-        return note;
-    }
-
     public void setNote(String note) {
         this.note = note;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
     }
 }

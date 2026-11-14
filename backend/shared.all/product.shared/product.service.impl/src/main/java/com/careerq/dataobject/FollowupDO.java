@@ -35,10 +35,6 @@ public class FollowupDO {
         this.questionId = questionId;
     }
 
-    public Long getSenderId() {
-        return senderId;
-    }
-
     public void setSenderId(Long senderId) {
         this.senderId = senderId;
     }
@@ -59,16 +55,8 @@ public class FollowupDO {
         this.body = body;
     }
 
-    public String getScope() {
-        return scope;
-    }
-
     public void setScope(String scope) {
         this.scope = scope;
-    }
-
-    public String getStatus() {
-        return status;
     }
 
     public void setStatus(String status) {

@@ -72,10 +72,6 @@ public class AnswerDO {
         return likeCount;
     }
 
-    public void setLikeCount(int likeCount) {
-        this.likeCount = likeCount;
-    }
-
     public int getUsefulCount() {
         return usefulCount;
     }
@@ -86,9 +82,5 @@ public class AnswerDO {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
     }
 }

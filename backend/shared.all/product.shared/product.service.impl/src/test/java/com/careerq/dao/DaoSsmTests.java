@@ -31,8 +31,7 @@ class DaoSsmTests {
         assertNotNull(user.getId(), "自增主键应回填");
         assertEquals(before + 1, userDao.count());
 
-        UserDO loaded = userDao.selectById(user.getId());
-        assertNotNull(loaded);
+        UserDO loaded = userDao.findById(user.getId()).orElseThrow();
         assertEquals("student", loaded.getRole());
         assertEquals("DAO 测试用户", loaded.getNickname());
         assertEquals("active", loaded.getStatus());
