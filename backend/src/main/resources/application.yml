@@ -34,6 +34,12 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
+careerq:
+  sms:
+    # dev：固定验证码，不发送真实短信；prod 需改 false 并接入供应商
+    dev-mode: true
+    dev-code: "123456"
+
 ---
 spring:
   config:
