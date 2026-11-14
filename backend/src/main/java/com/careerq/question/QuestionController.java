@@ -45,4 +45,14 @@ public class QuestionController {
     public ApiResponse<QuestionDetail> detail(Authentication authentication, @PathVariable Long id) {
         return ApiResponse.ok(questionService.detail(AuthUsers.optional(authentication), id));
     }
+
+    @PostMapping("/{id}/close")
+    public ApiResponse<QuestionView> close(Authentication authentication, @PathVariable Long id) {
+        return ApiResponse.ok(questionService.close(AuthUsers.require(authentication), id));
+    }
+
+    @PostMapping("/{id}/publish")
+    public ApiResponse<QuestionView> publish(Authentication authentication, @PathVariable Long id) {
+        return ApiResponse.ok(questionService.publish(AuthUsers.require(authentication), id));
+    }
 }

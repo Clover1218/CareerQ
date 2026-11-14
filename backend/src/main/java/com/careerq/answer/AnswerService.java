@@ -39,7 +39,12 @@ public class AnswerService {
     public AnswerView create(AuthUser hr, Long questionId, CreateRequest request) {
         Question question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
-        if (!PUBLISHED.equals(question.getStatus())) {
+        if ("private".equals(question.getScope())) {
+            boolean assignedToMe = hr.getId().equals(question.getAssignedHrId());
+            if (!assignedToMe || !"assigned".equals(question.getStatus())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "该私密问题未指派给你");
+            }
+        } else if (!PUBLISHED.equals(question.getStatus())) {
             throw new BusinessException(ErrorCode.CONFLICT, "问题当前不可回答");
         }
 

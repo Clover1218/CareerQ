@@ -70,7 +70,7 @@ class QuestionFlowTests {
                                 "tags", List.of("实习", "面试准备"),
                                 "scope", scope))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("published"))
+                .andExpect(jsonPath("$.data.status").value("private".equals(scope) ? "open" : "published"))
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString())
                 .path("data").path("id").asLong();

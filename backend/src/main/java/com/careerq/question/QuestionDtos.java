@@ -2,6 +2,7 @@ package com.careerq.question;
 
 import com.careerq.answer.AnswerDtos.AnswerView;
 import com.careerq.common.UserBrief;
+import com.careerq.followup.FollowupService.FollowupView;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -38,6 +39,6 @@ public final class QuestionDtos {
             LocalDateTime firstAnswerAt) {
     }
 
-    public record QuestionDetail(QuestionView question, List<AnswerView> answers) {
+    public record QuestionDetail(QuestionView question, List<AnswerView> answers, List<FollowupView> followups) {
     }
 }

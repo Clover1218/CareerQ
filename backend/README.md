@@ -68,6 +68,13 @@ mvn -f backend/pom.xml spring-boot:run -Dspring-boot.run.profiles=prod
 | GET | `/api/v1/hr/question-pool` | HR 未答问题池 | HR |
 | POST | `/api/v1/interactions` | 点赞/收藏/有用 | 登录 |
 
+| GET | `/api/v1/hr/private-pool` | HR 私密待认领池（作者匿名） | HR |
+| POST | `/api/v1/hr/questions/{id}/claim` | 认领私密问题 | HR |
+| POST | `/api/v1/questions/{id}/followups` | 追问（公开/私密） | 登录（私密需可见） |
+| GET | `/api/v1/questions/{id}/followups` | 追问列表 | 公开/可见者 |
+| POST | `/api/v1/questions/{id}/close` | 关闭私密问题 | 作者 |
+| POST | `/api/v1/questions/{id}/publish` | 申请脱敏公开 | 作者 |
+
 ## 认证（dev）
 
 dev 环境短信验证码固定为 `123456`，不发送真实短信（`careerq.sms.dev-mode=true`）。
