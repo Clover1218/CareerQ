@@ -79,6 +79,9 @@ public class QuestionService {
         question.setStatus(PRIVATE.equals(scope) && "published".equals(moderation) ? OPEN : moderation);
         question.setTags(resolveTags(request.tags()));
         questionRepository.save(question);
+        if (!"published".equals(moderation)) {
+            moderationService.recordMachine("question", question.getId(), moderation);
+        }
         return toView(question, false);
     }
 
@@ -206,6 +209,7 @@ public class QuestionService {
         post.setAnonymized(true);
         post.setStatus("pending_human");
         publicPostRepository.save(post);
+        moderationService.recordMachine("public_post", post.getId(), "pending_human");
 
         question.setStatus(PUBLIC_PENDING);
         questionRepository.save(question);

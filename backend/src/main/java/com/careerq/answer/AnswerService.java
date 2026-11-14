@@ -55,6 +55,9 @@ public class AnswerService {
         answer.setLengthType(normalizeLengthType(request.lengthType()));
         answer.setStatus(moderationService.decide(request.body()));
         answerRepository.save(answer);
+        if (!PUBLISHED.equals(answer.getStatus())) {
+            moderationService.recordMachine("answer", answer.getId(), answer.getStatus());
+        }
 
         if (PUBLISHED.equals(answer.getStatus())) {
             question.setAnswerCount(question.getAnswerCount() + 1);
