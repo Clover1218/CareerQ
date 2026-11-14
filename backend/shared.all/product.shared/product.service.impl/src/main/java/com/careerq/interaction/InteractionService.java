@@ -1,15 +1,14 @@
 package com.careerq.interaction;
 
-import com.careerq.answer.Answer;
+import com.careerq.dao.InteractionDao;
+import com.careerq.dataobject.InteractionDO;
 import com.careerq.service.InteractionService.Request;
-import com.careerq.answer.AnswerRepository;
+import com.careerq.dao.AnswerDao;
 import com.careerq.common.BusinessException;
 import com.careerq.common.ErrorCode;
-import com.careerq.question.Question;
-import com.careerq.question.QuestionRepository;
+import com.careerq.dao.QuestionDao;
 import com.careerq.security.AuthUser;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,16 +20,16 @@ public class InteractionService implements com.careerq.service.InteractionServic
     private static final Set<String> TARGET_TYPES = Set.of("answer", "question", "post");
     private static final Set<String> TYPES = Set.of("like", "favorite", "useful");
 
-    private final InteractionRepository interactionRepository;
-    private final AnswerRepository answerRepository;
-    private final QuestionRepository questionRepository;
+    private final InteractionDao interactionDao;
+    private final AnswerDao answerDao;
+    private final QuestionDao questionDao;
 
-    public InteractionService(InteractionRepository interactionRepository,
-                              AnswerRepository answerRepository,
-                              QuestionRepository questionRepository) {
-        this.interactionRepository = interactionRepository;
-        this.answerRepository = answerRepository;
-        this.questionRepository = questionRepository;
+    public InteractionService(InteractionDao interactionDao,
+                              AnswerDao answerDao,
+                              QuestionDao questionDao) {
+        this.interactionDao = interactionDao;
+        this.answerDao = answerDao;
+        this.questionDao = questionDao;
     }
 
 
@@ -44,32 +43,30 @@ public class InteractionService implements com.careerq.service.InteractionServic
         if (!TYPES.contains(type)) {
             throw new BusinessException(ErrorCode.INVALID_PARAM, "type 不合法");
         }
-        if (interactionRepository.existsByUserIdAndTargetTypeAndTargetIdAndType(
-                user.getId(), targetType, request.targetId(), type)) {
-            return;
-        }
-
-        Interaction interaction = new Interaction();
+        InteractionDO interaction = new InteractionDO();
         interaction.setUserId(user.getId());
         interaction.setTargetType(targetType);
         interaction.setTargetId(request.targetId());
         interaction.setType(type);
-        interactionRepository.save(interaction);
+        try {
+            interactionDao.insert(interaction);
+        } catch (DuplicateKeyException duplicate) {
+            return;
+        }
 
+        Long targetId = request.targetId();
         if ("answer".equals(targetType)) {
-            Answer answer = answerRepository.findById(request.targetId())
-                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "回答不存在"));
-            if ("like".equals(type)) {
-                answer.setLikeCount(answer.getLikeCount() + 1);
-            } else if ("useful".equals(type)) {
-                answer.setUsefulCount(answer.getUsefulCount() + 1);
+            boolean exists = switch (type) {
+                case "like" -> answerDao.incrementLike(targetId) > 0;
+                case "useful" -> answerDao.incrementUseful(targetId) > 0;
+                default -> answerDao.findById(targetId).isPresent();
+            };
+            if (!exists) {
+                throw new BusinessException(ErrorCode.NOT_FOUND, "回答不存在");
             }
-            answerRepository.save(answer);
-        } else if ("question".equals(targetType) && "useful".equals(type)) {
-            Question question = questionRepository.findById(request.targetId())
-                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
-            question.setUsefulCount(question.getUsefulCount() + 1);
-            questionRepository.save(question);
+        } else if ("question".equals(targetType) && "useful".equals(type)
+                && questionDao.incrementUseful(targetId) == 0) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "问题不存在");
         }
     }
 }

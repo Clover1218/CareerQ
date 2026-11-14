@@ -1,7 +1,7 @@
 package com.careerq.question;
 
-import com.careerq.user.User;
-import com.careerq.user.UserRepository;
+import com.careerq.dataobject.UserDO;
+import com.careerq.dao.UserDao;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,7 +32,7 @@ class QuestionFlowTests {
     private ObjectMapper objectMapper;
 
     @Autowired
-    private UserRepository userRepository;
+    private UserDao userDao;
 
     private MockHttpSession login(String phone) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
@@ -54,9 +54,9 @@ class QuestionFlowTests {
     private MockHttpSession loginAsHr(String phone) throws Exception {
         MockHttpSession session = login(phone);
         long userId = currentUserId(session);
-        User user = userRepository.findById(userId).orElseThrow();
+        UserDO user = userDao.findById(userId).orElseThrow();
         user.setRole("hr");
-        userRepository.save(user);
+        userDao.updateRole(user);
         return login(phone);
     }
 
@@ -111,14 +111,14 @@ class QuestionFlowTests {
                 .andExpect(jsonPath("$.data.question.firstAnswerAt").isNotEmpty())
                 .andExpect(jsonPath("$.data.answers.length()").value(1));
 
-        mockMvc.perform(post("/api/v1/interactions")
-                        .session(student).with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of(
-                                "targetType", "answer",
-                                "targetId", answerId,
-                                "type", "useful"))))
-                .andExpect(status().isOk());
+        String interaction = objectMapper.writeValueAsString(Map.of(
+                "targetType", "answer", "targetId", answerId, "type", "useful"));
+        for (int attempt = 0; attempt < 2; attempt++) {
+            mockMvc.perform(post("/api/v1/interactions")
+                            .session(student).with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON).content(interaction))
+                    .andExpect(status().isOk());
+        }
 
         mockMvc.perform(get("/api/v1/questions/{id}", questionId))
                 .andExpect(status().isOk())
@@ -126,6 +126,30 @@ class QuestionFlowTests {
 
         mockMvc.perform(get("/api/v1/hr/question-pool").session(hr))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void publicListFiltersByTagAcrossCursorPages() throws Exception {
+        MockHttpSession student = login("13800000105");
+        long older = createQuestion(student, "public");
+        long newer = createQuestion(student, "public");
+        createQuestion(student, "private");
+
+        mockMvc.perform(get("/api/v1/questions").param("tag", "实习").param("limit", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].id").value(newer))
+                .andExpect(jsonPath("$.data.nextCursor").value(newer));
+
+        mockMvc.perform(get("/api/v1/questions").param("tag", "实习").param("limit", "1")
+                        .param("cursor", Long.toString(newer)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].id").value(older));
+
+        mockMvc.perform(get("/api/v1/questions").param("tag", "不存在的标签"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(0))
+                .andExpect(jsonPath("$.data.nextCursor").doesNotExist());
     }
 
     @Test

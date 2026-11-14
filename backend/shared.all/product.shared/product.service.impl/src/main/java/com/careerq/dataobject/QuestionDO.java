@@ -1,86 +1,34 @@
-package com.careerq.question;
-
-import com.careerq.tag.Tag;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+package com.careerq.dataobject;
 
 import java.time.LocalDateTime;
-import java.util.LinkedHashSet;
-import java.util.Set;
 
-@Entity
-@Table(name = "questions")
-public class Question {
+public class QuestionDO {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, length = 16)
     private String scope;
 
-    @Column(name = "author_id", nullable = false)
     private Long authorId;
 
-    @Column(nullable = false, length = 200)
     private String title;
 
-    @Column(nullable = false)
     private String body;
 
-    @Column(nullable = false, length = 32)
     private String status;
 
-    @Column(name = "assigned_hr_id")
     private Long assignedHrId;
 
-    @Column(name = "closed_at")
     private LocalDateTime closedAt;
 
-    @Column(name = "first_answer_at")
     private LocalDateTime firstAnswerAt;
 
-    @Column(name = "answer_count", nullable = false)
     private int answerCount;
 
-    @Column(name = "useful_count", nullable = false)
     private int usefulCount;
 
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
+    private LocalDateTime createdAt = LocalDateTime.now();
 
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
-
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(name = "question_tags",
-            joinColumns = @JoinColumn(name = "question_id"),
-            inverseJoinColumns = @JoinColumn(name = "tag_id"))
-    private Set<Tag> tags = new LinkedHashSet<>();
-
-    @PrePersist
-    void prePersist() {
-        LocalDateTime now = LocalDateTime.now();
-        if (createdAt == null) {
-            createdAt = now;
-        }
-        updatedAt = now;
-    }
-
-    @PreUpdate
-    void preUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
+    private LocalDateTime updatedAt = LocalDateTime.now();
 
     public Long getId() {
         return id;
@@ -172,13 +120,5 @@ public class Question {
 
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
-    }
-
-    public Set<Tag> getTags() {
-        return tags;
-    }
-
-    public void setTags(Set<Tag> tags) {
-        this.tags = tags;
     }
 }

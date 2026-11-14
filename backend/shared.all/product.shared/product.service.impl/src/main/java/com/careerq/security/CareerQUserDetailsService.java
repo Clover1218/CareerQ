@@ -1,7 +1,7 @@
 package com.careerq.security;
 
-import com.careerq.user.User;
-import com.careerq.user.UserRepository;
+import com.careerq.dataobject.UserDO;
+import com.careerq.dao.UserDao;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -14,15 +14,15 @@ import org.springframework.stereotype.Service;
 @Service
 public class CareerQUserDetailsService implements UserDetailsService {
 
-    private final UserRepository userRepository;
+    private final UserDao userDao;
 
-    public CareerQUserDetailsService(UserRepository userRepository) {
-        this.userRepository = userRepository;
+    public CareerQUserDetailsService(UserDao userDao) {
+        this.userDao = userDao;
     }
 
     @Override
     public UserDetails loadUserByUsername(String phoneHash) throws UsernameNotFoundException {
-        User user = userRepository.findByPhoneHash(phoneHash)
+        UserDO user = userDao.findByPhoneHash(phoneHash)
                 .orElseThrow(() -> new UsernameNotFoundException("user not found"));
         return AuthUser.of(user.getId(), user.getRole(), user.getNickname(), user.getPhoneHash());
     }

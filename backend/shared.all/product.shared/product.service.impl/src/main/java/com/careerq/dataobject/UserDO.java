@@ -3,29 +3,39 @@ package com.careerq.dataobject;
 import java.time.LocalDateTime;
 
 /**
- * 用户表 DO（users）。
- * 纯数据对象：只做字段映射，不含业务逻辑。
+ * 用户（与 V1__init.sql 的 users 表对齐）。
+ * role: student / hr / operator / admin
  */
 public class UserDO {
 
     private Long id;
+
     private String role;
+
     private String phoneHash;
+
+    private String phoneEnc;
+
+    private LocalDateTime phoneVerifiedAt;
+
     private String nickname;
+
     private String school;
+
     private String major;
+
     private String grade;
+
     private String ageGroup;
+
     private String status;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+
+    private LocalDateTime createdAt = LocalDateTime.now();
+
+    private LocalDateTime updatedAt = LocalDateTime.now();
 
     public Long getId() {
         return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
     }
 
     public String getRole() {
@@ -42,6 +52,22 @@ public class UserDO {
 
     public void setPhoneHash(String phoneHash) {
         this.phoneHash = phoneHash;
+    }
+
+    public String getPhoneEnc() {
+        return phoneEnc;
+    }
+
+    public void setPhoneEnc(String phoneEnc) {
+        this.phoneEnc = phoneEnc;
+    }
+
+    public LocalDateTime getPhoneVerifiedAt() {
+        return phoneVerifiedAt;
+    }
+
+    public void setPhoneVerifiedAt(LocalDateTime phoneVerifiedAt) {
+        this.phoneVerifiedAt = phoneVerifiedAt;
     }
 
     public String getNickname() {
@@ -96,15 +122,7 @@ public class UserDO {
         return createdAt;
     }
 
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
     }
 }

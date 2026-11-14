@@ -6,10 +6,8 @@
 backend/（聚合 pom）
 └── shared.all/
     └── product.shared/
-        ├── product.do/            数据对象 DO：与表一一对应的纯 POJO
-        ├── product.dao/           数据访问 DAO：MyBatis Mapper（SSM）
         ├── product.service/       服务层契约：Service 接口、DTO、通用响应、登录主体
-        ├── product.service.impl/  服务实现 + 可执行应用：实体、仓储、实现、启动类、配置、资源、测试
+        ├── product.service.impl/  服务实现、DO、MyBatis DAO，以及可执行应用的启动类、配置和测试
         └── product.api/           API 层：Controller、请求参数、API 异常处理
 ```
 
@@ -17,11 +15,9 @@ backend/（聚合 pom）
 
 ## 持久层：SSM（MyBatis）
 
-- **DO**：`product.do`，包 `com.careerq.dataobject`（`do` 是 Java 关键字，故包名用 dataobject），纯 POJO。
-- **DAO**：`product.dao`，包 `com.careerq.dao`，MyBatis `@Mapper` 注解 SQL。
-- 连接：复用 Spring Boot 数据源配置（dev=H2 MySQL 兼容模式，prod=MySQL 8），`mybatis.configuration.map-underscore-to-camel-case=true`。
-- 启动类 `@MapperScan("com.careerq.dao")`。
-- 当前已完成结构 + `UserDao`（CRUD/计数）并接入测试；其余 JPA Repository 仍在，后续按模块逐个迁移到 DAO。
+- `product.service.impl` 内的 `com.careerq.dataobject` 保存数据对象，`com.careerq.dao` 保存 MyBatis Mapper。启动类用 `@MapperScan("com.careerq.dao")` 注册 Mapper。
+- Service 使用 Spring 的 `@Transactional` 管理业务事务。MyBatis 使用 Spring Boot 提供的数据源，本地为 H2 MySQL 兼容模式，生产为 MySQL 8。
+- Flyway 管理数据库表结构。问题与标签的关系通过原有的 `question_tags` 表读写。
 
 ## 构建命令
 

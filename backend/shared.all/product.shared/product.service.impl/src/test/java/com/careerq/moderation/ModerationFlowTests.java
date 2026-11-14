@@ -1,7 +1,7 @@
 package com.careerq.moderation;
 
-import com.careerq.user.User;
-import com.careerq.user.UserRepository;
+import com.careerq.dataobject.UserDO;
+import com.careerq.dao.UserDao;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -36,7 +36,7 @@ class ModerationFlowTests {
     private ObjectMapper objectMapper;
 
     @Autowired
-    private UserRepository userRepository;
+    private UserDao userDao;
 
     private MockHttpSession login(String phone) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
@@ -55,9 +55,9 @@ class ModerationFlowTests {
     private MockHttpSession loginAs(String phone, String role) throws Exception {
         MockHttpSession session = login(phone);
         long id = userId(session);
-        User user = userRepository.findById(id).orElseThrow();
+        UserDO user = userDao.findById(id).orElseThrow();
         user.setRole(role);
-        userRepository.save(user);
+        userDao.updateRole(user);
         return login(phone);
     }
 

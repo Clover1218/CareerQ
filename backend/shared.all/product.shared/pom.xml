@@ -14,8 +14,6 @@
     <packaging>pom</packaging>
 
     <modules>
-        <module>product.do</module>
-        <module>product.dao</module>
         <module>product.service</module>
         <module>product.service.impl</module>
         <module>product.api</module>

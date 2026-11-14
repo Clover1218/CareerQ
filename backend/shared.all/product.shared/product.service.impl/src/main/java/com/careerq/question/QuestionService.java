@@ -1,8 +1,10 @@
 package com.careerq.question;
 
-import com.careerq.answer.Answer;
+import com.careerq.dao.QuestionDao;
+import com.careerq.dataobject.QuestionDO;
+import com.careerq.dataobject.AnswerDO;
 import com.careerq.answer.AnswerDtos.AnswerView;
-import com.careerq.answer.AnswerRepository;
+import com.careerq.dao.AnswerDao;
 import com.careerq.common.BusinessException;
 import com.careerq.common.ErrorCode;
 import com.careerq.common.PageResult;
@@ -10,18 +12,16 @@ import com.careerq.common.UserBrief;
 import com.careerq.followup.FollowupService;
 import com.careerq.followup.FollowupDtos.FollowupView;
 import com.careerq.moderation.ModerationService;
-import com.careerq.publicpost.PublicPost;
-import com.careerq.publicpost.PublicPostRepository;
+import com.careerq.dataobject.PublicPostDO;
+import com.careerq.dao.PublicPostDao;
 import com.careerq.question.QuestionDtos.CreateRequest;
 import com.careerq.question.QuestionDtos.QuestionDetail;
 import com.careerq.question.QuestionDtos.QuestionView;
 import com.careerq.security.AuthUser;
-import com.careerq.tag.Tag;
-import com.careerq.tag.TagRepository;
-import com.careerq.user.UserRepository;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Slice;
+import com.careerq.dataobject.TagDO;
+import com.careerq.dao.TagDao;
+import com.careerq.dao.UserDao;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,28 +42,28 @@ public class QuestionService implements com.careerq.service.QuestionService {
     private static final String PUBLIC_PENDING = "public_pending";
     private static final String ANONYMOUS_NICKNAME = "匿名同学";
 
-    private final QuestionRepository questionRepository;
-    private final AnswerRepository answerRepository;
-    private final TagRepository tagRepository;
-    private final UserRepository userRepository;
+    private final QuestionDao questionDao;
+    private final AnswerDao answerDao;
+    private final TagDao tagDao;
+    private final UserDao userDao;
     private final ModerationService moderationService;
     private final FollowupService followupService;
-    private final PublicPostRepository publicPostRepository;
+    private final PublicPostDao publicPostDao;
 
-    public QuestionService(QuestionRepository questionRepository,
-                           AnswerRepository answerRepository,
-                           TagRepository tagRepository,
-                           UserRepository userRepository,
+    public QuestionService(QuestionDao questionDao,
+                           AnswerDao answerDao,
+                           TagDao tagDao,
+                           UserDao userDao,
                            ModerationService moderationService,
                            FollowupService followupService,
-                           PublicPostRepository publicPostRepository) {
-        this.questionRepository = questionRepository;
-        this.answerRepository = answerRepository;
-        this.tagRepository = tagRepository;
-        this.userRepository = userRepository;
+                           PublicPostDao publicPostDao) {
+        this.questionDao = questionDao;
+        this.answerDao = answerDao;
+        this.tagDao = tagDao;
+        this.userDao = userDao;
         this.moderationService = moderationService;
         this.followupService = followupService;
-        this.publicPostRepository = publicPostRepository;
+        this.publicPostDao = publicPostDao;
     }
 
     @Transactional
@@ -71,14 +71,14 @@ public class QuestionService implements com.careerq.service.QuestionService {
         String scope = normalizeScope(request.scope());
         String moderation = moderationService.decide(request.title() + "\n" + request.body());
 
-        Question question = new Question();
+        QuestionDO question = new QuestionDO();
         question.setScope(scope);
         question.setAuthorId(author.getId());
         question.setTitle(request.title().trim());
         question.setBody(request.body());
         question.setStatus(PRIVATE.equals(scope) && "published".equals(moderation) ? OPEN : moderation);
-        question.setTags(resolveTags(request.tags()));
-        questionRepository.save(question);
+        questionDao.insert(question);
+        linkTags(question.getId(), request.tags());
         if (!"published".equals(moderation)) {
             moderationService.recordMachine("question", question.getId(), moderation);
         }
@@ -87,24 +87,13 @@ public class QuestionService implements com.careerq.service.QuestionService {
 
     @Transactional(readOnly = true)
     public PageResult<QuestionView> list(String tag, Long cursor, int limit) {
-        int size = clamp(limit);
-        Pageable pageable = PageRequest.of(0, size);
-        Slice<Question> slice;
-        if (tag != null && !tag.isBlank()) {
-            slice = cursor == null
-                    ? questionRepository.findPublishedByTag(PUBLIC, PUBLISHED, tag, pageable)
-                    : questionRepository.findPublishedByTagBefore(PUBLIC, PUBLISHED, tag, cursor, pageable);
-        } else {
-            slice = cursor == null
-                    ? questionRepository.findByScopeAndStatusOrderByIdDesc(PUBLIC, PUBLISHED, pageable)
-                    : questionRepository.findByScopeAndStatusAndIdLessThanOrderByIdDesc(PUBLIC, PUBLISHED, cursor, pageable);
-        }
-        return pageOf(slice);
+        String tagFilter = tag == null || tag.isBlank() ? null : tag;
+        return listPage(PUBLIC, PUBLISHED, tagFilter, false, cursor, limit);
     }
 
     @Transactional(readOnly = true)
     public QuestionDetail detail(AuthUser current, Long id) {
-        Question question = questionRepository.findById(id)
+        QuestionDO question = questionDao.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
 
         boolean maskAuthor = false;
@@ -121,7 +110,7 @@ public class QuestionService implements com.careerq.service.QuestionService {
             throw new BusinessException(ErrorCode.NOT_FOUND, "问题不存在");
         }
 
-        List<AnswerView> answers = answerRepository
+        List<AnswerView> answers = answerDao
                 .findByQuestionIdAndStatusOrderByIdAsc(question.getId(), PUBLISHED)
                 .stream().map(this::toAnswerView).toList();
         List<FollowupView> followups = followupService.list(current, question.getId());
@@ -130,45 +119,30 @@ public class QuestionService implements com.careerq.service.QuestionService {
 
     @Transactional(readOnly = true)
     public PageResult<QuestionView> hrQuestionPool(Long cursor, int limit) {
-        Pageable pageable = PageRequest.of(0, clamp(limit));
-        Slice<Question> slice = cursor == null
-                ? questionRepository.findByScopeAndStatusAndAnswerCountOrderByIdDesc(PUBLIC, PUBLISHED, 0, pageable)
-                : questionRepository.findByScopeAndStatusAndAnswerCountAndIdLessThanOrderByIdDesc(
-                        PUBLIC, PUBLISHED, 0, cursor, pageable);
-        return pageOf(slice);
+        return listPage(PUBLIC, PUBLISHED, null, true, cursor, limit);
     }
 
     /** HR 私密待认领池：只返回 open 状态的私密问题，作者信息匿名化。 */
     @Transactional(readOnly = true)
     public PageResult<QuestionView> hrPrivatePool(Long cursor, int limit) {
-        Pageable pageable = PageRequest.of(0, clamp(limit));
-        Slice<Question> slice = cursor == null
-                ? questionRepository.findByScopeAndStatusOrderByIdDesc(PRIVATE, OPEN, pageable)
-                : questionRepository.findByScopeAndStatusAndIdLessThanOrderByIdDesc(PRIVATE, OPEN, cursor, pageable);
-        List<QuestionView> items = slice.getContent().stream()
-                .map(question -> toView(question, true))
-                .toList();
-        Long nextCursor = slice.hasNext() && !items.isEmpty()
-                ? slice.getContent().get(slice.getContent().size() - 1).getId()
-                : null;
-        return new PageResult<>(items, nextCursor);
+        return listPage(PRIVATE, OPEN, null, false, cursor, limit);
     }
 
     @Transactional
     public QuestionView claim(AuthUser hr, Long id) {
-        Question question = requireOwnedPrivate(id);
+        QuestionDO question = requireOwnedPrivate(id);
         if (!OPEN.equals(question.getStatus()) || question.getAssignedHrId() != null) {
             throw new BusinessException(ErrorCode.CONFLICT, "该问题已被认领或不可认领");
         }
         question.setAssignedHrId(hr.getId());
         question.setStatus(ASSIGNED);
-        questionRepository.save(question);
+        questionDao.updatePrivateState(question);
         return toView(question, true);
     }
 
     @Transactional
     public QuestionView close(AuthUser author, Long id) {
-        Question question = requireOwnedPrivate(id);
+        QuestionDO question = requireOwnedPrivate(id);
         if (!author.getId().equals(question.getAuthorId())) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "只有提问者可以关闭问题");
         }
@@ -180,44 +154,44 @@ public class QuestionService implements com.careerq.service.QuestionService {
         }
         question.setStatus(CLOSED);
         question.setClosedAt(LocalDateTime.now());
-        questionRepository.save(question);
+        questionDao.updatePrivateState(question);
         return toView(question, false);
     }
 
     /** 关闭后的私密问答脱敏公开：生成待审核的 public_post。 */
     @Transactional
     public QuestionView publish(AuthUser author, Long id) {
-        Question question = requireOwnedPrivate(id);
+        QuestionDO question = requireOwnedPrivate(id);
         if (!author.getId().equals(question.getAuthorId())) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "只有提问者可以申请公开");
         }
         if (!CLOSED.equals(question.getStatus())) {
             throw new BusinessException(ErrorCode.CONFLICT, "请先关闭问题再申请公开");
         }
-        List<Answer> answers = answerRepository
+        List<AnswerDO> answers = answerDao
                 .findByQuestionIdAndStatusOrderByIdAsc(question.getId(), PUBLISHED);
         if (answers.isEmpty()) {
             throw new BusinessException(ErrorCode.CONFLICT, "该问题还没有回答，无法公开");
         }
         String hrAnswer = answers.get(answers.size() - 1).getBody();
 
-        PublicPost post = new PublicPost();
+        PublicPostDO post = new PublicPostDO();
         post.setOriginalQuestionId(question.getId());
         post.setTitle(question.getTitle());
         post.setQuestionBody(question.getBody());
         post.setHrAnswer(hrAnswer);
         post.setAnonymized(true);
         post.setStatus("pending_human");
-        publicPostRepository.save(post);
+        publicPostDao.insert(post);
         moderationService.recordMachine("public_post", post.getId(), "pending_human");
 
         question.setStatus(PUBLIC_PENDING);
-        questionRepository.save(question);
+        questionDao.updatePrivateState(question);
         return toView(question, false);
     }
 
-    private Question requireOwnedPrivate(Long id) {
-        Question question = questionRepository.findById(id)
+    private QuestionDO requireOwnedPrivate(Long id) {
+        QuestionDO question = questionDao.findByIdForUpdate(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
         if (!PRIVATE.equals(question.getScope())) {
             throw new BusinessException(ErrorCode.CONFLICT, "该接口只适用于私密问题");
@@ -225,16 +199,15 @@ public class QuestionService implements com.careerq.service.QuestionService {
         return question;
     }
 
-    private PageResult<QuestionView> pageOf(Slice<Question> slice) {
-        List<QuestionView> items = slice.getContent().stream().map(question -> toView(question, false)).toList();
-        Long nextCursor = slice.hasNext() && !items.isEmpty()
-                ? slice.getContent().get(slice.getContent().size() - 1).getId()
-                : null;
-        return new PageResult<>(items, nextCursor);
-    }
-
-    private int clamp(int limit) {
-        return Math.min(Math.max(limit, 1), 50);
+    private PageResult<QuestionView> listPage(String scope, String status, String tag,
+                                              boolean unanswered, Long cursor, int limit) {
+        int size = Math.clamp(limit, 1, 50);
+        List<QuestionDO> rows = questionDao.list(scope, status, cursor, tag, unanswered, size + 1);
+        boolean hasNext = rows.size() > size;
+        boolean maskAuthor = PRIVATE.equals(scope);
+        List<QuestionView> items = rows.stream()
+                .limit(size).map(question -> toView(question, maskAuthor)).toList();
+        return new PageResult<>(items, hasNext ? rows.get(size - 1).getId() : null);
     }
 
     private String normalizeScope(String scope) {
@@ -248,31 +221,42 @@ public class QuestionService implements com.careerq.service.QuestionService {
         return value;
     }
 
-    private Set<Tag> resolveTags(List<String> names) {
-        Set<Tag> tags = new LinkedHashSet<>();
+    private void linkTags(Long questionId, List<String> names) {
         if (names == null) {
-            return tags;
+            return;
         }
+        Set<String> slugs = new LinkedHashSet<>();
         for (String raw : names) {
             if (raw == null || raw.isBlank()) {
                 continue;
             }
             String name = raw.trim();
             String slug = name.toLowerCase();
-            Tag tag = tagRepository.findBySlug(slug).orElseGet(() -> tagRepository.save(Tag.of(name, slug)));
-            tags.add(tag);
+            if (slugs.add(slug)) {
+                TagDO tag = tagDao.findBySlug(slug).orElseGet(() -> createTag(name, slug));
+                tagDao.linkToQuestion(questionId, tag.getId());
+            }
         }
-        return tags;
     }
 
-    private QuestionView toView(Question question, boolean maskAuthor) {
+    private TagDO createTag(String name, String slug) {
+        TagDO tag = TagDO.of(name, slug);
+        try {
+            tagDao.insert(tag);
+            return tag;
+        } catch (DuplicateKeyException conflict) {
+            return tagDao.findBySlugForUpdate(slug).orElseThrow(() -> conflict);
+        }
+    }
+
+    private QuestionView toView(QuestionDO question, boolean maskAuthor) {
         return new QuestionView(
                 question.getId(),
                 question.getScope(),
                 question.getStatus(),
                 question.getTitle(),
                 question.getBody(),
-                question.getTags().stream().map(Tag::getName).toList(),
+                tagDao.findNamesByQuestionId(question.getId()),
                 maskAuthor ? new UserBrief(question.getAuthorId(), ANONYMOUS_NICKNAME) : authorOf(question.getAuthorId()),
                 question.getCreatedAt(),
                 question.getAnswerCount(),
@@ -280,7 +264,7 @@ public class QuestionService implements com.careerq.service.QuestionService {
                 question.getFirstAnswerAt());
     }
 
-    private AnswerView toAnswerView(Answer answer) {
+    private AnswerView toAnswerView(AnswerDO answer) {
         return new AnswerView(
                 answer.getId(),
                 answer.getQuestionId(),
@@ -294,7 +278,7 @@ public class QuestionService implements com.careerq.service.QuestionService {
     }
 
     private UserBrief authorOf(Long userId) {
-        return userRepository.findById(userId)
+        return userDao.findById(userId)
                 .map(user -> new UserBrief(user.getId(), user.getNickname()))
                 .orElse(new UserBrief(userId, "用户"));
     }

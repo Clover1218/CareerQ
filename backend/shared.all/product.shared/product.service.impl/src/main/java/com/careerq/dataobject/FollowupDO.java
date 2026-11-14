@@ -1,53 +1,27 @@
-package com.careerq.followup;
-
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.Table;
+package com.careerq.dataobject;
 
 import java.time.LocalDateTime;
 
 /**
  * 追问：公开问题与私密工单共用，用 scope 区分可见范围。
  */
-@Entity
-@Table(name = "followups")
-public class Followup {
+public class FollowupDO {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "question_id", nullable = false)
     private Long questionId;
 
-    @Column(name = "sender_id", nullable = false)
     private Long senderId;
 
-    @Column(name = "sender_role", nullable = false, length = 16)
     private String senderRole;
 
-    @Column(nullable = false)
     private String body;
 
-    @Column(nullable = false, length = 16)
     private String scope;
 
-    @Column(nullable = false, length = 16)
     private String status;
 
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
-
-    @PrePersist
-    void prePersist() {
-        if (createdAt == null) {
-            createdAt = LocalDateTime.now();
-        }
-    }
+    private LocalDateTime createdAt = LocalDateTime.now();
 
     public Long getId() {
         return id;

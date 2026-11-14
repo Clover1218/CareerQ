@@ -1,43 +1,43 @@
 package com.careerq.answer;
 
+import com.careerq.dao.AnswerDao;
+import com.careerq.dataobject.AnswerDO;
 import com.careerq.answer.AnswerDtos.AnswerView;
 import com.careerq.answer.AnswerDtos.CreateRequest;
 import com.careerq.common.BusinessException;
 import com.careerq.common.ErrorCode;
 import com.careerq.common.UserBrief;
 import com.careerq.moderation.ModerationService;
-import com.careerq.question.Question;
-import com.careerq.question.QuestionRepository;
+import com.careerq.dataobject.QuestionDO;
+import com.careerq.dao.QuestionDao;
 import com.careerq.security.AuthUser;
-import com.careerq.user.UserRepository;
+import com.careerq.dao.UserDao;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDateTime;
 
 @Service
 public class AnswerService implements com.careerq.service.AnswerService {
 
     private static final String PUBLISHED = "published";
 
-    private final AnswerRepository answerRepository;
-    private final QuestionRepository questionRepository;
-    private final UserRepository userRepository;
+    private final AnswerDao answerDao;
+    private final QuestionDao questionDao;
+    private final UserDao userDao;
     private final ModerationService moderationService;
 
-    public AnswerService(AnswerRepository answerRepository,
-                         QuestionRepository questionRepository,
-                         UserRepository userRepository,
+    public AnswerService(AnswerDao answerDao,
+                         QuestionDao questionDao,
+                         UserDao userDao,
                          ModerationService moderationService) {
-        this.answerRepository = answerRepository;
-        this.questionRepository = questionRepository;
-        this.userRepository = userRepository;
+        this.answerDao = answerDao;
+        this.questionDao = questionDao;
+        this.userDao = userDao;
         this.moderationService = moderationService;
     }
 
     @Transactional
     public AnswerView create(AuthUser hr, Long questionId, CreateRequest request) {
-        Question question = questionRepository.findById(questionId)
+        QuestionDO question = questionDao.findByIdForUpdate(questionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
         if ("private".equals(question.getScope())) {
             boolean assignedToMe = hr.getId().equals(question.getAssignedHrId());
@@ -48,35 +48,31 @@ public class AnswerService implements com.careerq.service.AnswerService {
             throw new BusinessException(ErrorCode.CONFLICT, "问题当前不可回答");
         }
 
-        Answer answer = new Answer();
+        AnswerDO answer = new AnswerDO();
         answer.setQuestionId(questionId);
         answer.setAuthorId(hr.getId());
         answer.setBody(request.body());
         answer.setLengthType(normalizeLengthType(request.lengthType()));
         answer.setStatus(moderationService.decide(request.body()));
-        answerRepository.save(answer);
+        answerDao.insert(answer);
         if (!PUBLISHED.equals(answer.getStatus())) {
             moderationService.recordMachine("answer", answer.getId(), answer.getStatus());
         }
 
         if (PUBLISHED.equals(answer.getStatus())) {
-            question.setAnswerCount(question.getAnswerCount() + 1);
-            if (question.getFirstAnswerAt() == null) {
-                question.setFirstAnswerAt(LocalDateTime.now());
-            }
-            questionRepository.save(question);
+            questionDao.recordAnswer(questionId);
         }
         return toView(answer);
     }
 
-    public AnswerView toView(Answer answer) {
+    private AnswerView toView(AnswerDO answer) {
         return new AnswerView(
                 answer.getId(),
                 answer.getQuestionId(),
                 answer.getBody(),
                 answer.getLengthType(),
                 answer.getStatus(),
-                userRepository.findById(answer.getAuthorId())
+                userDao.findById(answer.getAuthorId())
                         .map(user -> new UserBrief(user.getId(), user.getNickname()))
                         .orElse(new UserBrief(answer.getAuthorId(), "HR")),
                 answer.getLikeCount(),

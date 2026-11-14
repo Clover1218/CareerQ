@@ -12,7 +12,7 @@
 
     <artifactId>product.service.impl</artifactId>
     <name>product.service.impl</name>
-    <description>服务实现与可执行应用：实体、仓储、Service 实现、启动类、配置、资源、测试</description>
+    <description>服务实现与可执行应用：数据对象、MyBatis DAO、Service 实现、启动类、配置、资源、测试</description>
 
     <dependencies>
         <!-- 可执行应用需要 API 层的 Controller 参与组件扫描 -->
@@ -24,12 +24,6 @@
         <dependency>
             <groupId>com.careerq</groupId>
             <artifactId>product.service</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <!-- SSM：MyBatis DAO + DO -->
-        <dependency>
-            <groupId>com.careerq</groupId>
-            <artifactId>product.dao</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
@@ -45,10 +39,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

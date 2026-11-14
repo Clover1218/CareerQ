@@ -1,18 +1,17 @@
 package com.careerq.followup;
 
+import com.careerq.dao.FollowupDao;
+import com.careerq.dataobject.FollowupDO;
 import com.careerq.common.BusinessException;
 import com.careerq.followup.FollowupDtos.CreateRequest;
 import com.careerq.followup.FollowupDtos.FollowupView;
 import com.careerq.common.ErrorCode;
-import com.careerq.question.Question;
-import com.careerq.question.QuestionRepository;
+import com.careerq.dataobject.QuestionDO;
+import com.careerq.dao.QuestionDao;
 import com.careerq.security.AuthUser;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -20,42 +19,42 @@ public class FollowupService implements com.careerq.service.FollowupService {
 
     private static final String PUBLISHED = "published";
 
-    private final FollowupRepository followupRepository;
-    private final QuestionRepository questionRepository;
+    private final FollowupDao followupDao;
+    private final QuestionDao questionDao;
 
-    public FollowupService(FollowupRepository followupRepository, QuestionRepository questionRepository) {
-        this.followupRepository = followupRepository;
-        this.questionRepository = questionRepository;
+    public FollowupService(FollowupDao followupDao, QuestionDao questionDao) {
+        this.followupDao = followupDao;
+        this.questionDao = questionDao;
     }
 
 
     @Transactional
     public FollowupView create(AuthUser sender, Long questionId, CreateRequest request) {
-        Question question = questionRepository.findById(questionId)
+        QuestionDO question = questionDao.findById(questionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
         requireVisible(sender, question);
 
-        Followup followup = new Followup();
+        FollowupDO followup = new FollowupDO();
         followup.setQuestionId(questionId);
         followup.setSenderId(sender.getId());
         followup.setSenderRole(sender.getRole());
         followup.setBody(request.body());
         followup.setScope(question.getScope());
         followup.setStatus(PUBLISHED);
-        followupRepository.save(followup);
+        followupDao.insert(followup);
         return toView(followup);
     }
 
     @Transactional(readOnly = true)
     public List<FollowupView> list(AuthUser current, Long questionId) {
-        Question question = questionRepository.findById(questionId)
+        QuestionDO question = questionDao.findById(questionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
         requireVisible(current, question);
-        return followupRepository.findByQuestionIdAndStatusOrderByIdAsc(questionId, PUBLISHED)
+        return followupDao.findByQuestionIdAndStatusOrderByIdAsc(questionId, PUBLISHED)
                 .stream().map(this::toView).toList();
     }
 
-    private void requireVisible(AuthUser current, Question question) {
+    private void requireVisible(AuthUser current, QuestionDO question) {
         if ("public".equals(question.getScope())) {
             // 公开问题的追问可匿名浏览；写入路径由控制器要求登录
             return;
@@ -71,7 +70,7 @@ public class FollowupService implements com.careerq.service.FollowupService {
         }
     }
 
-    private FollowupView toView(Followup followup) {
+    private FollowupView toView(FollowupDO followup) {
         return new FollowupView(
                 followup.getId(),
                 followup.getQuestionId(),

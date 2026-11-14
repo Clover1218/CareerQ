@@ -1,56 +1,28 @@
-package com.careerq.report;
-
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.Table;
+package com.careerq.dataobject;
 
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "reports")
-public class Report {
+public class ReportDO {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "reporter_id", nullable = false)
     private Long reporterId;
 
-    @Column(name = "target_type", nullable = false, length = 16)
     private String targetType;
 
-    @Column(name = "target_id", nullable = false)
     private Long targetId;
 
-    @Column(nullable = false, length = 32)
     private String reason;
 
-    @Column(length = 500)
     private String detail;
 
-    @Column(nullable = false, length = 16)
     private String status;
 
-    @Column(name = "handled_by")
     private Long handledBy;
 
-    @Column(name = "handled_at")
     private LocalDateTime handledAt;
 
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
-
-    @PrePersist
-    void prePersist() {
-        if (createdAt == null) {
-            createdAt = LocalDateTime.now();
-        }
-    }
+    private LocalDateTime createdAt = LocalDateTime.now();
 
     public Long getId() {
         return id;

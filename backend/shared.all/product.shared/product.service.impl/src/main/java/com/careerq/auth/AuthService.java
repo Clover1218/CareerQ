@@ -6,8 +6,8 @@ import com.careerq.auth.AuthDtos.UserView;
 import com.careerq.common.BusinessException;
 import com.careerq.common.ErrorCode;
 import com.careerq.security.AuthUser;
-import com.careerq.user.User;
-import com.careerq.user.UserRepository;
+import com.careerq.dataobject.UserDO;
+import com.careerq.dao.UserDao;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -30,11 +30,11 @@ import java.util.HexFormat;
 @Service
 public class AuthService implements com.careerq.service.AuthService {
 
-    private final UserRepository userRepository;
+    private final UserDao userDao;
     private final SmsCodeService smsCodeService;
 
-    public AuthService(UserRepository userRepository, SmsCodeService smsCodeService) {
-        this.userRepository = userRepository;
+    public AuthService(UserDao userDao, SmsCodeService smsCodeService) {
+        this.userDao = userDao;
         this.smsCodeService = smsCodeService;
     }
 
@@ -45,7 +45,7 @@ public class AuthService implements com.careerq.service.AuthService {
         }
 
         String phoneHash = sha256(request.phone());
-        User user = userRepository.findByPhoneHash(phoneHash)
+        UserDO user = userDao.findByPhoneHash(phoneHash)
                 .orElseGet(() -> registerStudent(request.phone(), phoneHash));
 
         AuthUser principal = AuthUser.of(user.getId(), user.getRole(), user.getNickname(), user.getPhoneHash());
@@ -73,22 +73,23 @@ public class AuthService implements com.careerq.service.AuthService {
         if (authentication == null || !(authentication.getPrincipal() instanceof AuthUser principal)) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
-        return userRepository.findById(principal.getId())
+        return userDao.findById(principal.getId())
                 .map(AuthService::toView)
                 .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
     }
 
-    private User registerStudent(String phone, String phoneHash) {
-        User user = new User();
+    private UserDO registerStudent(String phone, String phoneHash) {
+        UserDO user = new UserDO();
         user.setRole("student");
         user.setPhoneHash(phoneHash);
         user.setPhoneVerifiedAt(LocalDateTime.now());
         user.setNickname("用户" + phone.substring(phone.length() - 4));
         user.setStatus("active");
-        return userRepository.save(user);
+        userDao.insert(user);
+        return user;
     }
 
-    private static UserView toView(User user) {
+    private static UserView toView(UserDO user) {
         return new UserView(
                 user.getId(),
                 user.getRole(),

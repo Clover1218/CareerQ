@@ -1,9 +1,9 @@
 package com.careerq.privateflow;
 
-import com.careerq.publicpost.PublicPost;
-import com.careerq.publicpost.PublicPostRepository;
-import com.careerq.user.User;
-import com.careerq.user.UserRepository;
+import com.careerq.dataobject.PublicPostDO;
+import com.careerq.dao.PublicPostDao;
+import com.careerq.dataobject.UserDO;
+import com.careerq.dao.UserDao;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,10 +36,10 @@ class PrivateFlowTests {
     private ObjectMapper objectMapper;
 
     @Autowired
-    private UserRepository userRepository;
+    private UserDao userDao;
 
     @Autowired
-    private PublicPostRepository publicPostRepository;
+    private PublicPostDao publicPostDao;
 
     private MockHttpSession login(String phone) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
@@ -58,9 +58,9 @@ class PrivateFlowTests {
     private MockHttpSession loginAsHr(String phone) throws Exception {
         MockHttpSession session = login(phone);
         long id = userId(session);
-        User user = userRepository.findById(id).orElseThrow();
+        UserDO user = userDao.findById(id).orElseThrow();
         user.setRole("hr");
-        userRepository.save(user);
+        userDao.updateRole(user);
         return login(phone);
     }
 
@@ -149,7 +149,7 @@ class PrivateFlowTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("public_pending"));
 
-        PublicPost post = publicPostRepository.findByOriginalQuestionId(questionId).orElseThrow();
+        PublicPostDO post = publicPostDao.findByOriginalQuestionId(questionId).orElseThrow();
         assertEquals("pending_human", post.getStatus());
         assertTrue(post.isAnonymized());
         assertEquals("如实说明空窗期做了什么，强调这段时间的学习与产出。", post.getHrAnswer());

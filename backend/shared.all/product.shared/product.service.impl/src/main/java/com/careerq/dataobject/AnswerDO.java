@@ -1,64 +1,28 @@
-package com.careerq.answer;
-
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+package com.careerq.dataobject;
 
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "answers")
-public class Answer {
+public class AnswerDO {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "question_id", nullable = false)
     private Long questionId;
 
-    @Column(name = "author_id", nullable = false)
     private Long authorId;
 
-    @Column(nullable = false)
     private String body;
 
-    @Column(name = "length_type", nullable = false, length = 16)
     private String lengthType;
 
-    @Column(nullable = false, length = 32)
     private String status;
 
-    @Column(name = "like_count", nullable = false)
     private int likeCount;
 
-    @Column(name = "useful_count", nullable = false)
     private int usefulCount;
 
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
+    private LocalDateTime createdAt = LocalDateTime.now();
 
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
-
-    @PrePersist
-    void prePersist() {
-        LocalDateTime now = LocalDateTime.now();
-        if (createdAt == null) {
-            createdAt = now;
-        }
-        updatedAt = now;
-    }
-
-    @PreUpdate
-    void preUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
+    private LocalDateTime updatedAt = LocalDateTime.now();
 
     public Long getId() {
         return id;
