@@ -14,7 +14,7 @@
     <packaging>pom</packaging>
 
     <modules>
-        <module>product.service.api</module>
+        <module>product.service</module>
         <module>product.service.impl</module>
         <module>product.api</module>
     </modules>

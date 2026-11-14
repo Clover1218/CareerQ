@@ -6,7 +6,7 @@
 backend/（聚合 pom）
 └── shared.all/
     └── product.shared/
-        ├── product.service.api/   服务层契约：DTO、通用响应、登录主体
+        ├── product.service/       服务层契约：DTO、通用响应、登录主体
         ├── product.service.impl/  业务实现：实体、仓储、服务
         └── product.api/           Web 层与可执行应用：Controller、配置、资源、测试
 ```

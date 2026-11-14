@@ -11,7 +11,7 @@
 | 对外名称 | **职问桥**　Slogan：让好问题遇见对的人，让经验公开沉淀 |
 | 定位 | 面向大学生与 HR 的公开、异步、结构化职业问答信息库，不做私聊社交 |
 | 策划书 | `docs/项目策划书-职问桥.md`（项目单一事实来源，改动须在提交正文说明） |
-| 后端结构 | 多模块 Maven：`backend`（聚合）→ `shared.all` → `product.shared` → `product.service.api`（契约/DTO/通用响应）+ `product.service.impl`（实体/仓储/服务）+ `product.api`（Controller/配置/资源/测试/可执行） |
+| 后端结构 | 多模块 Maven：`backend`（聚合）→ `shared.all` → `product.shared` → `product.service`（契约/DTO/通用响应）+ `product.service.impl`（实体/仓储/服务）+ `product.api`（Controller/配置/资源/测试/可执行） |
 | 构建命令 | `mvn -f backend/pom.xml test`；打包 `mvn -f backend/pom.xml package -DskipTests`，jar 在 `product.api/target/` || 技术方案 | `docs/技术方案-职问桥.md`（**v0.5 实施版**，Spring Boot + 自建部署） |
 | 接口契约 | `docs/接口契约-职问桥.md`（前后端联调唯一依据，v1.1） |
 | 实施计划 | `docs/实施计划-职问桥.md`（M0—M6 里程碑，进行中） |

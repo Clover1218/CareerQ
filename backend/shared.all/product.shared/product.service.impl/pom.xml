@@ -17,7 +17,7 @@
     <dependencies>
         <dependency>
             <groupId>com.careerq</groupId>
-            <artifactId>product.service.api</artifactId>
+            <artifactId>product.service</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
