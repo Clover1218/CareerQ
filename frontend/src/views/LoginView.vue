@@ -2,9 +2,11 @@
 import { ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { api } from "../api";
+import { useUserStore } from "@/stores/user";
 
 const router = useRouter();
 const route = useRoute();
+const userStore = useUserStore();
 const phone = ref("13800000001");
 const code = ref("123456");
 const error = ref("");
@@ -25,7 +27,7 @@ async function login() {
   loading.value = true;
   error.value = "";
   try {
-    await api.login(phone.value.trim(), code.value.trim());
+    await userStore.login(phone.value.trim(), code.value.trim());
     router.push(String(route.query.redirect ?? "/"));
   } catch (e: any) {
     if (e?.code === 40401) {

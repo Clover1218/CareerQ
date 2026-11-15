@@ -1,4 +1,6 @@
-const BASE = "/api/v1";
+import { request, resetCsrfToken } from "./request";
+
+export { ApiError, resetCsrfToken, request, type ApiEnvelope, type RequestOptions } from "./request";
 
 export interface User {
   id: number;
@@ -67,59 +69,9 @@ export interface PageResult<T> {
   nextCursor: number | null;
 }
 
-export class ApiError extends Error {
-  code: number;
-  status: number;
-
-  constructor(message: string, code: number, status: number) {
-    super(message);
-    this.code = code;
-    this.status = status;
-  }
-}
-
-let csrfToken: string | null = null;
-
-async function ensureCsrf(): Promise<string> {
-  const res = await fetch(`${BASE}/auth/csrf`, { credentials: "include" });
-  const body = await res.json();
-  csrfToken = body.data.token as string;
-  return csrfToken;
-}
-
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const method = (init.method ?? "GET").toUpperCase();
-  const headers = new Headers(init.headers);
-  headers.set("Content-Type", "application/json; charset=utf-8");
-
-  if (method !== "GET" && method !== "HEAD") {
-    if (!csrfToken) await ensureCsrf();
-    headers.set("X-XSRF-TOKEN", csrfToken as string);
-  }
-
-  const res = await fetch(`${BASE}${path}`, {
-    ...init,
-    method,
-    headers,
-    credentials: "include",
-  });
-  const body = await res.json().catch(() => ({ code: -1, message: `HTTP ${res.status}` }));
-
-  if (!res.ok || body.code !== 0) {
-    if (res.status === 401) {
-      csrfToken = null;
-    }
-    throw new ApiError(body.message ?? `HTTP ${res.status}`, body.code ?? -1, res.status);
-  }
-  return body.data as T;
-}
-
 export const api = {
   async sendCode(phone: string): Promise<void> {
-    await request<void>("/auth/sms-code", {
-      method: "POST",
-      body: JSON.stringify({ phone }),
-    });
+    await request<void>("/auth/sms-code", { method: "POST", body: { phone } });
   },
 
   async register(payload: {
@@ -130,24 +82,19 @@ export const api = {
     major?: string;
     grade?: string;
   }): Promise<void> {
-    await request<{ user: User }>("/auth/register", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    csrfToken = null;
+    await request<{ user: User }>("/auth/register", { method: "POST", body: payload });
+    // 注册成功即建立会话，旧 CSRF token 失效
+    resetCsrfToken();
   },
 
   async login(phone: string, code: string): Promise<void> {
-    await request<{ user: User }>("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ phone, code }),
-    });
-    csrfToken = null;
+    await request<{ user: User }>("/auth/login", { method: "POST", body: { phone, code } });
+    resetCsrfToken();
   },
 
   async logout(): Promise<void> {
     await request<void>("/auth/logout", { method: "POST" });
-    csrfToken = null;
+    resetCsrfToken();
   },
 
   me(): Promise<User> {
@@ -172,30 +119,24 @@ export const api = {
     tags: string[];
     scope: "public" | "private";
   }): Promise<Question> {
-    return request<Question>("/questions", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
+    return request<Question>("/questions", { method: "POST", body: payload });
   },
 
   answer(questionId: number, body: string, lengthType = "detailed"): Promise<Answer> {
     return request<Answer>(`/questions/${questionId}/answers`, {
       method: "POST",
-      body: JSON.stringify({ body, lengthType }),
+      body: { body, lengthType },
     });
   },
 
   followup(questionId: number, body: string): Promise<Followup> {
-    return request<Followup>(`/questions/${questionId}/followups`, {
-      method: "POST",
-      body: JSON.stringify({ body }),
-    });
+    return request<Followup>(`/questions/${questionId}/followups`, { method: "POST", body: { body } });
   },
 
   interact(targetType: string, targetId: number, type: string): Promise<void> {
     return request<void>("/interactions", {
       method: "POST",
-      body: JSON.stringify({ targetType, targetId, type }),
+      body: { targetType, targetId, type },
     });
   },
 

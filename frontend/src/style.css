@@ -1,3 +1,8 @@
+/* Tailwind 工具类入口；preflight 已在 tailwind.config.js 中关闭，不会重置 naive-ui 的样式 */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   color-scheme: light;
   --primary: #2f6fed;

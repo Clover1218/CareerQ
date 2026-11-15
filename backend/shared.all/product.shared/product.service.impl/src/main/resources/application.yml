@@ -32,6 +32,9 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
+    # Swagger UI 自动从 XSRF-TOKEN Cookie 读取令牌并附加 X-XSRF-TOKEN 头
+    csrf:
+      enabled: true
 
 # SSM：MyBatis 连接 MySQL（dev 为 H2 MySQL 兼容模式）
 mybatis:
@@ -68,9 +71,9 @@ spring:
     activate:
       on-profile: prod
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/careerq?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
-    username: ${DB_USERNAME:careerq}
-    password: ${DB_PASSWORD:}
+    url: ${DB_URL:jdbc:mysql://localhost:3308/careerq?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 server:

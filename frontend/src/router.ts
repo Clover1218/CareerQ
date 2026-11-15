@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
-import { api } from "./api";
+import { useUserStore } from "@/stores/user";
 import LoginView from "./views/LoginView.vue";
 import RegisterView from "./views/RegisterView.vue";
 import QuestionListView from "./views/QuestionListView.vue";
@@ -30,10 +30,12 @@ router.beforeEach(async (to) => {
   if (isPublic) {
     return true;
   }
-  try {
-    await api.me();
-    return true;
-  } catch {
+
+  // 未登录时强制向后端确认一次，避免退出登录后仍停留在受保护页面
+  const userStore = useUserStore();
+  const user = userStore.isAuthenticated ? userStore.user : await userStore.fetchUserInfo(true);
+  if (!user) {
     return { path: "/login", query: { redirect: to.fullPath } };
   }
+  return true;
 });
