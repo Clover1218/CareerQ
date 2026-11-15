@@ -14,6 +14,16 @@ __pycache__/
 .venv/
 venv/
 
+# Java / Maven
+target/
+*.class
+*.iml
+
+# Node / 前端
+node_modules/
+dist/
+.vite/
+
 # 系统与编辑器
 .DS_Store
 Thumbs.db
