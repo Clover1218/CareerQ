@@ -44,7 +44,7 @@ public class AdminController {
                                     @PathVariable String targetType,
                                     @PathVariable Long id,
                                     @Valid @RequestBody DecideRequest request) {
-        adminService.decide(AuthUsers.require(authentication), targetType, id, request.decision(), request.note());
+        adminService.decide(AuthUsers.require(authentication), targetType, id, request);
         return ApiResponse.ok();
     }
 

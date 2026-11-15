@@ -3,17 +3,21 @@ package com.careerq.service.impl;
 import com.careerq.common.BusinessException;
 import com.careerq.common.ErrorCode;
 import com.careerq.dao.AnswerDao;
+import com.careerq.dao.FollowupDao;
 import com.careerq.dao.ModerationWordDao;
 import com.careerq.dao.PublicPostDao;
 import com.careerq.dao.QuestionDao;
 import com.careerq.dao.ReportDao;
 import com.careerq.dataobject.AnswerDO;
+import com.careerq.dataobject.FollowupDO;
 import com.careerq.dataobject.ModerationWordDO;
 import com.careerq.dataobject.PublicPostDO;
 import com.careerq.dataobject.QuestionDO;
 import com.careerq.dataobject.ReportDO;
 import com.careerq.security.AuthUser;
 import com.careerq.service.AdminService;
+import com.careerq.service.AdminService.DecideRequest;
+import com.careerq.service.AdminService.PublicCopy;
 import com.careerq.service.AdminService.HandleReportRequest;
 import com.careerq.service.AdminService.QueueItem;
 import com.careerq.service.AdminService.ReportView;
@@ -39,6 +43,7 @@ public class AdminServiceImpl implements AdminService {
 
     private final QuestionDao questionDao;
     private final AnswerDao answerDao;
+    private final FollowupDao followupDao;
     private final PublicPostDao publicPostDao;
     private final ReportDao reportDao;
     private final ModerationWordDao wordDao;
@@ -46,12 +51,14 @@ public class AdminServiceImpl implements AdminService {
 
     public AdminServiceImpl(QuestionDao questionDao,
                             AnswerDao answerDao,
+                            FollowupDao followupDao,
                             PublicPostDao publicPostDao,
                             ReportDao reportDao,
                             ModerationWordDao wordDao,
                             ModerationService moderationService) {
         this.questionDao = questionDao;
         this.answerDao = answerDao;
+        this.followupDao = followupDao;
         this.publicPostDao = publicPostDao;
         this.reportDao = reportDao;
         this.wordDao = wordDao;
@@ -65,15 +72,20 @@ public class AdminServiceImpl implements AdminService {
         List<QueueItem> items = new ArrayList<>();
         for (QuestionDO question : questionDao.findByStatusOrderByIdAsc(PENDING_HUMAN)) {
             items.add(new QueueItem("question", question.getId(), question.getTitle(),
-                    snippet(question.getBody()), question.getStatus(), question.getCreatedAt()));
+                    snippet(question.getBody()), question.getStatus(), question.getCreatedAt(), question.getBody(), null));
         }
         for (AnswerDO answer : answerDao.findByStatusOrderByIdAsc(PENDING_HUMAN)) {
             items.add(new QueueItem("answer", answer.getId(), null,
-                    snippet(answer.getBody()), answer.getStatus(), answer.getCreatedAt()));
+                    snippet(answer.getBody()), answer.getStatus(), answer.getCreatedAt(), answer.getBody(), null));
+        }
+        for (FollowupDO followup : followupDao.findPending()) {
+            items.add(new QueueItem("followup", followup.getId(), null,
+                    snippet(followup.getBody()), followup.getStatus(), followup.getCreatedAt(), followup.getBody(), null));
         }
         for (PublicPostDO post : publicPostDao.findByStatusOrderByIdAsc(PENDING_HUMAN)) {
             items.add(new QueueItem("public_post", post.getId(), post.getTitle(),
-                    snippet(post.getQuestionBody()), post.getStatus(), post.getCreatedAt()));
+                    snippet(post.getQuestionBody()), post.getStatus(), post.getCreatedAt(),
+                    post.getQuestionBody(), post.getHrAnswer()));
         }
         items.sort(Comparator.comparing(QueueItem::createdAt));
         return items;
@@ -81,8 +93,8 @@ public class AdminServiceImpl implements AdminService {
 
     @Override
     @Transactional
-    public void decide(AuthUser operator, String targetType, Long targetId, String decision, String note) {
-        String normalized = decision.trim().toLowerCase();
+    public void decide(AuthUser operator, String targetType, Long targetId, DecideRequest request) {
+        String normalized = request.decision().trim().toLowerCase();
         if (!DECISIONS.contains(normalized)) {
             throw new BusinessException(ErrorCode.INVALID_PARAM, "decision 只能是 approve/reject/remove");
         }
@@ -91,16 +103,61 @@ public class AdminServiceImpl implements AdminService {
             case "reject" -> "rejected";
             default -> "removed";
         };
-        LocalDateTime publishedAt = "published".equals(status) ? LocalDateTime.now() : null;
-        if (updateTargetStatus(targetType, targetId, status, publishedAt) == 0) {
-            String message = switch (targetType) {
-                case "question" -> "问题不存在";
-                case "answer" -> "回答不存在";
-                default -> "公开帖不存在";
-            };
-            throw new BusinessException(ErrorCode.NOT_FOUND, message);
+        boolean approved = "published".equals(status);
+        if (request.publicCopy() != null && !(approved && "public_post".equals(targetType))) {
+            throw new BusinessException(ErrorCode.INVALID_PARAM, "仅批准公开稿时可提交脱敏内容");
         }
-        moderationService.recordHuman(targetType, targetId, normalized, operator.getId(), note);
+        switch (targetType) {
+            case "question" -> {
+                QuestionDO question = questionDao.findByIdForUpdate(targetId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
+                requirePending(question.getStatus(), status);
+                String nextStatus = approved && "private".equals(question.getScope()) ? "open" : status;
+                questionDao.updateStatus(targetId, nextStatus);
+            }
+            case "answer" -> {
+                AnswerDO answer = answerDao.findByIdForUpdate(targetId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "回答不存在"));
+                requirePending(answer.getStatus(), status);
+                answerDao.updateStatus(targetId, status);
+                if (approved) {
+                    questionDao.recordAnswer(answer.getQuestionId());
+                }
+            }
+            case "followup" -> {
+                FollowupDO followup = followupDao.findByIdForUpdate(targetId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "追问不存在"));
+                requirePending(followup.getStatus(), status);
+                followupDao.updateStatus(targetId, status);
+            }
+            case "public_post" -> decidePublicPost(targetId, status, request.publicCopy());
+            default -> throw new BusinessException(ErrorCode.INVALID_PARAM, "targetType 不合法");
+        }
+        moderationService.recordHuman(targetType, targetId, normalized, operator.getId(), request.note());
+    }
+
+    private void decidePublicPost(Long id, String status, PublicCopy copy) {
+        PublicPostDO post = publicPostDao.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "公开帖不存在"));
+        QuestionDO question = post.getOriginalQuestionId() == null ? null
+                : questionDao.findByIdForUpdate(post.getOriginalQuestionId()).orElse(null);
+        PublicPostDO locked = publicPostDao.findByIdForUpdate(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "公开帖不存在"));
+        requirePending(locked.getStatus(), status);
+        boolean approved = "published".equals(status);
+        if (copy != null) {
+            publicPostDao.updateCopy(id, copy.title().trim(), copy.questionBody().trim(), copy.hrAnswer().trim());
+        }
+        publicPostDao.updateStatus(id, status, approved ? LocalDateTime.now() : null);
+        if (question != null && "private".equals(question.getScope()) && "public_pending".equals(question.getStatus())) {
+            questionDao.updateStatus(question.getId(), approved ? "public_archived" : "public_rejected");
+        }
+    }
+
+    private void requirePending(String current, String next) {
+        if (!"removed".equals(next) && !PENDING_HUMAN.equals(current)) {
+            throw new BusinessException(ErrorCode.CONFLICT, "此内容不在待审核状态");
+        }
     }
 
     @Override

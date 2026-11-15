@@ -13,7 +13,9 @@ import org.springframework.test.web.servlet.MvcResult;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -30,7 +32,7 @@ class AuthFlowTests {
     private ObjectMapper objectMapper;
 
     private MvcResult register(String phone, String nickname) throws Exception {
-        return mockMvc.perform(post("/api/v1/auth/register")
+        return mockMvc.perform(post("/api/v1/auth/register").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "phone", phone, "code", "123456", "nickname", nickname))))
@@ -55,7 +57,7 @@ class AuthFlowTests {
     @Test
     void registerWithoutNicknameUsesDefault() throws Exception {
         String phone = "13800000008";
-        MvcResult result = mockMvc.perform(post("/api/v1/auth/register")
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/register").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("phone", phone, "code", "123456"))))
                 .andExpect(status().isOk())
@@ -66,7 +68,7 @@ class AuthFlowTests {
 
     @Test
     void loginUnregisteredRejected() throws Exception {
-        mockMvc.perform(post("/api/v1/auth/login")
+        mockMvc.perform(post("/api/v1/auth/login").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "phone", "13800000002", "code", "123456"))))
@@ -85,24 +87,36 @@ class AuthFlowTests {
     @Test
     void loginExistingUser() throws Exception {
         String phone = "13800000005";
-        register(phone, "用户C");
+        MockHttpSession before = (MockHttpSession) register(phone, "用户C").getRequest().getSession(false);
+        assertNotNull(before);
+        String previousSessionId = before.getId();
 
-        MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
+        MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login").with(csrf())
+                        .session(before)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("phone", phone, "code", "123456"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.user.nickname").value("用户C"))
                 .andReturn();
-        assertNotNull(loginResult.getRequest().getSession(false));
+        assertNotEquals(previousSessionId, loginResult.getRequest().getSession(false).getId());
     }
 
     @Test
     void wrongCodeRejected() throws Exception {
-        mockMvc.perform(post("/api/v1/auth/login")
+        mockMvc.perform(post("/api/v1/auth/login").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("phone", "13800000006", "code", "000000"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(40001));
+    }
+
+    @Test
+    void authWritesRequireCsrf() throws Exception {
+        for (String operation : new String[]{"sms-code", "login", "register", "logout"}) {
+            mockMvc.perform(post("/api/v1/auth/{operation}", operation))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value(40300));
+        }
     }
 
     @Test
@@ -119,7 +133,7 @@ class AuthFlowTests {
         MockHttpSession session = (MockHttpSession) regResult.getRequest().getSession(false);
         assertNotNull(session);
 
-        mockMvc.perform(post("/api/v1/auth/logout").session(session))
+        mockMvc.perform(post("/api/v1/auth/logout").session(session).with(csrf()))
                 .andExpect(status().isOk());
 
         assertTrue(session.isInvalid(), "登出后会话应失效");

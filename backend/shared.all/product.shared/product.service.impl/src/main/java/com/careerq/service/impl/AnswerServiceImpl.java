@@ -55,7 +55,7 @@ public class AnswerServiceImpl implements AnswerService {
         answer.setAuthorId(hr.getId());
         answer.setBody(request.body());
         answer.setLengthType(normalizeLengthType(request.lengthType()));
-        answer.setStatus(moderationService.decide(request.body()));
+        answer.setStatus("private".equals(question.getScope()) ? "pending_human" : moderationService.decide(request.body()));
         answerDao.insert(answer);
         if (!PUBLISHED.equals(answer.getStatus())) {
             moderationService.recordMachine("answer", answer.getId(), answer.getStatus());

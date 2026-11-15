@@ -82,6 +82,7 @@ mvn -f backend/pom.xml -pl shared.all/product.shared/product.service.impl spring
 |---|---|---|---|
 | POST | `/api/v1/auth/sms-code` | 发送验证码（dev 固定 123456） | 公开 |
 | POST | `/api/v1/auth/login` | 登录，返回会话 Cookie | 公开 |
+| POST | `/api/v1/auth/register` | 注册学生账号并建立会话 | 公开 |
 | POST | `/api/v1/auth/logout` | 登出 | 登录 |
 | GET | `/api/v1/me` | 当前用户 | 登录 |
 | POST | `/api/v1/questions` | 提问（`scope`=public/private） | 登录 |
@@ -131,7 +132,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-test.ps1
 ## 前后端联调
 
 前端（Vue3）接入请见 [`../docs/前端联调指南-职问桥.md`](../docs/前端联调指南-职问桥.md)：
-登录三步（sms-code → login → csrf）、Cookie 会话、CSRF 头、Vite 代理、错误码与联调顺序。
+联调流程包括先获取 CSRF 令牌，再请求验证码，最后注册或登录。
 
 OpenAPI 契约：[`../docs/openapi.json`](../docs/openapi.json)（可用 `scripts/export-openapi.ps1` 重新导出）。
 
@@ -141,23 +142,9 @@ OpenAPI 契约：[`../docs/openapi.json`](../docs/openapi.json)（可用 `script
 
 ## 认证（dev）
 
-dev 环境短信验证码固定为 `123456`，不发送真实短信（`careerq.sms.dev-mode=true`）。
+开发环境使用固定验证码 `123456`。先调用 `GET /api/v1/auth/csrf`，保存 Cookie，并在认证 POST 请求中发送 `X-XSRF-TOKEN`。已注册手机号调用 `/api/v1/auth/login`，新手机号调用 `/api/v1/auth/register`。保留会话 Cookie 后，可调用 `GET /api/v1/me` 或提交登出请求。
 
-```bash
-# 1. 发送验证码（dev 下仅打日志）
-curl -X POST http://localhost:8080/api/v1/auth/sms-code \
-  -H "Content-Type: application/json" -d "{\"phone\":\"13800000000\"}"
-
-# 2. 登录（-c 保存会话 Cookie）
-curl -c cookies.txt -X POST http://localhost:8080/api/v1/auth/login \
-  -H "Content-Type: application/json" -d "{\"phone\":\"13800000000\",\"code\":\"123456\"}"
-
-# 3. 携带会话访问
-curl -b cookies.txt http://localhost:8080/api/v1/me
-
-# 4. 登出
-curl -b cookies.txt -X POST http://localhost:8080/api/v1/auth/logout
-```
+生产环境在接入真实短信前，发送验证码、登录和注册返回 `50301`。
 
 ## 目录结构
 
@@ -180,6 +167,4 @@ backend/
 
 - ✅ M0 环境准备（JDK 21 + 数据库选型 MySQL）
 - ✅ M1 后端骨架（工程、统一响应、Flyway V1、健康检查、OpenAPI）
-- ⏳ M2 鉴权与用户（下一步）
-
-> 注意：M1 阶段的 Spring Security 只做了基础配置，启动日志中的 “Using generated security password” 属正常现象，M2 接入真实用户体系后会消失。
+- ✅ M2 开发环境登录、注册与会话鉴权，生产短信待接入

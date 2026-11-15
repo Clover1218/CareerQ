@@ -71,14 +71,15 @@ public class QuestionServiceImpl implements QuestionService {
     @Transactional
     public QuestionView create(AuthUser author, CreateRequest request) {
         String scope = normalizeScope(request.scope());
-        String moderation = moderationService.decide(request.title() + "\n" + request.body());
+        String moderation = PRIVATE.equals(scope) ? "pending_human"
+                : moderationService.decide(request.title() + "\n" + request.body());
 
         QuestionDO question = new QuestionDO();
         question.setScope(scope);
         question.setAuthorId(author.getId());
         question.setTitle(request.title().trim());
         question.setBody(request.body());
-        question.setStatus(PRIVATE.equals(scope) && "published".equals(moderation) ? OPEN : moderation);
+        question.setStatus(moderation);
         questionDao.insert(question);
         linkTags(question.getId(), request.tags());
         if (!"published".equals(moderation)) {
@@ -106,7 +107,10 @@ public class QuestionServiceImpl implements QuestionService {
             boolean isAssignedHr = current != null && current.getId().equals(question.getAssignedHrId());
             boolean isOperator = current != null
                     && ("operator".equals(current.getRole()) || "admin".equals(current.getRole()));
-            if (!isAuthor && !isAssignedHr && !isOperator) {
+            boolean assignedAndVisible = isAssignedHr
+                    && Set.of(ASSIGNED, CLOSED, PUBLIC_PENDING, "public_archived", "public_rejected")
+                    .contains(question.getStatus());
+            if (!isAuthor && !assignedAndVisible && !isOperator) {
                 throw new BusinessException(ErrorCode.FORBIDDEN, "无权查看该私密问题");
             }
             maskAuthor = !isAuthor;
@@ -114,8 +118,8 @@ public class QuestionServiceImpl implements QuestionService {
             throw new BusinessException(ErrorCode.NOT_FOUND, "问题不存在");
         }
 
-        List<AnswerView> answers = answerDao
-                .findByQuestionIdAndStatusOrderByIdAsc(question.getId(), PUBLISHED)
+        Long ownAnswerAuthor = PRIVATE.equals(question.getScope()) ? current.getId() : null;
+        List<AnswerView> answers = answerDao.findVisible(question.getId(), ownAnswerAuthor)
                 .stream().map(this::toAnswerView).toList();
         List<FollowupView> followups = followupService.list(current, question.getId());
         return new QuestionDetail(toView(question, maskAuthor), answers, followups);
@@ -150,32 +154,49 @@ public class QuestionServiceImpl implements QuestionService {
     @Override
     @Transactional
     public QuestionView close(AuthUser author, Long id) {
+        return submitPublicPost(author, id, true);
+    }
+
+    @Override
+    @Transactional
+    public QuestionView publish(AuthUser author, Long id) {
+        return submitPublicPost(author, id, false);
+    }
+
+    private QuestionView submitPublicPost(AuthUser author, Long id, boolean closing) {
         QuestionDO question = requireOwnedPrivate(id);
         if (!author.getId().equals(question.getAuthorId())) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "只有提问者可以关闭问题");
+            throw new BusinessException(ErrorCode.FORBIDDEN, "只有提问者可以结单或提交公开复审");
         }
-        if (CLOSED.equals(question.getStatus())) {
+        String status = question.getStatus();
+        if (PUBLIC_PENDING.equals(status) || "public_archived".equals(status)) {
             return toView(question, false);
         }
-        if (!OPEN.equals(question.getStatus()) && !ASSIGNED.equals(question.getStatus())) {
-            throw new BusinessException(ErrorCode.CONFLICT, "当前状态不可关闭");
+        if ("public_rejected".equals(status)) {
+            if (closing) {
+                return toView(question, false);
+            }
+            PublicPostDO rejected = publicPostDao.findByOriginalQuestionId(id)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "公开稿不存在"));
+            publicPostDao.updateStatus(rejected.getId(), "pending_human", null);
+        } else {
+            if (!CLOSED.equals(status) && !(closing && ASSIGNED.equals(status))) {
+                throw new BusinessException(ErrorCode.CONFLICT, "问题认领并产生审核通过的回答后才能结单");
+            }
+            createPublicPost(question);
         }
-        question.setStatus(CLOSED);
-        question.setClosedAt(LocalDateTime.now());
+
+        if (ASSIGNED.equals(status)) {
+            question.setClosedAt(LocalDateTime.now());
+        }
+        question.setStatus(PUBLIC_PENDING);
         questionDao.updatePrivateState(question);
         return toView(question, false);
     }
 
-    /** 关闭后的私密问答脱敏公开：生成待审核的 public_post。 */
-    @Override
-    @Transactional
-    public QuestionView publish(AuthUser author, Long id) {
-        QuestionDO question = requireOwnedPrivate(id);
-        if (!author.getId().equals(question.getAuthorId())) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "只有提问者可以申请公开");
-        }
-        if (!CLOSED.equals(question.getStatus())) {
-            throw new BusinessException(ErrorCode.CONFLICT, "请先关闭问题再申请公开");
+    private void createPublicPost(QuestionDO question) {
+        if (answerDao.hasPending(question.getId())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "请等待回答审核完成后再结单");
         }
         List<AnswerDO> answers = answerDao
                 .findByQuestionIdAndStatusOrderByIdAsc(question.getId(), PUBLISHED);
@@ -193,10 +214,6 @@ public class QuestionServiceImpl implements QuestionService {
         post.setStatus("pending_human");
         publicPostDao.insert(post);
         moderationService.recordMachine("public_post", post.getId(), "pending_human");
-
-        question.setStatus(PUBLIC_PENDING);
-        questionDao.updatePrivateState(question);
-        return toView(question, false);
     }
 
     private QuestionDO requireOwnedPrivate(Long id) {

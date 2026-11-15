@@ -15,7 +15,8 @@ public enum ErrorCode {
     CONFLICT(40900, HttpStatus.CONFLICT, "状态冲突"),
     PHONE_ALREADY_REGISTERED(40901, HttpStatus.CONFLICT, "该手机号已注册，请直接登录"),
     RATE_LIMITED(42900, HttpStatus.TOO_MANY_REQUESTS, "请求过于频繁"),
-    INTERNAL_ERROR(50000, HttpStatus.INTERNAL_SERVER_ERROR, "服务异常");
+    INTERNAL_ERROR(50000, HttpStatus.INTERNAL_SERVER_ERROR, "服务异常"),
+    SMS_UNAVAILABLE(50301, HttpStatus.SERVICE_UNAVAILABLE, "短信验证码服务暂不可用");
 
     private final int code;
     private final HttpStatus status;

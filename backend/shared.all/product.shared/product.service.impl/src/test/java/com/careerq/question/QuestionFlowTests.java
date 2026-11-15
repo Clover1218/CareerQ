@@ -35,7 +35,7 @@ class QuestionFlowTests {
     private UserDao userDao;
 
     private void registerIfNeeded(String phone) throws Exception {
-        MvcResult reg = mockMvc.perform(post("/api/v1/auth/register")
+        MvcResult reg = mockMvc.perform(post("/api/v1/auth/register").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "phone", phone, "code", "123456", "nickname", "测试用户"))))
@@ -47,7 +47,7 @@ class QuestionFlowTests {
     }
     private MockHttpSession login(String phone) throws Exception {
         registerIfNeeded(phone);
-        MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/login").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("phone", phone, "code", "123456"))))
                 .andExpect(status().isOk())
@@ -82,7 +82,7 @@ class QuestionFlowTests {
                                 "tags", List.of("实习", "面试准备"),
                                 "scope", scope))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("private".equals(scope) ? "open" : "published"))
+                .andExpect(jsonPath("$.data.status").value("private".equals(scope) ? "pending_human" : "published"))
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString())
                 .path("data").path("id").asLong();

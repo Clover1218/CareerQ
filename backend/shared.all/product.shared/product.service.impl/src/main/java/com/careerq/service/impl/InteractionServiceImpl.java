@@ -5,7 +5,9 @@ import com.careerq.common.ErrorCode;
 import com.careerq.dao.AnswerDao;
 import com.careerq.dao.InteractionDao;
 import com.careerq.dao.QuestionDao;
+import com.careerq.dataobject.AnswerDO;
 import com.careerq.dataobject.InteractionDO;
+import com.careerq.dataobject.QuestionDO;
 import com.careerq.security.AuthUser;
 import com.careerq.service.InteractionService;
 import com.careerq.service.InteractionService.Request;
@@ -45,6 +47,7 @@ public class InteractionServiceImpl implements InteractionService {
         if (!TYPES.contains(type)) {
             throw new BusinessException(ErrorCode.INVALID_PARAM, "type 不合法");
         }
+        requireVisibleTarget(user, targetType, request.targetId());
         InteractionDO interaction = new InteractionDO();
         interaction.setUserId(user.getId());
         interaction.setTargetType(targetType);
@@ -69,6 +72,30 @@ public class InteractionServiceImpl implements InteractionService {
         } else if ("question".equals(targetType) && "useful".equals(type)
                 && questionDao.incrementUseful(targetId) == 0) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "问题不存在");
+        }
+    }
+
+    private void requireVisibleTarget(AuthUser user, String targetType, Long targetId) {
+        if ("post".equals(targetType)) {
+            return;
+        }
+        Long questionId = targetId;
+        if ("answer".equals(targetType)) {
+            AnswerDO answer = answerDao.findById(targetId)
+                    .filter(item -> "published".equals(item.getStatus()))
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "回答不存在"));
+            questionId = answer.getQuestionId();
+        }
+        QuestionDO question = questionDao.findById(questionId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
+        if ("private".equals(question.getScope())) {
+            boolean participant = user.getId().equals(question.getAuthorId())
+                    || user.getId().equals(question.getAssignedHrId());
+            if (!participant || Set.of("pending_human", "rejected", "removed").contains(question.getStatus())) {
+                throw new BusinessException(ErrorCode.NOT_FOUND, "互动目标不存在");
+            }
+        } else if (!"published".equals(question.getStatus())) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "互动目标不存在");
         }
     }
 }

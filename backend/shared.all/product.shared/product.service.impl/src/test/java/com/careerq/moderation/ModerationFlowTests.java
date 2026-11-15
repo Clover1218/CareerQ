@@ -39,7 +39,7 @@ class ModerationFlowTests {
     private UserDao userDao;
 
     private void registerIfNeeded(String phone) throws Exception {
-        MvcResult reg = mockMvc.perform(post("/api/v1/auth/register")
+        MvcResult reg = mockMvc.perform(post("/api/v1/auth/register").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "phone", phone, "code", "123456", "nickname", "测试用户"))))
@@ -51,7 +51,7 @@ class ModerationFlowTests {
     }
     private MockHttpSession login(String phone) throws Exception {
         registerIfNeeded(phone);
-        MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/login").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("phone", phone, "code", "123456"))))
                 .andExpect(status().isOk())
@@ -165,18 +165,26 @@ class ModerationFlowTests {
     void publicPostRequiresModerationBeforeListing() throws Exception {
         MockHttpSession student = login("13800000306");
         long questionId = createQuestion(student, "试用期被辞退怎么办？", "想了解试用期辞退的合法流程。", "private");
+        MockHttpSession operator = loginAs("13800000308", "operator");
+        mockMvc.perform(post("/api/v1/admin/moderation/question/{id}/decide", questionId)
+                        .session(operator).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("decision", "approve"))))
+                .andExpect(status().isOk());
 
         MockHttpSession hr = loginAs("13800000307", "hr");
         mockMvc.perform(post("/api/v1/hr/questions/{id}/claim", questionId).session(hr).with(csrf()))
                 .andExpect(status().isOk());
-        mockMvc.perform(post("/api/v1/questions/{id}/answers", questionId)
+        MvcResult answer = mockMvc.perform(post("/api/v1/questions/{id}/answers", questionId)
                         .session(hr).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("body", "先确认辞退理由与证据，再谈补偿。"))))
+                .andExpect(status().isOk()).andReturn();
+        long answerId = objectMapper.readTree(answer.getResponse().getContentAsString()).path("data").path("id").asLong();
+        mockMvc.perform(post("/api/v1/admin/moderation/answer/{id}/decide", answerId)
+                        .session(operator).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("decision", "approve"))))
                 .andExpect(status().isOk());
         mockMvc.perform(post("/api/v1/questions/{id}/close", questionId).session(student).with(csrf()))
-                .andExpect(status().isOk());
-        mockMvc.perform(post("/api/v1/questions/{id}/publish", questionId).session(student).with(csrf()))
                 .andExpect(status().isOk());
 
         // 审核前公开列表不含
@@ -184,7 +192,6 @@ class ModerationFlowTests {
         assertFalse(objectMapper.readTree(before.getResponse().getContentAsString())
                 .path("data").toString().contains("试用期被辞退怎么办"));
 
-        MockHttpSession operator = loginAs("13800000308", "operator");
         MvcResult queueResult = mockMvc.perform(get("/api/v1/admin/moderation/queue").session(operator))
                 .andExpect(status().isOk()).andReturn();
         JsonNode items = objectMapper.readTree(queueResult.getResponse().getContentAsString()).path("data");

@@ -2,6 +2,8 @@ package com.careerq.service;
 
 import com.careerq.security.AuthUser;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import jakarta.validation.Valid;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -11,7 +13,7 @@ public interface AdminService {
 
     List<QueueItem> queue();
 
-    void decide(AuthUser operator, String targetType, Long targetId, String decision, String note);
+    void decide(AuthUser operator, String targetType, Long targetId, DecideRequest request);
 
     List<ReportView> reports(String status);
 
@@ -24,10 +26,16 @@ public interface AdminService {
     Map<String, Object> metrics();
 
     record QueueItem(String targetType, Long targetId, String title, String snippet,
-                     String status, LocalDateTime createdAt) {
+                     String status, LocalDateTime createdAt, String body, String hrAnswer) {
     }
 
-    record DecideRequest(@NotBlank String decision, String note) {
+    record DecideRequest(@NotBlank String decision, @Size(max = 500) String note,
+                         @Valid PublicCopy publicCopy) {
+    }
+
+    record PublicCopy(@NotBlank @Size(max = 200) String title,
+                      @NotBlank @Size(max = 5000) String questionBody,
+                      @NotBlank @Size(max = 6000) String hrAnswer) {
     }
 
     record HandleReportRequest(@NotBlank String decision, String note) {

@@ -13,13 +13,13 @@ import com.careerq.service.AuthService;
 import com.careerq.service.SmsCodeService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -43,25 +43,22 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    @Transactional
     public LoginResult login(LoginRequest request, HttpServletRequest httpRequest) {
         verifyCode(request.phone(), request.code());
         String phoneHash = sha256(request.phone());
         UserDO user = userDao.findByPhoneHash(phoneHash)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_REGISTERED));
+        if (!"active".equals(user.getStatus())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "该账号当前不可登录");
+        }
         establishSession(user, httpRequest);
         return new LoginResult(toView(user));
     }
 
     @Override
-    @Transactional
     public LoginResult register(RegisterRequest request, HttpServletRequest httpRequest) {
         verifyCode(request.phone(), request.code());
         String phoneHash = sha256(request.phone());
-        if (userDao.findByPhoneHash(phoneHash).isPresent()) {
-            throw new BusinessException(ErrorCode.PHONE_ALREADY_REGISTERED);
-        }
-
         UserDO user = new UserDO();
         user.setRole("student");
         user.setPhoneHash(phoneHash);
@@ -71,7 +68,11 @@ public class AuthServiceImpl implements AuthService {
         user.setMajor(blankToNull(request.major()));
         user.setGrade(blankToNull(request.grade()));
         user.setStatus("active");
-        userDao.insert(user);
+        try {
+            userDao.insert(user);
+        } catch (DuplicateKeyException duplicate) {
+            throw new BusinessException(ErrorCode.PHONE_ALREADY_REGISTERED);
+        }
 
         establishSession(user, httpRequest);
         return new LoginResult(toView(user));
@@ -107,11 +108,17 @@ public class AuthServiceImpl implements AuthService {
         UsernamePasswordAuthenticationToken authentication =
                 UsernamePasswordAuthenticationToken.authenticated(principal, null, principal.getAuthorities());
 
+        HttpSession session = httpRequest.getSession(false);
+        if (session == null) {
+            session = httpRequest.getSession(true);
+        } else {
+            httpRequest.changeSessionId();
+        }
+
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authentication);
         SecurityContextHolder.setContext(context);
-        httpRequest.getSession(true)
-                .setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
+        session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
     }
 
     private static String defaultNickname(String nickname, String phone) {

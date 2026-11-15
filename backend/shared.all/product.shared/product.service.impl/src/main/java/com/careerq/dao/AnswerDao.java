@@ -27,6 +27,9 @@ public interface AnswerDao {
     @Select("select * from answers where id = #{id}")
     Optional<AnswerDO> findById(Long id);
 
+    @Select("select * from answers where id = #{id} for update")
+    Optional<AnswerDO> findByIdForUpdate(Long id);
+
     @Select("select * from answers where status = #{status} order by id")
     List<AnswerDO> findByStatusOrderByIdAsc(String status);
 
@@ -36,6 +39,16 @@ public interface AnswerDao {
     @Select("select * from answers where question_id = #{questionId} and status = #{status} order by id")
     List<AnswerDO> findByQuestionIdAndStatusOrderByIdAsc(@Param("questionId") Long questionId,
                                                         @Param("status") String status);
+
+    @Select("""
+            select * from answers where question_id = #{questionId}
+            and (status = 'published' or author_id = #{authorId} and status in ('pending_human', 'rejected'))
+            order by id
+            """)
+    List<AnswerDO> findVisible(@Param("questionId") Long questionId, @Param("authorId") Long authorId);
+
+    @Select("select exists (select 1 from answers where question_id = #{questionId} and status = 'pending_human')")
+    boolean hasPending(Long questionId);
 
     @Update("update answers set status = #{status}, updated_at = current_timestamp where id = #{id}")
     int updateStatus(@Param("id") Long id, @Param("status") String status);

@@ -63,6 +63,10 @@ public class FollowupDO {
         this.status = status;
     }
 
+    public String getStatus() {
+        return status;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }

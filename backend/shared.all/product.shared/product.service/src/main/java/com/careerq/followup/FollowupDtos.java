@@ -16,6 +16,7 @@ public final class FollowupDtos {
             String body) {
     }
 
-    public record FollowupView(Long id, Long questionId, String senderRole, String body, LocalDateTime createdAt) {
+    public record FollowupView(Long id, Long questionId, String senderRole, String body, String status,
+                               LocalDateTime createdAt) {
     }
 }

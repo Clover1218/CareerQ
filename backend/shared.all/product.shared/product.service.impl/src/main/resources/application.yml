@@ -39,12 +39,6 @@ mybatis:
     map-underscore-to-camel-case: true
     jdbc-type-for-null: "NULL"
 
-careerq:
-  sms:
-    # dev：固定验证码，不发送真实短信；prod 需改 false 并接入供应商
-    dev-mode: true
-    dev-code: "123456"
-
 ---
 spring:
   config:
@@ -61,6 +55,9 @@ spring:
       path: /h2-console
 
 careerq:
+  sms:
+    dev-mode: true
+    dev-code: "123456"
   cors:
     # 前端本地开发地址（Vite 默认 5173）；生产同域反代时留空即可
     allowed-origins: http://localhost:5173,http://127.0.0.1:5173
@@ -75,3 +72,13 @@ spring:
     username: ${DB_USERNAME:careerq}
     password: ${DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
+
+server:
+  servlet:
+    session:
+      cookie:
+        secure: true
+
+careerq:
+  sms:
+    dev-mode: false

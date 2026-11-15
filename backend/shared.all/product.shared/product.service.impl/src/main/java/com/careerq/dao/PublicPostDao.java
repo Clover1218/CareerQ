@@ -34,6 +34,16 @@ public interface PublicPostDao {
     @Select("select * from public_posts where original_question_id = #{originalQuestionId}")
     Optional<PublicPostDO> findByOriginalQuestionId(Long originalQuestionId);
 
+    @Select("select * from public_posts where id = #{id}")
+    Optional<PublicPostDO> findById(Long id);
+
+    @Select("select * from public_posts where id = #{id} for update")
+    Optional<PublicPostDO> findByIdForUpdate(Long id);
+
+    @Update("update public_posts set title = #{title}, question_body = #{questionBody}, hr_answer = #{hrAnswer} where id = #{id}")
+    int updateCopy(@Param("id") Long id, @Param("title") String title,
+                   @Param("questionBody") String questionBody, @Param("hrAnswer") String hrAnswer);
+
     @Select("""
             <script>
             select * from public_posts where status = 'published'
