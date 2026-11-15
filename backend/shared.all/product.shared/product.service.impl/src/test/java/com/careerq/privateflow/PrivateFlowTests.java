@@ -41,7 +41,19 @@ class PrivateFlowTests {
     @Autowired
     private PublicPostDao publicPostDao;
 
+    private void registerIfNeeded(String phone) throws Exception {
+        MvcResult reg = mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "phone", phone, "code", "123456", "nickname", "测试用户"))))
+                .andReturn();
+        int status = reg.getResponse().getStatus();
+        if (status != 200 && status != 409) {
+            throw new IllegalStateException("注册失败，status=" + status);
+        }
+    }
     private MockHttpSession login(String phone) throws Exception {
+        registerIfNeeded(phone);
         MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("phone", phone, "code", "123456"))))

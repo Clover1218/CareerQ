@@ -2,16 +2,17 @@ package com.careerq.service.impl;
 
 import com.careerq.auth.AuthDtos.LoginRequest;
 import com.careerq.auth.AuthDtos.LoginResult;
+import com.careerq.auth.AuthDtos.RegisterRequest;
 import com.careerq.auth.AuthDtos.UserView;
 import com.careerq.common.BusinessException;
 import com.careerq.common.ErrorCode;
 import com.careerq.dao.UserDao;
 import com.careerq.dataobject.UserDO;
 import com.careerq.security.AuthUser;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
 import com.careerq.service.AuthService;
 import com.careerq.service.SmsCodeService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
@@ -27,7 +28,8 @@ import java.time.LocalDateTime;
 import java.util.HexFormat;
 
 /**
- * 登录/登出/当前用户。手机号只存 SHA-256 哈希（MVP 不落明文）。
+ * 登录 / 注册 / 登出 / 当前用户。
+ * 规则：未注册手机号不能直接登录（返回 40401），必须走注册；注册成功后即建立会话。
  */
 @Service
 public class AuthServiceImpl implements AuthService {
@@ -43,24 +45,35 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public LoginResult login(LoginRequest request, HttpServletRequest httpRequest) {
-        if (!smsCodeService.verify(request.phone(), request.code())) {
-            throw new BusinessException(ErrorCode.INVALID_PARAM, "验证码不正确");
-        }
-
+        verifyCode(request.phone(), request.code());
         String phoneHash = sha256(request.phone());
         UserDO user = userDao.findByPhoneHash(phoneHash)
-                .orElseGet(() -> registerStudent(request.phone(), phoneHash));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_REGISTERED));
+        establishSession(user, httpRequest);
+        return new LoginResult(toView(user));
+    }
 
-        AuthUser principal = AuthUser.of(user.getId(), user.getRole(), user.getNickname(), user.getPhoneHash());
-        UsernamePasswordAuthenticationToken authentication =
-                UsernamePasswordAuthenticationToken.authenticated(principal, null, principal.getAuthorities());
+    @Override
+    @Transactional
+    public LoginResult register(RegisterRequest request, HttpServletRequest httpRequest) {
+        verifyCode(request.phone(), request.code());
+        String phoneHash = sha256(request.phone());
+        if (userDao.findByPhoneHash(phoneHash).isPresent()) {
+            throw new BusinessException(ErrorCode.PHONE_ALREADY_REGISTERED);
+        }
 
-        SecurityContext context = SecurityContextHolder.createEmptyContext();
-        context.setAuthentication(authentication);
-        SecurityContextHolder.setContext(context);
-        httpRequest.getSession(true)
-                .setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
+        UserDO user = new UserDO();
+        user.setRole("student");
+        user.setPhoneHash(phoneHash);
+        user.setPhoneVerifiedAt(LocalDateTime.now());
+        user.setNickname(request.nickname().trim());
+        user.setSchool(blankToNull(request.school()));
+        user.setMajor(blankToNull(request.major()));
+        user.setGrade(blankToNull(request.grade()));
+        user.setStatus("active");
+        userDao.insert(user);
 
+        establishSession(user, httpRequest);
         return new LoginResult(toView(user));
     }
 
@@ -83,15 +96,26 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
     }
 
-    private UserDO registerStudent(String phone, String phoneHash) {
-        UserDO user = new UserDO();
-        user.setRole("student");
-        user.setPhoneHash(phoneHash);
-        user.setPhoneVerifiedAt(LocalDateTime.now());
-        user.setNickname("用户" + phone.substring(phone.length() - 4));
-        user.setStatus("active");
-        userDao.insert(user);
-        return user;
+    private void verifyCode(String phone, String code) {
+        if (!smsCodeService.verify(phone, code)) {
+            throw new BusinessException(ErrorCode.INVALID_PARAM, "验证码不正确");
+        }
+    }
+
+    private void establishSession(UserDO user, HttpServletRequest httpRequest) {
+        AuthUser principal = AuthUser.of(user.getId(), user.getRole(), user.getNickname(), user.getPhoneHash());
+        UsernamePasswordAuthenticationToken authentication =
+                UsernamePasswordAuthenticationToken.authenticated(principal, null, principal.getAuthorities());
+
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(authentication);
+        SecurityContextHolder.setContext(context);
+        httpRequest.getSession(true)
+                .setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private static UserView toView(UserDO user) {

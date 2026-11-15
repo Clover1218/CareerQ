@@ -70,12 +70,44 @@ public class UserDO {
         return school;
     }
 
+    public void setSchool(String school) {
+        this.school = school;
+    }
+
     public String getMajor() {
         return major;
     }
 
+    public void setMajor(String major) {
+        this.major = major;
+    }
+
     public String getGrade() {
         return grade;
+    }
+
+    public void setGrade(String grade) {
+        this.grade = grade;
+    }
+
+    public String getAgeGroup() {
+        return ageGroup;
+    }
+
+    public void setAgeGroup(String ageGroup) {
+        this.ageGroup = ageGroup;
+    }
+
+    public String getPhoneEnc() {
+        return phoneEnc;
+    }
+
+    public void setPhoneEnc(String phoneEnc) {
+        this.phoneEnc = phoneEnc;
+    }
+
+    public java.time.LocalDateTime getPhoneVerifiedAt() {
+        return phoneVerifiedAt;
     }
 
     public String getStatus() {

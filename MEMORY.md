@@ -18,7 +18,7 @@
 | 实施计划 | `docs/实施计划-职问桥.md`（M0—M6 里程碑，进行中） |
 | 开发平台 | **自建部署**：前端静态（Nginx/CDN）+ Spring Boot + MySQL 8；Qoder Sites 不再强制 |
 | Web 技术栈 | 前端：**Vue3 + TypeScript**（队友负责）；后端：**Spring Boot 3 + Java 21 + MySQL 8 + Flyway**（用户负责） |
-| 鉴权 | **Cookie 会话 + CSRF Token**（2026-11-14 定） |
+| 鉴权 | **Cookie 会话 + CSRF Token**；登录/注册分离：未注册登录返回 40401，`POST /auth/register` 注册并建会话 |
 | ⚠️ 分工 | **用户本人负责 Spring Boot 后端与前后端连接**；前端界面由队友负责；Qoder Sites 与 Spring Boot 的关系待确认 |
 | ✅ 已裁决 | 2026-11-14：采用**方案 C（公开提问 + 私密工单混合）**；Qoder Sites 强制。详见 `docs/流程v2评估-私密问答与公开沉淀.md` |
 | Web 技术栈 | 响应式 Web：Vue3 + TypeScript + Vite；FastAPI + PostgreSQL + Redis；Caddy/CDN |

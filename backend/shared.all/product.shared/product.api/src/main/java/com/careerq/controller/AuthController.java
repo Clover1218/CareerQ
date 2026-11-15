@@ -2,6 +2,7 @@ package com.careerq.controller;
 
 import com.careerq.auth.AuthDtos.LoginRequest;
 import com.careerq.auth.AuthDtos.LoginResult;
+import com.careerq.auth.AuthDtos.RegisterRequest;
 import com.careerq.auth.AuthDtos.SmsCodeRequest;
 import com.careerq.auth.AuthDtos.UserView;
 import com.careerq.common.ApiResponse;
@@ -38,6 +39,12 @@ public class AuthController {
     public ApiResponse<LoginResult> login(@Valid @RequestBody LoginRequest request,
                                           HttpServletRequest httpRequest) {
         return ApiResponse.ok(authService.login(request, httpRequest));
+    }
+
+    @PostMapping("/auth/register")
+    public ApiResponse<LoginResult> register(@Valid @RequestBody RegisterRequest request,
+                                             HttpServletRequest httpRequest) {
+        return ApiResponse.ok(authService.register(request, httpRequest));
     }
 
     @PostMapping("/auth/logout")
