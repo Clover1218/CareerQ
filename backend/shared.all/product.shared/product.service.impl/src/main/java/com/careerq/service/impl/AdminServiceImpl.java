@@ -8,12 +8,14 @@ import com.careerq.dao.ModerationWordDao;
 import com.careerq.dao.PublicPostDao;
 import com.careerq.dao.QuestionDao;
 import com.careerq.dao.ReportDao;
+import com.careerq.dao.UserDao;
 import com.careerq.dataobject.AnswerDO;
 import com.careerq.dataobject.FollowupDO;
 import com.careerq.dataobject.ModerationWordDO;
 import com.careerq.dataobject.PublicPostDO;
 import com.careerq.dataobject.QuestionDO;
 import com.careerq.dataobject.ReportDO;
+import com.careerq.dataobject.UserDO;
 import com.careerq.security.AuthUser;
 import com.careerq.service.AdminService;
 import com.careerq.service.AdminService.DecideRequest;
@@ -48,6 +50,7 @@ public class AdminServiceImpl implements AdminService {
     private final ReportDao reportDao;
     private final ModerationWordDao wordDao;
     private final ModerationService moderationService;
+    private final UserDao userDao;
 
     public AdminServiceImpl(QuestionDao questionDao,
                             AnswerDao answerDao,
@@ -55,7 +58,8 @@ public class AdminServiceImpl implements AdminService {
                             PublicPostDao publicPostDao,
                             ReportDao reportDao,
                             ModerationWordDao wordDao,
-                            ModerationService moderationService) {
+                            ModerationService moderationService,
+                            UserDao userDao) {
         this.questionDao = questionDao;
         this.answerDao = answerDao;
         this.followupDao = followupDao;
@@ -63,6 +67,7 @@ public class AdminServiceImpl implements AdminService {
         this.reportDao = reportDao;
         this.wordDao = wordDao;
         this.moderationService = moderationService;
+        this.userDao = userDao;
     }
 
 
@@ -72,20 +77,34 @@ public class AdminServiceImpl implements AdminService {
         List<QueueItem> items = new ArrayList<>();
         for (QuestionDO question : questionDao.findByStatusOrderByIdAsc(PENDING_HUMAN)) {
             items.add(new QueueItem("question", question.getId(), question.getTitle(),
-                    snippet(question.getBody()), question.getStatus(), question.getCreatedAt(), question.getBody(), null));
+                    snippet(question.getBody()), question.getStatus(), question.getCreatedAt(),
+                    question.getBody(), null,
+                    question.getId(), question.getTitle(),
+                    question.getAuthorId(), nicknameOf(question.getAuthorId())));
         }
         for (AnswerDO answer : answerDao.findByStatusOrderByIdAsc(PENDING_HUMAN)) {
-            items.add(new QueueItem("answer", answer.getId(), null,
-                    snippet(answer.getBody()), answer.getStatus(), answer.getCreatedAt(), answer.getBody(), null));
+            QuestionDO question = questionDao.findById(answer.getQuestionId()).orElse(null);
+            items.add(new QueueItem("answer", answer.getId(),
+                    question == null ? null : question.getTitle(),
+                    snippet(answer.getBody()), answer.getStatus(), answer.getCreatedAt(),
+                    answer.getBody(), null,
+                    answer.getQuestionId(), question == null ? null : question.getTitle(),
+                    answer.getAuthorId(), nicknameOf(answer.getAuthorId())));
         }
         for (FollowupDO followup : followupDao.findPending()) {
-            items.add(new QueueItem("followup", followup.getId(), null,
-                    snippet(followup.getBody()), followup.getStatus(), followup.getCreatedAt(), followup.getBody(), null));
+            QuestionDO question = questionDao.findById(followup.getQuestionId()).orElse(null);
+            items.add(new QueueItem("followup", followup.getId(),
+                    question == null ? null : question.getTitle(),
+                    snippet(followup.getBody()), followup.getStatus(), followup.getCreatedAt(),
+                    followup.getBody(), null,
+                    followup.getQuestionId(), question == null ? null : question.getTitle(),
+                    followup.getSenderId(), nicknameOf(followup.getSenderId())));
         }
         for (PublicPostDO post : publicPostDao.findByStatusOrderByIdAsc(PENDING_HUMAN)) {
             items.add(new QueueItem("public_post", post.getId(), post.getTitle(),
                     snippet(post.getQuestionBody()), post.getStatus(), post.getCreatedAt(),
-                    post.getQuestionBody(), post.getHrAnswer()));
+                    post.getQuestionBody(), post.getHrAnswer(),
+                    post.getOriginalQuestionId(), post.getTitle(), null, null));
         }
         items.sort(Comparator.comparing(QueueItem::createdAt));
         return items;
@@ -228,9 +247,45 @@ public class AdminServiceImpl implements AdminService {
     }
 
     private ReportView toReportView(ReportDO report) {
+        String targetTitle = null;
+        String targetExcerpt = null;
+        switch (report.getTargetType()) {
+            case "question" -> {
+                QuestionDO question = questionDao.findById(report.getTargetId()).orElse(null);
+                if (question != null) {
+                    targetTitle = question.getTitle();
+                    targetExcerpt = snippet(question.getBody());
+                }
+            }
+            case "answer" -> {
+                AnswerDO answer = answerDao.findById(report.getTargetId()).orElse(null);
+                if (answer != null) {
+                    targetExcerpt = snippet(answer.getBody());
+                    targetTitle = questionDao.findById(answer.getQuestionId())
+                            .map(QuestionDO::getTitle).orElse(null);
+                }
+            }
+            case "public_post" -> {
+                PublicPostDO post = publicPostDao.findById(report.getTargetId()).orElse(null);
+                if (post != null) {
+                    targetTitle = post.getTitle();
+                    targetExcerpt = snippet(post.getQuestionBody());
+                }
+            }
+            default -> {
+            }
+        }
         return new ReportView(report.getId(), report.getReporterId(), report.getTargetType(), report.getTargetId(),
                 report.getReason(), report.getDetail(), report.getStatus(),
-                report.getHandledBy(), report.getHandledAt(), report.getCreatedAt());
+                report.getHandledBy(), report.getHandledAt(), report.getCreatedAt(),
+                targetTitle, targetExcerpt);
+    }
+
+    private String nicknameOf(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        return userDao.findById(userId).map(UserDO::getNickname).orElse(null);
     }
 
     private WordView toWordView(ModerationWordDO word) {

@@ -26,7 +26,8 @@ public interface AdminService {
     Map<String, Object> metrics();
 
     record QueueItem(String targetType, Long targetId, String title, String snippet,
-                     String status, LocalDateTime createdAt, String body, String hrAnswer) {
+                     String status, LocalDateTime createdAt, String body, String hrAnswer,
+                     Long questionId, String questionTitle, Long authorId, String authorNickname) {
     }
 
     record DecideRequest(@NotBlank String decision, @Size(max = 500) String note,
@@ -46,7 +47,8 @@ public interface AdminService {
 
     record ReportView(Long id, Long reporterId, String targetType, Long targetId,
                       String reason, String detail, String status,
-                      Long handledBy, LocalDateTime handledAt, LocalDateTime createdAt) {
+                      Long handledBy, LocalDateTime handledAt, LocalDateTime createdAt,
+                      String targetTitle, String targetExcerpt) {
     }
 
     record WordView(Long id, String word, String category, String action, LocalDateTime updatedAt) {

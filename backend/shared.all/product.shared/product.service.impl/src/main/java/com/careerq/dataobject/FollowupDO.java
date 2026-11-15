@@ -31,6 +31,10 @@ public class FollowupDO {
         return questionId;
     }
 
+    public Long getSenderId() {
+        return senderId;
+    }
+
     public void setQuestionId(Long questionId) {
         this.questionId = questionId;
     }
