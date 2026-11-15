@@ -47,13 +47,12 @@ function Wait-Healthy {
 }
 
 function New-Login([string]$phone) {
-    Invoke-RestMethod -Method Post -Uri "$base/api/v1/auth/sms-code" `
-        -ContentType "application/json" -Body (@{ phone = $phone } | ConvertTo-Json) | Out-Null
-    $session = $null
-    $login = Invoke-RestMethod -Method Post -Uri "$base/api/v1/auth/login" `
-        -ContentType "application/json" -Body (@{ phone = $phone; code = "123456" } | ConvertTo-Json) `
-        -SessionVariable session
-    return [pscustomobject]@{ Web = $session; Token = $null; User = $login.data.user }
+    $session = [pscustomobject]@{ Web = (New-Object Microsoft.PowerShell.Commands.WebRequestSession); Token = $null; User = $null }
+    Invoke-Api -Method Post -Path "/api/v1/auth/sms-code" -Session $session -Body @{ phone = $phone } | Out-Null
+    $login = Invoke-Api -Method Post -Path "/api/v1/auth/login" -Session $session -Body @{ phone = $phone; code = "123456" }
+    $session.User = $login.data.user
+    $session.Token = $null
+    return $session
 }
 
 function Invoke-Api {
@@ -83,6 +82,15 @@ function Get-Items($collection) {
 try {
     if (-not (Wait-Healthy)) { throw "后端未在 120 秒内启动，查看日志：$log" }
     Write-Host "健康检查通过" -ForegroundColor Green
+
+    $newStudent = [pscustomobject]@{ Web = (New-Object Microsoft.PowerShell.Commands.WebRequestSession); Token = $null }
+    Invoke-Api POST "/api/v1/auth/sms-code" $newStudent @{ phone = "13800000009" } | Out-Null
+    $registration = Invoke-Api POST "/api/v1/auth/register" $newStudent @{ phone = "13800000009"; code = "123456" }
+    $me = Invoke-Api GET "/api/v1/me" $newStudent
+    Assert-True ($me.data.id -eq $registration.data.user.id -and $me.data.role -eq "student") "注册后可使用会话访问当前用户"
+    Invoke-Api POST "/api/v1/auth/logout" $newStudent | Out-Null
+    $signedIn = New-Login "13800000009"
+    Assert-True ($signedIn.User.id -eq $registration.data.user.id) "注册账号可退出并重新登录"
 
     Write-Host "== 1. 公开问答 + 审核 ==" -ForegroundColor Cyan
     $student = New-Login "13800000001"
@@ -119,7 +127,11 @@ try {
     $private = Invoke-Api POST "/api/v1/questions" $student @{
         title = "试用期被辞退怎么办？"; body = "想了解试用期辞退的合法流程。"; scope = "private"
     }
-    Assert-True ($private.data.status -eq "open") "私密问题进入待认领"
+    Assert-True ($private.data.status -eq "pending_human") "私密问题先提交人工审核"
+    $unreviewedPool = Invoke-Api GET "/api/v1/hr/private-pool" $hr
+    $unreviewedItems = @(Get-Items $unreviewedPool.data.items | Where-Object { $_.id -eq $private.data.id })
+    Assert-True ($unreviewedItems.Count -eq 0) "待审私密问题对 HR 不可见"
+    Invoke-Api POST "/api/v1/admin/moderation/question/$($private.data.id)/decide" $operator @{ decision = "approve" } | Out-Null
 
     $pool = Invoke-Api GET "/api/v1/hr/private-pool" $hr
     $poolItems = @(Get-Items $pool.data.items | Where-Object { [string]$_.id -eq [string]$private.data.id })
@@ -127,15 +139,20 @@ try {
     Assert-True ($poolItems[0].author.nickname -eq "匿名同学") "私密池作者匿名"
 
     Invoke-Api POST "/api/v1/hr/questions/$($private.data.id)/claim" $hr $null | Out-Null
-    Invoke-Api POST "/api/v1/questions/$($private.data.id)/answers" $hr @{
+    $privateAnswer = Invoke-Api POST "/api/v1/questions/$($private.data.id)/answers" $hr @{
         body = "先确认辞退理由与证据，再谈补偿方案。"
-    } | Out-Null
-    Invoke-Api POST "/api/v1/questions/$($private.data.id)/followups" $student @{
+    }
+    $studentView = Invoke-Api GET "/api/v1/questions/$($private.data.id)" $student
+    Assert-True (@($studentView.data.answers).Count -eq 0) "待审回答对提问者不可见"
+    Invoke-Api POST "/api/v1/admin/moderation/answer/$($privateAnswer.data.id)/decide" $operator @{ decision = "approve" } | Out-Null
+    $privateFollowup = Invoke-Api POST "/api/v1/questions/$($private.data.id)/followups" $student @{
         body = "需要保留哪些证据？"
-    } | Out-Null
-    Invoke-Api POST "/api/v1/questions/$($private.data.id)/close" $student $null | Out-Null
-    Invoke-Api POST "/api/v1/questions/$($private.data.id)/publish" $student $null | Out-Null
-    Assert-True $true "私密工单闭环（认领→回答→追问→关闭→申请公开）"
+    }
+    $hrView = Invoke-Api GET "/api/v1/questions/$($private.data.id)" $hr
+    Assert-True (@($hrView.data.followups).Count -eq 0) "待审追问对 HR 不可见"
+    Invoke-Api POST "/api/v1/admin/moderation/followup/$($privateFollowup.data.id)/decide" $operator @{ decision = "approve" } | Out-Null
+    $closed = Invoke-Api POST "/api/v1/questions/$($private.data.id)/close" $student $null
+    Assert-True ($closed.data.status -eq "public_pending") "结单自动提交公开审核"
 
     $queue2 = Invoke-Api GET "/api/v1/admin/moderation/queue" $operator
     $pendingPost = @(Get-Items $queue2.data | Where-Object {
@@ -147,7 +164,7 @@ try {
     } | Out-Null
     $posts = Invoke-Api GET "/api/v1/posts" $null
     $postMatches = @(Get-Items $posts.data | Where-Object { $_.title -like "*试用期被辞退*" })
-    Assert-True ($postMatches.Count -ge 1) "审核通过后出现在公开池"
+    Assert-True ($postMatches.Count -eq 1 -and $postMatches[0].hrAnswer -eq $privateAnswer.data.body) "审核通过后公开问题与回答"
 
     Write-Host "== 3. 举报处理 ==" -ForegroundColor Cyan
     Invoke-Api POST "/api/v1/reports" $student @{

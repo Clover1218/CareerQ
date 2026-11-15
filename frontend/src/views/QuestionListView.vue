@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { api, type Question } from "../api";
+import { api, type PublicPost, type Question } from "../api";
 
 const items = ref<Question[]>([]);
 const tag = ref("");
 const cursor = ref<number | null>(null);
 const loading = ref(false);
 const error = ref("");
+const publicPosts = ref<PublicPost[]>([]);
+const postsError = ref("");
 
 async function load(reset = false) {
   if (loading.value) return;
@@ -23,7 +25,18 @@ async function load(reset = false) {
   }
 }
 
-onMounted(() => load(true));
+async function loadPublicPosts() {
+  try {
+    publicPosts.value = await api.posts();
+  } catch (error) {
+    postsError.value = error instanceof Error ? error.message : "公开工单加载失败";
+  }
+}
+
+onMounted(() => {
+  void load(true);
+  void loadPublicPosts();
+});
 </script>
 
 <template>
@@ -58,4 +71,15 @@ onMounted(() => load(true));
   <div v-if="cursor" style="text-align: center">
     <button :disabled="loading" @click="load(false)">{{ loading ? "加载中…" : "加载更多" }}</button>
   </div>
+
+  <p v-if="postsError" class="error">{{ postsError }}</p>
+  <section v-if="publicPosts.length">
+    <h2>工单公开问答</h2>
+    <article v-for="post in publicPosts" :key="post.id" class="card">
+      <h3>{{ post.title }}</h3>
+      <p class="question-body">{{ post.questionBody }}</p>
+      <strong>HR 回答</strong>
+      <p class="question-body">{{ post.hrAnswer }}</p>
+    </article>
+  </section>
 </template>

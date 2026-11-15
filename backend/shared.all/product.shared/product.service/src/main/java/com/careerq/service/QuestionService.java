@@ -12,7 +12,10 @@ public interface QuestionService {
 
     PageResult<QuestionView> list(String tag, Long cursor, int limit);
 
+    PageResult<QuestionView> mine(AuthUser author, String scope, Long cursor, int limit);
+
     QuestionDetail detail(AuthUser current, Long id);
+
 
     PageResult<QuestionView> hrQuestionPool(Long cursor, int limit);
 

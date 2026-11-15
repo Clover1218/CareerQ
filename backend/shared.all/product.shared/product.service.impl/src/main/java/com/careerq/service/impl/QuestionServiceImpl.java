@@ -102,6 +102,18 @@ public class QuestionServiceImpl implements QuestionService {
 
     @Override
     @Transactional(readOnly = true)
+    public PageResult<QuestionView> mine(AuthUser author, String scope, Long cursor, int limit) {
+        int size = Math.max(1, Math.min(limit, 50));
+        String scopeFilter = scope == null || scope.isBlank() ? null : normalizeScope(scope);
+        List<QuestionDO> rows = questionDao.listByAuthor(author.getId(), scopeFilter, cursor, size + 1);
+        boolean hasMore = rows.size() > size;
+        List<QuestionDO> page = hasMore ? rows.subList(0, size) : rows;
+        List<QuestionView> items = page.stream().map(question -> toView(question, false)).toList();
+        Long nextCursor = hasMore ? page.get(page.size() - 1).getId() : null;
+        return new PageResult<>(items, nextCursor);
+    }
+    @Override
+    @Transactional(readOnly = true)
     public QuestionDetail detail(AuthUser current, Long id) {
         QuestionDO question = questionDao.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));

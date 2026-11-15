@@ -55,6 +55,17 @@ public interface QuestionDao {
                           @Param("cursor") Long cursor, @Param("tag") String tag,
                           @Param("unanswered") boolean unanswered, @Param("limit") int limit);
 
+    @Select("""
+            <script>
+            select * from questions where author_id = #{authorId}
+            <if test="scope != null">and scope = #{scope}</if>
+            <if test="cursor != null">and id &lt; #{cursor}</if>
+            order by id desc limit #{limit}
+            </script>
+            """)
+    List<QuestionDO> listByAuthor(@Param("authorId") Long authorId, @Param("scope") String scope,
+                                  @Param("cursor") Long cursor, @Param("limit") int limit);
+
     @Update("update questions set status = #{status}, updated_at = current_timestamp where id = #{id}")
     int updateStatus(@Param("id") Long id, @Param("status") String status);
 
@@ -95,4 +106,5 @@ public interface QuestionDao {
             where id = #{id}
             """)
     int decrementLike(Long id);
+
 }

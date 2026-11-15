@@ -72,6 +72,13 @@ async function publishQuestion() {
 }
 
 const isAuthor = () => detail.value && me.value && detail.value.question.author.id === me.value.id;
+const reviewStatus: Record<string, string> = {
+  pending_human: "待审核",
+  rejected: "审核未通过",
+  public_pending: "已结单，公开稿待审核",
+  public_archived: "已脱敏公开",
+  public_rejected: "公开稿审核未通过",
+};
 
 onMounted(load);
 </script>
@@ -86,17 +93,17 @@ onMounted(load);
     </div>
     <div class="row" style="margin: 8px 0">
       <span class="tag">{{ detail.question.scope === "private" ? "私密工单" : "公开" }}</span>
-      <span class="tag">状态：{{ detail.question.status }}</span>
+      <span class="tag">{{ reviewStatus[detail.question.status] ?? detail.question.status }}</span>
       <span v-for="t in detail.question.tags" :key="t" class="tag">{{ t }}</span>
       <span class="muted">{{ detail.question.author.nickname }}</span>
     </div>
     <p class="question-body">{{ detail.question.body }}</p>
     <div v-if="detail.question.scope === 'private' && isAuthor()" class="row">
-      <button v-if="['open', 'assigned'].includes(detail.question.status)" class="danger" @click="closeQuestion">
-        关闭问题
+      <button v-if="detail.question.status === 'assigned' && detail.answers.some(a => a.status === 'published')" class="primary" @click="closeQuestion">
+        结单并提交脱敏公开
       </button>
-      <button v-if="detail.question.status === 'closed'" class="primary" @click="publishQuestion">
-        申请脱敏公开
+      <button v-if="['closed', 'public_rejected'].includes(detail.question.status)" class="primary" @click="publishQuestion">
+        提交公开审核
       </button>
     </div>
   </div>
@@ -111,7 +118,8 @@ onMounted(load);
         <span>{{ a.lengthType === "one_liner" ? "一句话建议" : "详细经验" }}</span>
       </div>
       <p class="question-body">{{ a.body }}</p>
-      <button v-if="me" @click="markUseful(a.id)">有用（{{ a.usefulCount }}）</button>
+      <span v-if="a.status !== 'published'" class="tag">{{ reviewStatus[a.status] }}</span>
+      <button v-if="me && a.status === 'published'" @click="markUseful(a.id)">有用（{{ a.usefulCount }}）</button>
     </div>
   </div>
 
@@ -120,20 +128,21 @@ onMounted(load);
     <p v-if="detail.followups.length === 0" class="muted">暂无追问。</p>
     <div v-for="f in detail.followups" :key="f.id" class="followup">
       <strong>{{ f.senderRole === "hr" ? "HR" : "学生" }}：</strong>{{ f.body }}
+      <span v-if="f.status !== 'published'" class="tag">{{ reviewStatus[f.status] }}</span>
     </div>
-    <template v-if="me">
+    <template v-if="me && (detail.question.scope === 'public' || detail.question.status === 'assigned')">
       <div class="field" style="margin-top: 12px">
         <textarea v-model="followupBody" placeholder="继续追问…" />
       </div>
       <button class="primary" @click="submitFollowup">发送追问</button>
     </template>
-    <p v-else class="muted">
+    <p v-else-if="!me" class="muted">
       <router-link :to="{ path: '/login', query: { redirect: $route.fullPath } }">登录</router-link>
       或 <router-link to="/register">注册</router-link> 后可追问
     </p>
   </div>
 
-  <div v-if="detail && me?.role === 'hr'" class="card">
+  <div v-if="detail && me?.role === 'hr' && (detail.question.scope === 'public' || detail.question.status === 'assigned')" class="card">
     <h3>以 HR 身份回答</h3>
     <div class="field">
       <textarea v-model="answerBody" placeholder="写下你的经验或建议…" />

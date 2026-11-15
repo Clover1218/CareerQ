@@ -56,9 +56,10 @@ async function submit() {
       <label>可见性</label>
       <div class="row">
         <label><input v-model="scope" type="radio" value="public" style="width: auto" /> 公开提问</label>
-        <label><input v-model="scope" type="radio" value="private" style="width: auto" /> 私密工单（仅 HR 可见）</label>
+        <label><input v-model="scope" type="radio" value="private" style="width: auto" /> 私密工单</label>
       </div>
     </div>
+    <p v-if="scope === 'private'" class="muted">每条发言审核通过后才向对方展示。结单后，问题与回答经脱敏审核公开。</p>
     <p v-if="error" class="error">{{ error }}</p>
     <button class="primary" :disabled="loading" @click="submit">{{ loading ? "提交中…" : "提交" }}</button>
   </div>

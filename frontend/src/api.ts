@@ -45,7 +45,15 @@ export interface Followup {
   questionId: number;
   senderRole: string;
   body: string;
+  status: string;
   createdAt: string;
+}
+
+export interface PublicPost {
+  id: number;
+  title: string;
+  questionBody: string;
+  hrAnswer: string;
 }
 
 export interface QuestionDetail {
@@ -207,7 +215,7 @@ export const api = {
     return request<Question>(`/questions/${questionId}/publish`, { method: "POST" });
   },
 
-  posts(): Promise<unknown[]> {
-    return request<unknown[]>("/posts");
+  posts(): Promise<PublicPost[]> {
+    return request<PublicPost[]>("/posts");
   },
 };
