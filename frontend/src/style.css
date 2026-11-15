@@ -3,16 +3,40 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   设计 token：来自 Figma 文件 CareerQ 的变量与 PublicQ&A 画板
+   ============================================================ */
 :root {
   color-scheme: light;
-  --primary: #2f6fed;
-  --primary-dark: #1d4fc4;
-  --bg: #f6f8fb;
-  --card: #ffffff;
-  --text: #202632;
-  --muted: #6b7280;
-  --border: #e4e8f0;
-  --danger: #d64545;
+
+  /* 颜色变量（Figma Variable Collection 1） */
+  --color-border-default: #e5e7eb; /* Border/default */
+  --color-border-subtle: #ebebeb; /* NavBar 分隔线 */
+  --color-text-primary: #111827; /* Text/Primary */
+  --color-text-regular: #4b5563; /* Text/Regular */
+  --color-text-muted: #9ca3af; /* Text/Muted */
+  --color-text-subtle: #8e8e93; /* 阅读全文 / 收起 等辅助文字 */
+  --color-bg-main: #f8f9fa; /* Bg/Main */
+  --color-bg-surface: #ffffff; /* Bg/Surface */
+  --color-bg-hover: #f3f4f6; /* Bg/Hover */
+  --color-bg-feed: #fafafa; /* Feed 容器底色 */
+  --color-white: #ffffff; /* Color */
+  --color-brand: #2f6fed; /* 品牌蓝：仅用于链接与可点击强调 */
+  --color-brand-dark: #1d4fc4;
+  --color-danger: #d64545;
+
+  /* 旧变量别名：其他页面仍在使用，统一指向新 token */
+  --primary: var(--color-brand);
+  --primary-dark: var(--color-brand-dark);
+  --bg: var(--color-bg-main);
+  --card: var(--color-bg-surface);
+  --text: var(--color-text-primary);
+  --muted: var(--color-text-muted);
+  --border: var(--color-border-default);
+  --danger: var(--color-danger);
+
+  /* 排版：Figma 使用 MiSans，未安装时回落到系统中文字体 */
+  --font-sans: "MiSans", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
 }
 
 * {
@@ -21,53 +45,68 @@
 
 body {
   margin: 0;
-  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  background: var(--bg);
-  color: var(--text);
+  font-family: var(--font-sans);
+  background: var(--color-bg-main);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
 }
 
 a {
-  color: var(--primary);
+  color: var(--color-brand);
   text-decoration: none;
 }
 
+/* ---------------- 顶部导航 ---------------- */
 .topbar {
   display: flex;
   align-items: center;
-  gap: 24px;
-  padding: 12px 24px;
-  background: var(--card);
-  border-bottom: 1px solid var(--border);
+  gap: 32px;
+  height: 56px;
+  padding: 0 32px;
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-subtle);
   position: sticky;
   top: 0;
   z-index: 10;
 }
 
 .brand {
-  font-weight: 700;
-  font-size: 18px;
+  font-weight: 600;
+  font-size: 22px;
+  line-height: 32px;
+  color: var(--color-text-primary);
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .brand span {
   font-size: 12px;
-  color: var(--muted);
-  font-weight: 500;
+  line-height: 18px;
+  color: var(--color-text-muted);
+  font-weight: 400;
+  margin-left: 4px;
 }
 
 .nav {
   display: flex;
-  gap: 16px;
+  gap: 32px;
 }
 
 .nav a {
-  color: var(--text);
-  padding: 4px 2px;
+  color: var(--color-text-regular);
+  font-size: 16px;
+  line-height: 24px;
+  padding: 4px 0;
+  transition: color 0.15s ease;
+}
+
+.nav a:hover {
+  color: var(--color-text-primary);
 }
 
 .nav a.router-link-active {
-  color: var(--primary);
-  border-bottom: 2px solid var(--primary);
+  color: var(--color-text-primary);
+  font-weight: 600;
 }
 
 .account {
@@ -75,30 +114,33 @@ a {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: var(--muted);
+  color: var(--color-text-regular);
   font-size: 14px;
+  line-height: 22px;
 }
 
 .role {
-  background: #eaf0ff;
-  color: var(--primary);
+  background: var(--color-bg-hover);
+  color: var(--color-text-regular);
   border-radius: 999px;
-  padding: 2px 8px;
+  padding: 1px 8px;
   font-size: 12px;
+  line-height: 18px;
 }
 
+/* ---------------- 页面骨架 ---------------- */
 .container {
-  max-width: 860px;
+  max-width: 720px;
   margin: 24px auto 64px;
   padding: 0 16px;
 }
 
 .card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 16px;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 10px;
 }
 
 .card h2,
@@ -107,8 +149,9 @@ a {
 }
 
 .muted {
-  color: var(--muted);
+  color: var(--color-text-muted);
   font-size: 14px;
+  line-height: 22px;
 }
 
 .row {
@@ -126,45 +169,64 @@ a {
 }
 
 .tag {
-  background: #f1f4f9;
+  background: var(--color-bg-hover);
   border-radius: 999px;
   padding: 2px 10px;
   font-size: 12px;
-  color: var(--muted);
+  line-height: 18px;
+  color: var(--color-text-regular);
 }
 
+/* ---------------- 表单与按钮 ---------------- */
 button,
 .btn {
   cursor: pointer;
-  border: 1px solid var(--border);
-  background: var(--card);
-  border-radius: 8px;
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-surface);
+  border-radius: 6px;
   padding: 8px 14px;
+  font-family: inherit;
   font-size: 14px;
-  color: var(--text);
+  line-height: 22px;
+  color: var(--color-text-regular);
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+button:hover,
+.btn:hover {
+  background: var(--color-bg-hover);
 }
 
 button.primary,
 .btn.primary {
-  background: var(--primary);
-  border-color: var(--primary);
+  background: var(--color-brand);
+  border-color: var(--color-brand);
   color: #fff;
 }
 
 button.primary:hover,
 .btn.primary:hover {
-  background: var(--primary-dark);
+  background: var(--color-brand-dark);
+  border-color: var(--color-brand-dark);
 }
 
 button.link {
   border: none;
   background: none;
-  color: var(--muted);
+  color: var(--color-text-regular);
   padding: 0;
 }
 
+button.link:hover {
+  background: none;
+  color: var(--color-text-primary);
+}
+
 button.danger {
-  color: var(--danger);
+  color: var(--color-danger);
   border-color: #f3c6c6;
 }
 
@@ -172,12 +234,27 @@ input,
 textarea,
 select {
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
   font: inherit;
-  background: #fff;
-  color: var(--text);
+  font-size: 14px;
+  line-height: 22px;
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.12);
 }
 
 textarea {
@@ -193,28 +270,35 @@ textarea {
   display: block;
   margin-bottom: 6px;
   font-size: 14px;
-  color: var(--muted);
+  line-height: 22px;
+  color: var(--color-text-regular);
 }
 
 .error {
-  color: var(--danger);
+  color: var(--color-danger);
   font-size: 14px;
+  line-height: 22px;
   margin: 8px 0;
 }
 
+/* ---------------- 问答内容 ---------------- */
 .question-title {
   font-size: 18px;
+  line-height: 26px;
   font-weight: 600;
   margin: 0 0 8px;
+  color: var(--color-text-primary);
 }
 
 .question-body {
   white-space: pre-wrap;
-  line-height: 1.7;
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--color-text-primary);
 }
 
 .answer {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--color-border-default);
   padding-top: 14px;
   margin-top: 14px;
 }
@@ -223,15 +307,16 @@ textarea {
   display: flex;
   gap: 8px;
   align-items: center;
-  color: var(--muted);
+  color: var(--color-text-muted);
   font-size: 13px;
   margin-bottom: 6px;
 }
 
 .followup {
-  border-left: 3px solid var(--border);
+  border-left: 3px solid var(--color-border-default);
   padding: 6px 12px;
   margin: 8px 0;
-  color: var(--muted);
+  color: var(--color-text-regular);
   font-size: 14px;
+  line-height: 22px;
 }

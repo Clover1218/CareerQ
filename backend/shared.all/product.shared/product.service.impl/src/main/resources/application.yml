@@ -69,7 +69,7 @@ careerq:
 spring:
   config:
     activate:
-      on-profile: prod
+      on-profile: dev
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3308/careerq?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
     username: ${DB_USERNAME:root}

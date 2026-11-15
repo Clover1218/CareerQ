@@ -2,8 +2,22 @@
 import { onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
-import { dateZhCN, zhCN } from "naive-ui";
+import { dateZhCN, zhCN, type GlobalThemeOverrides } from "naive-ui";
 import { useUserStore } from "@/stores/user";
+
+// Naive UI 主题与 Figma token 对齐，避免组件库默认蓝与设计稿脱节
+const themeOverrides: GlobalThemeOverrides = {
+  common: {
+    primaryColor: "#2F6FED",
+    primaryColorHover: "#1D4FC4",
+    primaryColorPressed: "#1D4FC4",
+    borderRadius: "6px",
+    fontFamily: '"MiSans", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif',
+    textColorBase: "#111827",
+    borderColor: "#E5E7EB",
+    bodyColor: "#F8F9FA",
+  },
+};
 
 const router = useRouter();
 const route = useRoute();
@@ -25,7 +39,7 @@ watch(() => route.fullPath, refresh);
 
 <template>
   <!-- 全局 Provider：naive-ui 的 message/dialog/notification/loadingBar 依赖这些宿主组件 -->
-  <n-config-provider :locale="zhCN" :date-locale="dateZhCN">
+  <n-config-provider :locale="zhCN" :date-locale="dateZhCN" :theme-overrides="themeOverrides">
     <n-message-provider>
       <n-dialog-provider>
         <n-notification-provider>
