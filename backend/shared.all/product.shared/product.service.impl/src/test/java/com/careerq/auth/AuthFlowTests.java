@@ -53,6 +53,18 @@ class AuthFlowTests {
     }
 
     @Test
+    void registerWithoutNicknameUsesDefault() throws Exception {
+        String phone = "13800000008";
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("phone", phone, "code", "123456"))))
+                .andExpect(status().isOk())
+                .andReturn();
+        var body = objectMapper.readTree(result.getResponse().getContentAsString());
+        org.junit.jupiter.api.Assertions.assertEquals("用户0008", body.path("data").path("user").path("nickname").asText());
+    }
+
+    @Test
     void loginUnregisteredRejected() throws Exception {
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)

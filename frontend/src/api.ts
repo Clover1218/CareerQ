@@ -117,7 +117,7 @@ export const api = {
   async register(payload: {
     phone: string;
     code: string;
-    nickname: string;
+    nickname?: string;
     school?: string;
     major?: string;
     grade?: string;

@@ -62,6 +62,8 @@ async function login() {
     </button>
     <p class="muted" style="text-align: center; margin-top: 12px">
       还没有账号？<router-link to="/register">去注册</router-link>
+      <span> · </span>
+      <router-link to="/">先随便逛逛</router-link>
     </p>
   </div>
 </template>

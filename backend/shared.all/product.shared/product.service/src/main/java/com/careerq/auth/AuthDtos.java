@@ -32,7 +32,6 @@ public final class AuthDtos {
             String phone,
             @NotBlank(message = "验证码不能为空")
             String code,
-            @NotBlank(message = "昵称不能为空")
             @Size(max = 64, message = "昵称不能超过 64 字")
             String nickname,
             @Size(max = 128, message = "学校不能超过 128 字")

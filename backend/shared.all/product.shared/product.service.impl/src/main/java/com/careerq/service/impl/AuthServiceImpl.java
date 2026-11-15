@@ -66,7 +66,7 @@ public class AuthServiceImpl implements AuthService {
         user.setRole("student");
         user.setPhoneHash(phoneHash);
         user.setPhoneVerifiedAt(LocalDateTime.now());
-        user.setNickname(request.nickname().trim());
+        user.setNickname(defaultNickname(request.nickname(), request.phone()));
         user.setSchool(blankToNull(request.school()));
         user.setMajor(blankToNull(request.major()));
         user.setGrade(blankToNull(request.grade()));
@@ -112,6 +112,11 @@ public class AuthServiceImpl implements AuthService {
         SecurityContextHolder.setContext(context);
         httpRequest.getSession(true)
                 .setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
+    }
+
+    private static String defaultNickname(String nickname, String phone) {
+        String value = blankToNull(nickname);
+        return value != null ? value : "用户" + phone.substring(phone.length() - 4);
     }
 
     private static String blankToNull(String value) {

@@ -32,7 +32,7 @@ async function submit() {
     await api.register({
       phone: phone.value.trim(),
       code: code.value.trim(),
-      nickname: nickname.value.trim(),
+      nickname: nickname.value.trim() || undefined,
       school: school.value.trim() || undefined,
       major: major.value.trim() || undefined,
       grade: grade.value.trim() || undefined,
@@ -67,7 +67,7 @@ async function submit() {
       </div>
     </div>
     <div class="field">
-      <label>昵称（必填）</label>
+      <label>昵称（选填，不填自动生成）</label>
       <input v-model="nickname" maxlength="64" placeholder="公开显示的名字" />
     </div>
     <div class="field">
@@ -89,6 +89,8 @@ async function submit() {
     </button>
     <p class="muted" style="text-align: center; margin-top: 12px">
       已有账号？<router-link to="/login">去登录</router-link>
+      <span> · </span>
+      <router-link to="/">先随便逛逛</router-link>
     </p>
   </div>
 </template>
