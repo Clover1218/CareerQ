@@ -1,8 +1,13 @@
 package com.careerq.dao;
 
 import com.careerq.dataobject.InteractionDO;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Options;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
+
+import java.util.List;
 
 public interface InteractionDao {
 
@@ -15,4 +20,41 @@ public interface InteractionDao {
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(InteractionDO interaction);
+
+    @Delete("""
+            delete from interactions
+            where user_id = #{userId} and target_type = #{targetType}
+              and target_id = #{targetId} and type = #{type}
+            """)
+    int delete(@Param("userId") Long userId,
+               @Param("targetType") String targetType,
+               @Param("targetId") Long targetId,
+               @Param("type") String type);
+
+    @Select("""
+            select exists (
+                select 1 from interactions
+                where user_id = #{userId} and target_type = #{targetType}
+                  and target_id = #{targetId} and type = #{type}
+            )
+            """)
+    boolean exists(@Param("userId") Long userId,
+                   @Param("targetType") String targetType,
+                   @Param("targetId") Long targetId,
+                   @Param("type") String type);
+
+    @Select("""
+            <script>
+            select * from interactions
+            where user_id = #{userId} and type = #{type}
+            <if test="targetType != null"> and target_type = #{targetType}</if>
+            <if test="cursor != null"> and id &lt; #{cursor}</if>
+            order by id desc limit #{limit}
+            </script>
+            """)
+    List<InteractionDO> findByUserAndType(@Param("userId") Long userId,
+                                          @Param("type") String type,
+                                          @Param("targetType") String targetType,
+                                          @Param("cursor") Long cursor,
+                                          @Param("limit") int limit);
 }

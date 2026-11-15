@@ -27,6 +27,8 @@ public final class AnswerDtos {
             UserBrief author,
             int likeCount,
             int usefulCount,
+            boolean liked,
+            boolean usefuled,
             LocalDateTime createdAt) {
     }
 }

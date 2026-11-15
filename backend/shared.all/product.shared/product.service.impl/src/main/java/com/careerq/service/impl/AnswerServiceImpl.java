@@ -79,6 +79,8 @@ public class AnswerServiceImpl implements AnswerService {
                         .orElse(new UserBrief(answer.getAuthorId(), "HR")),
                 answer.getLikeCount(),
                 answer.getUsefulCount(),
+                false,
+                false,
                 answer.getCreatedAt());
     }
 

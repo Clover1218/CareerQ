@@ -36,9 +36,15 @@ public final class QuestionDtos {
             LocalDateTime createdAt,
             int answerCount,
             int usefulCount,
+            int likeCount,
             LocalDateTime firstAnswerAt) {
     }
 
-    public record QuestionDetail(QuestionView question, List<AnswerView> answers, List<FollowupView> followups) {
+    /** 当前查看者对问题/回答的互动状态。 */
+    public record ViewerState(boolean liked, boolean usefuled, boolean favorited) {
+    }
+
+    public record QuestionDetail(QuestionView question, List<AnswerView> answers, List<FollowupView> followups,
+                                 ViewerState viewer) {
     }
 }

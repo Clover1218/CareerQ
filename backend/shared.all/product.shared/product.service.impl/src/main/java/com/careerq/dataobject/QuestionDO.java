@@ -26,6 +26,8 @@ public class QuestionDO {
 
     private int usefulCount;
 
+    private Integer likeCount;
+
     private LocalDateTime createdAt = LocalDateTime.now();
 
     private LocalDateTime updatedAt = LocalDateTime.now();
@@ -92,6 +94,14 @@ public class QuestionDO {
 
     public int getAnswerCount() {
         return answerCount;
+    }
+
+    public int getLikeCount() {
+        return likeCount == null ? 0 : likeCount;
+    }
+
+    public void setLikeCount(Integer likeCount) {
+        this.likeCount = likeCount;
     }
 
     public int getUsefulCount() {

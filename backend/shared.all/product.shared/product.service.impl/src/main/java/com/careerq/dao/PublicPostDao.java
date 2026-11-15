@@ -62,4 +62,10 @@ public interface PublicPostDao {
             """)
     int updateStatus(@Param("id") Long id, @Param("status") String status,
                      @Param("publishedAt") LocalDateTime publishedAt);
+
+    @Update("update posts set like_count = like_count + 1 where id = #{id}")
+    int incrementLike(Long id);
+
+    @Update("update posts set like_count = case when like_count > 0 then like_count - 1 else 0 end where id = #{id}")
+    int decrementLike(Long id);
 }

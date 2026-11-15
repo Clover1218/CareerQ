@@ -76,4 +76,23 @@ public interface QuestionDao {
             update questions set useful_count = useful_count + 1, updated_at = current_timestamp where id = #{id}
             """)
     int incrementUseful(Long id);
+
+    @Update("""
+            update questions set useful_count = case when useful_count > 0 then useful_count - 1 else 0 end,
+                updated_at = current_timestamp
+            where id = #{id}
+            """)
+    int decrementUseful(Long id);
+
+    @Update("""
+            update questions set like_count = like_count + 1, updated_at = current_timestamp where id = #{id}
+            """)
+    int incrementLike(Long id);
+
+    @Update("""
+            update questions set like_count = case when like_count > 0 then like_count - 1 else 0 end,
+                updated_at = current_timestamp
+            where id = #{id}
+            """)
+    int decrementLike(Long id);
 }

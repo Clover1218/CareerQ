@@ -6,6 +6,7 @@ import com.careerq.common.ErrorCode;
 import com.careerq.common.PageResult;
 import com.careerq.common.UserBrief;
 import com.careerq.dao.AnswerDao;
+import com.careerq.dao.InteractionDao;
 import com.careerq.dao.PublicPostDao;
 import com.careerq.dao.QuestionDao;
 import com.careerq.dao.TagDao;
@@ -18,6 +19,7 @@ import com.careerq.followup.FollowupDtos.FollowupView;
 import com.careerq.question.QuestionDtos.CreateRequest;
 import com.careerq.question.QuestionDtos.QuestionDetail;
 import com.careerq.question.QuestionDtos.QuestionView;
+import com.careerq.question.QuestionDtos.ViewerState;
 import com.careerq.security.AuthUser;
 import com.careerq.service.FollowupService;
 import com.careerq.service.ModerationService;
@@ -50,6 +52,7 @@ public class QuestionServiceImpl implements QuestionService {
     private final ModerationService moderationService;
     private final FollowupService followupService;
     private final PublicPostDao publicPostDao;
+    private final InteractionDao interactionDao;
 
     public QuestionServiceImpl(QuestionDao questionDao,
                                AnswerDao answerDao,
@@ -57,7 +60,8 @@ public class QuestionServiceImpl implements QuestionService {
                                UserDao userDao,
                                ModerationService moderationService,
                                FollowupService followupService,
-                               PublicPostDao publicPostDao) {
+                               PublicPostDao publicPostDao,
+                               InteractionDao interactionDao) {
         this.questionDao = questionDao;
         this.answerDao = answerDao;
         this.tagDao = tagDao;
@@ -65,6 +69,7 @@ public class QuestionServiceImpl implements QuestionService {
         this.moderationService = moderationService;
         this.followupService = followupService;
         this.publicPostDao = publicPostDao;
+        this.interactionDao = interactionDao;
     }
 
     @Override
@@ -118,11 +123,18 @@ public class QuestionServiceImpl implements QuestionService {
             throw new BusinessException(ErrorCode.NOT_FOUND, "问题不存在");
         }
 
-        Long ownAnswerAuthor = PRIVATE.equals(question.getScope()) ? current.getId() : null;
+        Long viewerId = current == null ? null : current.getId();
+        Long ownAnswerAuthor = PRIVATE.equals(question.getScope()) ? viewerId : null;
         List<AnswerView> answers = answerDao.findVisible(question.getId(), ownAnswerAuthor)
-                .stream().map(this::toAnswerView).toList();
+                .stream().map(answer -> toAnswerView(answer, viewerId)).toList();
         List<FollowupView> followups = followupService.list(current, question.getId());
-        return new QuestionDetail(toView(question, maskAuthor), answers, followups);
+        ViewerState viewer = viewerId == null
+                ? new ViewerState(false, false, false)
+                : new ViewerState(
+                        interactionDao.exists(viewerId, "question", question.getId(), "like"),
+                        interactionDao.exists(viewerId, "question", question.getId(), "useful"),
+                        interactionDao.exists(viewerId, "question", question.getId(), "favorite"));
+        return new QuestionDetail(toView(question, maskAuthor), answers, followups, viewer);
     }
 
     @Override
@@ -287,10 +299,15 @@ public class QuestionServiceImpl implements QuestionService {
                 question.getCreatedAt(),
                 question.getAnswerCount(),
                 question.getUsefulCount(),
+                question.getLikeCount(),
                 question.getFirstAnswerAt());
     }
 
-    private AnswerView toAnswerView(AnswerDO answer) {
+    private AnswerView toAnswerView(AnswerDO answer, Long viewerId) {
+        boolean liked = viewerId != null
+                && interactionDao.exists(viewerId, "answer", answer.getId(), "like");
+        boolean usefuled = viewerId != null
+                && interactionDao.exists(viewerId, "answer", answer.getId(), "useful");
         return new AnswerView(
                 answer.getId(),
                 answer.getQuestionId(),
@@ -300,6 +317,8 @@ public class QuestionServiceImpl implements QuestionService {
                 authorOf(answer.getAuthorId()),
                 answer.getLikeCount(),
                 answer.getUsefulCount(),
+                liked,
+                usefuled,
                 answer.getCreatedAt());
     }
 

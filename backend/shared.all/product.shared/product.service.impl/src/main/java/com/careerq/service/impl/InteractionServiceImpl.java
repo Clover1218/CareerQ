@@ -4,6 +4,7 @@ import com.careerq.common.BusinessException;
 import com.careerq.common.ErrorCode;
 import com.careerq.dao.AnswerDao;
 import com.careerq.dao.InteractionDao;
+import com.careerq.dao.PublicPostDao;
 import com.careerq.dao.QuestionDao;
 import com.careerq.dataobject.AnswerDO;
 import com.careerq.dataobject.InteractionDO;
@@ -21,33 +22,31 @@ import java.util.Set;
 public class InteractionServiceImpl implements InteractionService {
 
     private static final Set<String> TARGET_TYPES = Set.of("answer", "question", "post");
-    private static final Set<String> TYPES = Set.of("like", "favorite", "useful");
+    private static final Set<String> TYPES = Set.of("like", "useful", "favorite");
 
     private final InteractionDao interactionDao;
     private final AnswerDao answerDao;
     private final QuestionDao questionDao;
+    private final PublicPostDao publicPostDao;
 
     public InteractionServiceImpl(InteractionDao interactionDao,
                                   AnswerDao answerDao,
-                                  QuestionDao questionDao) {
+                                  QuestionDao questionDao,
+                                  PublicPostDao publicPostDao) {
         this.interactionDao = interactionDao;
         this.answerDao = answerDao;
         this.questionDao = questionDao;
+        this.publicPostDao = publicPostDao;
     }
-
 
     @Override
     @Transactional
     public void interact(AuthUser user, Request request) {
-        String targetType = request.targetType().trim().toLowerCase();
-        String type = request.type().trim().toLowerCase();
-        if (!TARGET_TYPES.contains(targetType)) {
-            throw new BusinessException(ErrorCode.INVALID_PARAM, "targetType 不合法");
-        }
-        if (!TYPES.contains(type)) {
-            throw new BusinessException(ErrorCode.INVALID_PARAM, "type 不合法");
-        }
+        String targetType = normalizeTargetType(request.targetType());
+        String type = normalizeType(request.type());
+        requireSupported(targetType, type);
         requireVisibleTarget(user, targetType, request.targetId());
+
         InteractionDO interaction = new InteractionDO();
         interaction.setUserId(user.getId());
         interaction.setTargetType(targetType);
@@ -56,23 +55,77 @@ public class InteractionServiceImpl implements InteractionService {
         try {
             interactionDao.insert(interaction);
         } catch (DuplicateKeyException duplicate) {
-            return;
+            return; // 已点过：幂等，不重复计数
         }
+        applyCount(targetType, type, request.targetId(), +1);
+    }
 
-        Long targetId = request.targetId();
-        if ("answer".equals(targetType)) {
-            boolean exists = switch (type) {
-                case "like" -> answerDao.incrementLike(targetId) > 0;
-                case "useful" -> answerDao.incrementUseful(targetId) > 0;
-                default -> answerDao.findById(targetId).isPresent();
-            };
-            if (!exists) {
-                throw new BusinessException(ErrorCode.NOT_FOUND, "回答不存在");
-            }
-        } else if ("question".equals(targetType) && "useful".equals(type)
-                && questionDao.incrementUseful(targetId) == 0) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "问题不存在");
+    @Override
+    @Transactional
+    public void uninteract(AuthUser user, Request request) {
+        String targetType = normalizeTargetType(request.targetType());
+        String type = normalizeType(request.type());
+        requireSupported(targetType, type);
+        requireVisibleTarget(user, targetType, request.targetId());
+
+        int deleted = interactionDao.delete(user.getId(), targetType, request.targetId(), type);
+        if (deleted > 0) {
+            applyCount(targetType, type, request.targetId(), -1);
         }
+    }
+
+    private void applyCount(String targetType, String type, Long targetId, int delta) {
+        if ("favorite".equals(type)) {
+            return; // 收藏不维护计数
+        }
+        boolean updated;
+        switch (targetType) {
+            case "answer" -> updated = switch (type) {
+                case "like" -> delta > 0 ? answerDao.incrementLike(targetId) > 0 : answerDao.decrementLike(targetId) > 0;
+                case "useful" -> delta > 0 ? answerDao.incrementUseful(targetId) > 0 : answerDao.decrementUseful(targetId) > 0;
+                default -> false;
+            };
+            case "question" -> updated = switch (type) {
+                case "like" -> delta > 0 ? questionDao.incrementLike(targetId) > 0 : questionDao.decrementLike(targetId) > 0;
+                case "useful" -> delta > 0 ? questionDao.incrementUseful(targetId) > 0 : questionDao.decrementUseful(targetId) > 0;
+                default -> false;
+            };
+            case "post" -> updated = switch (type) {
+                case "like" -> delta > 0 ? publicPostDao.incrementLike(targetId) > 0 : publicPostDao.decrementLike(targetId) > 0;
+                default -> false;
+            };
+            default -> updated = false;
+        }
+        if (!updated) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "互动目标不存在");
+        }
+    }
+
+    private void requireSupported(String targetType, String type) {
+        Set<String> supported = switch (targetType) {
+            case "post" -> Set.of("like", "favorite");
+            default -> Set.of("like", "useful", "favorite");
+        };
+        if (!supported.contains(type)) {
+            throw new BusinessException(ErrorCode.INVALID_PARAM,
+                    "post 只支持 like/favorite，其它目标支持 like/useful/favorite");
+        }
+    }
+
+    private String normalizeTargetType(String raw) {
+        String value = raw == null ? "" : raw.trim().toLowerCase();
+        if (!TARGET_TYPES.contains(value)) {
+            throw new BusinessException(ErrorCode.INVALID_PARAM, "targetType 不合法");
+        }
+        return value;
+    }
+
+    private String normalizeType(String raw) {
+        String value = raw == null ? "" : raw.trim().toLowerCase();
+        if (!TYPES.contains(value)) {
+            throw new BusinessException(ErrorCode.INVALID_PARAM, "type 不合法");
+        }
+        return value;
     }
 
     private void requireVisibleTarget(AuthUser user, String targetType, Long targetId) {
