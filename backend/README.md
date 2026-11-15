@@ -46,7 +46,7 @@ mvn -f backend/pom.xml -pl shared.all/product.shared/product.service.impl spring
 | http://localhost:8080/actuator/health | Actuator 健康检查 |
 | http://localhost:8080/swagger-ui.html | Swagger UI（OpenAPI） |
 | http://localhost:8080/v3/api-docs | OpenAPI JSON |
-| http://localhost:8080/h2-console | H2 控制台（dev，JDBC URL `jdbc:h2:mem:careerq`，用户 `sa`，密码空） |
+| http://localhost:8080/h2-console/ | H2 控制台（dev，JDBC URL `jdbc:h2:mem:careerq;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1`，用户 `sa`，密码留空） |
 
 ## 测试
 
