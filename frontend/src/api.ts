@@ -87,7 +87,7 @@ async function ensureCsrf(): Promise<string> {
   return csrfToken;
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, init: RequestInit = {}, csrfRetried = false): Promise<T> {
   const method = (init.method ?? "GET").toUpperCase();
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json; charset=utf-8");
@@ -108,6 +108,13 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!res.ok || body.code !== 0) {
     if (res.status === 401) {
       csrfToken = null;
+    }
+    // CSRF token 过期 / 后端重启导致的 403：刷新 token 后自动重试一次
+    if (res.status === 403 && body.code === 40300
+        && method !== "GET" && method !== "HEAD" && !csrfRetried) {
+      csrfToken = null;
+      await ensureCsrf();
+      return request<T>(path, init, true);
     }
     throw new ApiError(body.message ?? `HTTP ${res.status}`, body.code ?? -1, res.status);
   }

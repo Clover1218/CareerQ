@@ -1,8 +1,12 @@
 package com.careerq.config;
 
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -30,6 +34,18 @@ public class SecurityConfig {
     private static final String FORBIDDEN_BODY = "{\"code\":40300,\"message\":\"无权限\",\"data\":null}";
 
     @Bean
+    @Order(1)
+    @Profile("dev & !prod")
+    @ConditionalOnProperty(name = "spring.h2.console.enabled", havingValue = "true")
+    SecurityFilterChain h2ConsoleSecurityFilterChain(HttpSecurity http) throws Exception {
+        return http.securityMatcher(PathRequest.toH2Console())
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                .csrf(AbstractHttpConfigurer::disable)
+                .headers(headers -> headers.frameOptions(frames -> frames.sameOrigin()))
+                .build();
+    }
+
+    @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .cors(Customizer.withDefaults())
@@ -50,8 +66,7 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
-                                "/error",
-                                "/h2-console/**")
+                                "/error")
                         .permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handling -> handling

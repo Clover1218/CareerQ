@@ -43,6 +43,13 @@ public class QuestionController {
         return ApiResponse.ok(questionService.list(tag, cursor, limit));
     }
 
+    @GetMapping("/mine")
+    public ApiResponse<PageResult<QuestionView>> mine(Authentication authentication,
+                                                      @RequestParam(required = false) String scope,
+                                                      @RequestParam(required = false) Long cursor,
+                                                      @RequestParam(defaultValue = "20") int limit) {
+        return ApiResponse.ok(questionService.mine(AuthUsers.require(authentication), scope, cursor, limit));
+    }
     @GetMapping("/{id}")
     public ApiResponse<QuestionDetail> detail(Authentication authentication, @PathVariable Long id) {
         return ApiResponse.ok(questionService.detail(AuthUsers.optional(authentication), id));
