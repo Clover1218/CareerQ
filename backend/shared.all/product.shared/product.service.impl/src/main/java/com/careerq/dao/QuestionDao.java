@@ -84,6 +84,11 @@ public interface QuestionDao {
     int recordAnswer(Long id);
 
     @Update("""
+            update questions set followup_count = followup_count + 1, updated_at = current_timestamp where id = #{id}
+            """)
+    int incrementFollowup(Long id);
+
+    @Update("""
             update questions set useful_count = useful_count + 1, updated_at = current_timestamp where id = #{id}
             """)
     int incrementUseful(Long id);
@@ -106,5 +111,17 @@ public interface QuestionDao {
             where id = #{id}
             """)
     int decrementLike(Long id);
+
+    @Update("""
+            update questions set favorite_count = favorite_count + 1, updated_at = current_timestamp where id = #{id}
+            """)
+    int incrementFavorite(Long id);
+
+    @Update("""
+            update questions set favorite_count = case when favorite_count > 0 then favorite_count - 1 else 0 end,
+                updated_at = current_timestamp
+            where id = #{id}
+            """)
+    int decrementFavorite(Long id);
 
 }

@@ -26,8 +26,57 @@ export interface Question {
   author: UserBrief;
   createdAt: string;
   answerCount: number;
+  followupCount: number;
   usefulCount: number;
+  likeCount: number;
+  favoriteCount: number;
   firstAnswerAt?: string | null;
+}
+
+/** 公开 feed 卡片初始态：只有标题和摘要，不含作者与正文 */
+export interface QuestionFeedItem {
+  id: number;
+  title: string;
+  excerpt: string;
+  tags: string[];
+  answerCount: number;
+  followupCount: number;
+  replyCount: number;
+  likeCount: number;
+  favoriteCount: number;
+  createdAt: string;
+}
+
+export interface ViewerState {
+  liked: boolean;
+  usefuled: boolean;
+  favorited: boolean;
+}
+
+export interface QuestionContent {
+  question: Question;
+  viewer: ViewerState;
+}
+
+export interface ThreadItem {
+  key: string;
+  kind: "hr_answer" | "followup";
+  id: number;
+  body: string;
+  author: UserBrief;
+  hr: boolean;
+  status: string;
+  likeCount: number;
+  liked: boolean;
+  createdAt: string;
+}
+
+export interface Thread {
+  items: ThreadItem[];
+  viewer: ViewerState;
+  answerCount: number;
+  followupCount: number;
+  replyCount: number;
 }
 
 export interface Answer {
@@ -39,7 +88,45 @@ export interface Answer {
   author: UserBrief;
   likeCount: number;
   usefulCount: number;
+  liked: boolean;
+  usefuled: boolean;
   createdAt: string;
+}
+
+export interface Experience {
+  id?: number;
+  type: "internship" | "project";
+  title: string;
+  role?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  description?: string | null;
+}
+
+export interface Profile {
+  id: number;
+  role: string;
+  nickname: string;
+  school?: string | null;
+  major?: string | null;
+  grade?: string | null;
+  degree?: string | null;
+  graduationYear?: string | null;
+  experiences: Experience[];
+}
+
+export interface ProfilePatch {
+  nickname?: string;
+  school?: string;
+  major?: string;
+  grade?: string;
+}
+
+export interface MeStats {
+  questionCount: number;
+  receivedAnswerCount: number;
+  authoredAnswerCount: number;
+  likeCount: number;
 }
 
 export interface Followup {
@@ -49,6 +136,8 @@ export interface Followup {
   body: string;
   status: string;
   createdAt: string;
+  author: UserBrief;
+  hr: boolean;
 }
 
 export interface PublicPost {
@@ -62,6 +151,7 @@ export interface QuestionDetail {
   question: Question;
   answers: Answer[];
   followups: Followup[];
+  viewer: ViewerState;
 }
 
 export interface PageResult<T> {
@@ -101,16 +191,43 @@ export const api = {
     return request<User>("/me");
   },
 
-  listQuestions(tag?: string, cursor?: number | null): Promise<PageResult<Question>> {
+  myStats(): Promise<MeStats> {
+    return request<MeStats>("/me/stats");
+  },
+
+  myQuestions(cursor?: number | null): Promise<PageResult<Question>> {
+    const params = new URLSearchParams();
+    if (cursor) params.set("cursor", String(cursor));
+    params.set("limit", "20");
+    return request<PageResult<Question>>(`/me/questions?${params.toString()}`);
+  },
+
+  getProfile(): Promise<Profile> {
+    return request<Profile>("/me/profile");
+  },
+
+  patchProfile(payload: ProfilePatch): Promise<Profile> {
+    return request<Profile>("/me/profile", { method: "PATCH", body: payload });
+  },
+
+  listQuestions(tag?: string, cursor?: number | null): Promise<PageResult<QuestionFeedItem>> {
     const params = new URLSearchParams();
     if (tag) params.set("tag", tag);
     if (cursor) params.set("cursor", String(cursor));
     params.set("limit", "20");
-    return request<PageResult<Question>>(`/questions?${params.toString()}`);
+    return request<PageResult<QuestionFeedItem>>(`/questions?${params.toString()}`);
   },
 
   getQuestion(id: number): Promise<QuestionDetail> {
     return request<QuestionDetail>(`/questions/${id}`);
+  },
+
+  getQuestionContent(id: number): Promise<QuestionContent> {
+    return request<QuestionContent>(`/questions/${id}/content`);
+  },
+
+  getQuestionThread(id: number): Promise<Thread> {
+    return request<Thread>(`/questions/${id}/thread`);
   },
 
   createQuestion(payload: {
@@ -137,6 +254,20 @@ export const api = {
     return request<void>("/interactions", {
       method: "POST",
       body: { targetType, targetId, type },
+    });
+  },
+
+  uninteract(targetType: string, targetId: number, type: string): Promise<void> {
+    return request<void>("/interactions", {
+      method: "DELETE",
+      body: { targetType, targetId, type },
+    });
+  },
+
+  report(targetType: "question" | "answer" | "post" | "public_post", targetId: number, reason = "inappropriate"): Promise<void> {
+    return request<void>("/reports", {
+      method: "POST",
+      body: { targetType, targetId, reason },
     });
   },
 

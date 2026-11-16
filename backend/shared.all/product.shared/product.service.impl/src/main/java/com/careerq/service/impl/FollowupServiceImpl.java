@@ -2,8 +2,10 @@ package com.careerq.service.impl;
 
 import com.careerq.common.BusinessException;
 import com.careerq.common.ErrorCode;
+import com.careerq.common.UserBrief;
 import com.careerq.dao.FollowupDao;
 import com.careerq.dao.QuestionDao;
+import com.careerq.dao.UserDao;
 import com.careerq.dataobject.FollowupDO;
 import com.careerq.dataobject.QuestionDO;
 import com.careerq.followup.FollowupDtos.CreateRequest;
@@ -26,12 +28,14 @@ public class FollowupServiceImpl implements FollowupService {
 
     private final FollowupDao followupDao;
     private final QuestionDao questionDao;
+    private final UserDao userDao;
     private final ModerationService moderationService;
 
-    public FollowupServiceImpl(FollowupDao followupDao, QuestionDao questionDao,
+    public FollowupServiceImpl(FollowupDao followupDao, QuestionDao questionDao, UserDao userDao,
                                ModerationService moderationService) {
         this.followupDao = followupDao;
         this.questionDao = questionDao;
+        this.userDao = userDao;
         this.moderationService = moderationService;
     }
 
@@ -58,6 +62,8 @@ public class FollowupServiceImpl implements FollowupService {
         followupDao.insert(followup);
         if (privateQuestion) {
             moderationService.recordMachine("followup", followup.getId(), "pending_human");
+        } else {
+            questionDao.incrementFollowup(questionId);
         }
         return toView(followup);
     }
@@ -67,7 +73,12 @@ public class FollowupServiceImpl implements FollowupService {
     public List<FollowupView> list(AuthUser current, Long questionId) {
         QuestionDO question = questionDao.findById(questionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
-        requireVisible(current, question);
+        // 作者可以查看自己审核中/未通过的公开问题详情，追问列表随之放行；发言仍要求已发表
+        boolean ownPublicQuestion = "public".equals(question.getScope())
+                && current != null && current.getId().equals(question.getAuthorId());
+        if (!ownPublicQuestion) {
+            requireVisible(current, question);
+        }
         Long senderId = "private".equals(question.getScope()) ? current.getId() : null;
         return followupDao.findVisible(questionId, senderId)
                 .stream().map(this::toView).toList();
@@ -93,12 +104,17 @@ public class FollowupServiceImpl implements FollowupService {
     }
 
     private FollowupView toView(FollowupDO followup) {
+        UserBrief author = userDao.findById(followup.getSenderId())
+                .map(user -> new UserBrief(user.getId(), user.getNickname()))
+                .orElse(new UserBrief(followup.getSenderId(), "用户"));
         return new FollowupView(
                 followup.getId(),
                 followup.getQuestionId(),
                 followup.getSenderRole(),
                 followup.getBody(),
                 followup.getStatus(),
-                followup.getCreatedAt());
+                followup.getCreatedAt(),
+                author,
+                "hr".equals(followup.getSenderRole()));
     }
 }

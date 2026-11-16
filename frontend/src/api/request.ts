@@ -55,25 +55,36 @@ export interface RequestOptions extends Omit<RequestInit, "body"> {
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method: rawMethod = "GET", body, rawBody, skipCsrf = false, headers: rawHeaders, ...rest } = options;
   const method = rawMethod.toUpperCase();
+  const needsCsrf = !skipCsrf && method !== "GET" && method !== "HEAD";
+  const payload = rawBody ?? (body === undefined ? undefined : JSON.stringify(body));
 
-  const headers = new Headers(rawHeaders);
-  headers.set("Accept", "application/json");
-  if (rawBody === undefined) {
-    headers.set("Content-Type", "application/json; charset=utf-8");
+  const send = async (): Promise<Response> => {
+    const headers = new Headers(rawHeaders);
+    headers.set("Accept", "application/json");
+    if (rawBody === undefined) {
+      headers.set("Content-Type", "application/json; charset=utf-8");
+    }
+    // 写请求携带 CSRF Token；首次调用时懒加载并缓存
+    if (needsCsrf) {
+      headers.set("X-XSRF-TOKEN", csrfToken ?? (await fetchCsrfToken()));
+    }
+    return fetch(`${BASE}${path}`, {
+      ...rest,
+      method,
+      headers,
+      credentials: "include",
+      body: payload,
+    });
+  };
+
+  let res = await send();
+
+  // token 只缓存在内存，多标签页登录、会话轮换或后端重启后可能与 Cookie 失配；
+  // 403 时重新拉一次 token 再试。CSRF 校验在业务执行前完成，重试不会重复写入
+  if (res.status === 403 && needsCsrf) {
+    resetCsrfToken();
+    res = await send();
   }
-
-  // 写请求携带 CSRF Token；首次调用时懒加载并缓存
-  if (!skipCsrf && method !== "GET" && method !== "HEAD") {
-    headers.set("X-XSRF-TOKEN", csrfToken ?? (await fetchCsrfToken()));
-  }
-
-  const res = await fetch(`${BASE}${path}`, {
-    ...rest,
-    method,
-    headers,
-    credentials: "include",
-    body: rawBody ?? (body === undefined ? undefined : JSON.stringify(body)),
-  });
 
   // 会话过期：丢掉缓存，下一次写请求会重新获取
   if (res.status === 401) {

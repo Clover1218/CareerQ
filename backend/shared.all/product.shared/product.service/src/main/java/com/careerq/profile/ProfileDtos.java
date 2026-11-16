@@ -66,4 +66,22 @@ public final class ProfileDtos {
             @Valid
             List<ExperienceItem> experiences) {
     }
+
+    /** 局部更新：字段为 null 表示不修改；experiences 为 null 时保留原有经历。 */
+    public record PatchRequest(
+            @Size(max = 64, message = "昵称不能超过 64 字")
+            String nickname,
+            @Size(max = 128, message = "学校不能超过 128 字")
+            String school,
+            @Size(max = 128, message = "专业不能超过 128 字")
+            String major,
+            @Size(max = 32, message = "年级不能超过 32 字")
+            String grade,
+            @Size(max = 32, message = "学历不能超过 32 字")
+            String degree,
+            @Size(max = 16, message = "毕业年份不能超过 16 字")
+            String graduationYear,
+            @Valid
+            List<ExperienceItem> experiences) {
+    }
 }

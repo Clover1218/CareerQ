@@ -58,10 +58,10 @@ a {
 
 /* ---------------- 顶部导航 ---------------- */
 .topbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 32px;
-  height: 56px;
+  height: 57px;
   padding: 0 32px;
   background: var(--color-bg-surface);
   border-bottom: 1px solid var(--color-border-subtle);
@@ -71,23 +71,17 @@ a {
 }
 
 .brand {
-  font-weight: 600;
-  font-size: 22px;
-  line-height: 32px;
+  justify-self: start;
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 28px;
   color: var(--color-text-primary);
   cursor: pointer;
   white-space: nowrap;
 }
 
-.brand span {
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--color-text-muted);
-  font-weight: 400;
-  margin-left: 4px;
-}
-
 .nav {
+  justify-self: center;
   display: flex;
   gap: 32px;
 }
@@ -110,13 +104,30 @@ a {
 }
 
 .account {
-  margin-left: auto;
+  justify-self: end;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   color: var(--color-text-regular);
   font-size: 14px;
   line-height: 22px;
+}
+
+.account-link {
+  color: var(--color-text-regular);
+}
+
+.account-link:hover {
+  color: var(--color-text-primary);
+}
+
+.logout-link {
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.logout-link:hover {
+  color: var(--color-text-regular);
 }
 
 .role {
@@ -130,9 +141,71 @@ a {
 
 /* ---------------- 页面骨架 ---------------- */
 .container {
-  max-width: 720px;
-  margin: 24px auto 64px;
+  max-width: 655px;
+  margin: 28px auto 64px;
   padding: 0 16px;
+}
+
+/* 我的问答：内容宽 1000，顶部横幅需要贴住导航并通栏铺白 */
+.wide-shell {
+  width: 100%;
+  margin: 0 0 64px;
+}
+
+.myqa-banner {
+  background: var(--color-bg-surface);
+}
+
+.myqa-name-input {
+  width: min(320px, 60vw);
+  height: 40px;
+  padding: 4px 8px;
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 700;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: none;
+  padding: 4px;
+  border-radius: 4px;
+  color: var(--color-text-regular);
+}
+
+.icon-btn:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+.myqa-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  padding: 10px 0 12px;
+  color: var(--color-text-regular);
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.myqa-tab:hover {
+  background: none;
+  color: var(--color-text-primary);
+}
+
+.myqa-tab.is-active {
+  border-bottom-color: var(--color-text-primary);
+  color: var(--color-text-primary);
+  font-weight: 600;
 }
 
 .card {
@@ -320,3 +393,209 @@ textarea {
   font-size: 14px;
   line-height: 22px;
 }
+
+/* ---------------- 公开问答 Feed ---------------- */
+.hr-tag {
+  color: #7c6bd6;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+/* 图标操作按钮：覆盖全局 button 的边框/底色，保持 Figma 的纯文字样式 */
+.feed-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  transition: color 0.15s ease;
+}
+
+.feed-action:hover {
+  background: none;
+  color: var(--color-brand);
+}
+
+.feed-action.is-active {
+  color: var(--color-brand);
+}
+
+.feed-action.is-disabled {
+  color: var(--color-text-muted);
+  cursor: default;
+}
+
+.feed-action.is-disabled:hover {
+  background: none;
+  color: var(--color-text-muted);
+}
+
+.aux-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--color-text-subtle);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.aux-btn:hover {
+  background: none;
+  color: var(--color-text-regular);
+}
+
+.aux-btn:disabled {
+  color: var(--color-text-muted);
+  cursor: default;
+}
+
+.primary-btn {
+  border: 0;
+  background: var(--color-brand);
+  color: #fff;
+  padding: 4px 14px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.primary-btn:hover {
+  background: var(--color-brand-dark);
+}
+
+.primary-btn:disabled {
+  background: var(--color-border-default);
+  color: #fff;
+  cursor: not-allowed;
+}
+
+.composer-input {
+  height: 42px;
+  min-height: 42px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 24px;
+  resize: none;
+}
+
+.composer-guest {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px dashed var(--color-border-default);
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.more-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  min-width: 108px;
+  padding: 4px 0;
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  background: var(--color-bg-surface);
+  box-shadow: 0 4px 16px -8px rgba(0, 0, 0, 0.25);
+}
+
+.more-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: none;
+  padding: 6px 12px;
+  border-radius: 0;
+  color: var(--color-text-regular);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.more-item:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+/* 回答卡从问题卡下方滑出，配合问题卡的向下投影形成「两张卡叠放」的层次 */
+@keyframes drawer-out {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.drawer-panel {
+  animation: drawer-out 200ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer-panel {
+    animation: none;
+  }
+}
+
+/* ---------------- 响应式 ---------------- */
+@media (max-width: 640px) {
+  .topbar {
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    height: auto;
+    padding: 10px 16px 0;
+    row-gap: 4px;
+  }
+
+  .brand {
+    grid-column: 1;
+    grid-row: 1;
+    font-size: 18px;
+    line-height: 26px;
+  }
+
+  .account {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+    min-width: 0;
+  }
+
+  .account .nickname {
+    max-width: 96px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: stretch;
+    justify-content: center;
+    gap: 24px;
+    padding: 6px 0 10px;
+  }
+
+  .container {
+    margin-top: 16px;
+  }
+}
+

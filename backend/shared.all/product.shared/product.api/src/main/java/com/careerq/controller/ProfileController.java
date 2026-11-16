@@ -1,6 +1,7 @@
 package com.careerq.controller;
 
 import com.careerq.common.ApiResponse;
+import com.careerq.profile.ProfileDtos.PatchRequest;
 import com.careerq.profile.ProfileDtos.ProfileView;
 import com.careerq.profile.ProfileDtos.UpdateRequest;
 import com.careerq.security.AuthUsers;
@@ -8,6 +9,7 @@ import com.careerq.service.ProfileService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -35,5 +37,11 @@ public class ProfileController {
     public ApiResponse<ProfileView> update(Authentication authentication,
                                            @Valid @RequestBody UpdateRequest request) {
         return ApiResponse.ok(profileService.update(AuthUsers.require(authentication), request));
+    }
+
+    @PatchMapping
+    public ApiResponse<ProfileView> patch(Authentication authentication,
+                                          @Valid @RequestBody PatchRequest request) {
+        return ApiResponse.ok(profileService.patch(AuthUsers.require(authentication), request));
     }
 }

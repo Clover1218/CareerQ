@@ -76,7 +76,16 @@ public class InteractionServiceImpl implements InteractionService {
 
     private void applyCount(String targetType, String type, Long targetId, int delta) {
         if ("favorite".equals(type)) {
-            return; // 收藏不维护计数
+            // 仅问题维护收藏计数；回答与观点帖的收藏只在“我的收藏”中体现
+            if ("question".equals(targetType)) {
+                boolean updated = delta > 0
+                        ? questionDao.incrementFavorite(targetId) > 0
+                        : questionDao.decrementFavorite(targetId) > 0;
+                if (!updated) {
+                    throw new BusinessException(ErrorCode.NOT_FOUND, "互动目标不存在");
+                }
+            }
+            return;
         }
         boolean updated;
         switch (targetType) {

@@ -17,8 +17,12 @@ import com.careerq.dataobject.QuestionDO;
 import com.careerq.dataobject.TagDO;
 import com.careerq.followup.FollowupDtos.FollowupView;
 import com.careerq.question.QuestionDtos.CreateRequest;
+import com.careerq.question.QuestionDtos.QuestionContentView;
 import com.careerq.question.QuestionDtos.QuestionDetail;
+import com.careerq.question.QuestionDtos.QuestionFeedItem;
 import com.careerq.question.QuestionDtos.QuestionView;
+import com.careerq.question.QuestionDtos.ThreadItemView;
+import com.careerq.question.QuestionDtos.ThreadView;
 import com.careerq.question.QuestionDtos.ViewerState;
 import com.careerq.security.AuthUser;
 import com.careerq.service.FollowupService;
@@ -29,6 +33,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -95,9 +101,13 @@ public class QuestionServiceImpl implements QuestionService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResult<QuestionView> list(String tag, Long cursor, int limit) {
+    public PageResult<QuestionFeedItem> list(String tag, Long cursor, int limit) {
         String tagFilter = tag == null || tag.isBlank() ? null : tag;
-        return listPage(PUBLIC, PUBLISHED, tagFilter, false, cursor, limit);
+        int size = Math.clamp(limit, 1, 50);
+        List<QuestionDO> rows = questionDao.list(PUBLIC, PUBLISHED, cursor, tagFilter, false, size + 1);
+        boolean hasNext = rows.size() > size;
+        List<QuestionFeedItem> items = rows.stream().limit(size).map(this::toFeedItem).toList();
+        return new PageResult<>(items, hasNext ? rows.get(size - 1).getId() : null);
     }
 
     @Override
@@ -132,7 +142,11 @@ public class QuestionServiceImpl implements QuestionService {
             }
             maskAuthor = !isAuthor;
         } else if (!PUBLISHED.equals(question.getStatus())) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "问题不存在");
+            // 作者需要在自己的提问列表里看到审核中/未通过的公开问题
+            boolean isAuthor = current != null && current.getId().equals(question.getAuthorId());
+            if (!isAuthor) {
+                throw new BusinessException(ErrorCode.NOT_FOUND, "问题不存在");
+            }
         }
 
         Long viewerId = current == null ? null : current.getId();
@@ -140,13 +154,80 @@ public class QuestionServiceImpl implements QuestionService {
         List<AnswerView> answers = answerDao.findVisible(question.getId(), ownAnswerAuthor)
                 .stream().map(answer -> toAnswerView(answer, viewerId)).toList();
         List<FollowupView> followups = followupService.list(current, question.getId());
-        ViewerState viewer = viewerId == null
-                ? new ViewerState(false, false, false)
-                : new ViewerState(
-                        interactionDao.exists(viewerId, "question", question.getId(), "like"),
-                        interactionDao.exists(viewerId, "question", question.getId(), "useful"),
-                        interactionDao.exists(viewerId, "question", question.getId(), "favorite"));
-        return new QuestionDetail(toView(question, maskAuthor), answers, followups, viewer);
+        return new QuestionDetail(toView(question, maskAuthor), answers, followups,
+                viewerState(current, question.getId()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public QuestionContentView content(AuthUser current, Long id) {
+        QuestionDO question = requirePublishedPublic(id);
+        return new QuestionContentView(toView(question, false), viewerState(current, question.getId()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ThreadView thread(AuthUser current, Long id) {
+        QuestionDO question = requirePublishedPublic(id);
+        Long viewerId = current == null ? null : current.getId();
+        List<ThreadItemView> items = new ArrayList<>();
+
+        for (AnswerDO answer : answerDao.findVisible(question.getId(), null)) {
+            boolean liked = viewerId != null
+                    && interactionDao.exists(viewerId, "answer", answer.getId(), "like");
+            items.add(new ThreadItemView(
+                    "answer-" + answer.getId(),
+                    "hr_answer",
+                    answer.getId(),
+                    answer.getBody(),
+                    authorOf(answer.getAuthorId()),
+                    true,
+                    answer.getStatus(),
+                    answer.getLikeCount(),
+                    liked,
+                    answer.getCreatedAt()));
+        }
+
+        for (FollowupView followup : followupService.list(current, question.getId())) {
+            items.add(new ThreadItemView(
+                    "followup-" + followup.id(),
+                    "followup",
+                    followup.id(),
+                    followup.body(),
+                    followup.author(),
+                    followup.hr(),
+                    followup.status(),
+                    0,
+                    false,
+                    followup.createdAt()));
+        }
+
+        items.sort(Comparator
+                .comparing(ThreadItemView::createdAt, Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparingInt(item -> "hr_answer".equals(item.kind()) ? 0 : 1)
+                .thenComparing(ThreadItemView::id));
+
+        int answerCount = question.getAnswerCount();
+        int followupCount = question.getFollowupCount();
+        return new ThreadView(items, viewerState(current, question.getId()),
+                answerCount, followupCount, answerCount + followupCount);
+    }
+
+    private QuestionDO requirePublishedPublic(Long id) {
+        return questionDao.findById(id)
+                .filter(question -> PUBLIC.equals(question.getScope()) && PUBLISHED.equals(question.getStatus()))
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
+    }
+
+    private ViewerState viewerState(AuthUser current, Long questionId) {
+        if (current == null) {
+            return new ViewerState(false, false, false);
+        }
+        Long viewerId = current.getId();
+        return new ViewerState(
+                interactionDao.exists(viewerId, "question", questionId, "like"),
+                interactionDao.exists(viewerId, "question", questionId, "useful"),
+                interactionDao.exists(viewerId, "question", questionId, "favorite"));
     }
 
     @Override
@@ -299,6 +380,22 @@ public class QuestionServiceImpl implements QuestionService {
         }
     }
 
+    private QuestionFeedItem toFeedItem(QuestionDO question) {
+        int answerCount = question.getAnswerCount();
+        int followupCount = question.getFollowupCount();
+        return new QuestionFeedItem(
+                question.getId(),
+                question.getTitle(),
+                question.getBody() == null ? "" : question.getBody(),
+                tagDao.findNamesByQuestionId(question.getId()),
+                answerCount,
+                followupCount,
+                answerCount + followupCount,
+                question.getLikeCount(),
+                question.getFavoriteCount(),
+                question.getCreatedAt());
+    }
+
     private QuestionView toView(QuestionDO question, boolean maskAuthor) {
         return new QuestionView(
                 question.getId(),
@@ -310,8 +407,10 @@ public class QuestionServiceImpl implements QuestionService {
                 maskAuthor ? new UserBrief(question.getAuthorId(), ANONYMOUS_NICKNAME) : authorOf(question.getAuthorId()),
                 question.getCreatedAt(),
                 question.getAnswerCount(),
+                question.getFollowupCount(),
                 question.getUsefulCount(),
                 question.getLikeCount(),
+                question.getFavoriteCount(),
                 question.getFirstAnswerAt());
     }
 

@@ -102,6 +102,8 @@
 - 2026-11-14 M3 完成：公开问答核心（提问/列表/详情/回答/标签/互动/HR 问题池），`mvn test` 8/8 通过；手机号/HR 角色、CSRF、403 处理均已验证。下一步 M4 私密工单。
 - 2026-11-14 M2 完成：短信验证码（dev 固定 123456）+ 会话登录/登出 + `/api/v1/me` + 401/403 JSON；`mvn test` 5/5 通过；真实 HTTP 冒烟通过。下一步 M3 公开问答。
 - 2026-11-14 M0/M1 完成：JDK 21（Temurin 21.0.13）已装且 JAVA_HOME 已设；数据库定 **MySQL 8**（dev 用 H2 MySQL 模式）；`backend/` 骨架建成，`mvn test` 通过，Flyway V1 全量表迁移成功。下一步 M2 鉴权。
+- 2026-11-15 公开问答重构：feed 摘要 → `/content` → `/thread` 三态懒加载；前端 FeedCard1/2/3 与 Figma 对齐并做响应式页头；后端 37 项测试、`pnpm build` 通过；`docs/openapi.json` 重新生成（30 个 path）。注意：当前 shell 的 `JAVA_HOME` 可能仍是 JDK 17，Maven 前需指向 JDK 21。
+- 2026-11-16 公开问答交互修订：去头像；feed 的 `excerpt` 改为完整正文（删 `truncated` 与 120 字截断），每张卡片固定「阅读全文」；全文与回答区互相独立；发送按钮随输入框焦点显隐（按钮需 `@mousedown.prevent`）。37 项测试与构建通过。
 
 ## 五、项目概要（CareerQ）
 

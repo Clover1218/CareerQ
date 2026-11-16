@@ -35,8 +35,9 @@ public interface UserDao {
     int updateRole(UserDO user);
 
     @Update("""
-            update users set school = #{school}, major = #{major}, grade = #{grade},
-                degree = #{degree}, graduation_year = #{graduationYear}, updated_at = current_timestamp
+            update users set nickname = #{nickname}, school = #{school}, major = #{major},
+                grade = #{grade}, degree = #{degree}, graduation_year = #{graduationYear},
+                updated_at = current_timestamp
             where id = #{id}
             """)
     int updateProfile(UserDO user);
