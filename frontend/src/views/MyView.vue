@@ -16,7 +16,8 @@ const profile = ref<Profile | null>(null);
 const myQuestions = ref<Question[]>([]);
 const favorites = ref<Favorite[]>([]);
 const avatarInput = ref("");
-const message = ref("");
+const avatarMsg = ref("");
+const eduMsg = ref("");
 const error = ref("");
 const saving = ref(false);
 const edu = ref({ school: "", major: "", grade: "", degree: "", graduationYear: "" });
@@ -35,6 +36,11 @@ const statusLabel: Record<string, string> = {
   public_archived: "已公开",
   public_rejected: "公开被驳回",
 };
+
+const hasSavedProfile = () =>
+  !!(profile.value?.school || profile.value?.major || profile.value?.grade
+    || profile.value?.degree || profile.value?.graduationYear
+    || (profile.value?.experiences?.length ?? 0) > 0);
 
 onMounted(async () => {
   try {
@@ -62,11 +68,11 @@ onMounted(async () => {
 async function saveAvatar() {
   saving.value = true;
   error.value = "";
-  message.value = "";
+  avatarMsg.value = "";
   try {
     const updated = await api.updateAvatar(avatarInput.value.trim());
     if (me.value) me.value.avatarUrl = updated.avatarUrl ?? null;
-    message.value = "头像已更新";
+    avatarMsg.value = "头像已保存";
   } catch (e: any) {
     error.value = `保存头像失败：${e.message}`;
   } finally {
@@ -77,7 +83,7 @@ async function saveAvatar() {
 async function saveEdu() {
   saving.value = true;
   error.value = "";
-  message.value = "";
+  eduMsg.value = "";
   try {
     profile.value = await api.updateProfile({
       school: edu.value.school.trim() || null,
@@ -87,7 +93,7 @@ async function saveEdu() {
       graduationYear: edu.value.graduationYear.trim() || null,
       experiences: profile.value?.experiences ?? [],
     });
-    message.value = "资料已保存";
+    eduMsg.value = "资料已保存，已同步到上方「当前资料」";
   } catch (e: any) {
     error.value = `保存资料失败：${e.message}`;
   } finally {
@@ -114,6 +120,7 @@ async function logout() {
         <h2 style="margin: 0">{{ me.nickname }}</h2>
         <p class="muted" style="margin: 4px 0 0">
           <span class="tag">{{ roleLabel(me.role) }}</span>
+          <span class="muted" style="margin-left: 8px">这里是你的个人中心，可管理头像、查看我的问题与收藏、完善资料。</span>
         </p>
       </div>
       <button class="link" @click="logout">退出登录</button>
@@ -125,15 +132,18 @@ async function logout() {
       <p class="muted">填写图片 URL 即可使用自定义头像；留空则使用昵称首字生成的默认头像。</p>
       <div class="row">
         <input v-model="avatarInput" placeholder="https://…/avatar.png" style="flex: 1" />
-        <button class="primary" :disabled="saving" @click="saveAvatar">保存头像</button>
+        <button class="primary" :disabled="saving" @click="saveAvatar">
+          {{ saving ? "保存中…" : "保存头像" }}
+        </button>
       </div>
-      <p v-if="message" class="muted">{{ message }}</p>
+      <p v-if="avatarMsg" class="muted">{{ avatarMsg }}</p>
     </div>
 
-    <!-- 学生：我的问题 / 我的收藏 / 完善资料 -->
+    <!-- 学生：我的问题 / 我的收藏 / 当前资料 / 完善资料 -->
     <template v-if="me?.role === 'student'">
       <div class="card" style="margin-top: 16px">
         <h3>我的问题（{{ myQuestions.length }}）</h3>
+        <p class="muted">这里是你提过的问题及当前处理状态，点击标题可查看详情与回答。</p>
         <p v-if="myQuestions.length === 0" class="muted">还没有提过问题，<router-link to="/ask">去提问</router-link>。</p>
         <ul style="padding-left: 18px; margin: 0">
           <li v-for="q in myQuestions" :key="q.id" style="margin: 8px 0">
@@ -146,6 +156,7 @@ async function logout() {
 
       <div class="card" style="margin-top: 16px">
         <h3>我的收藏（{{ favorites.length }}）</h3>
+        <p class="muted">收藏的问题、回答或公开沉淀会出现在这里，方便随时回看。</p>
         <p v-if="favorites.length === 0" class="muted">还没有收藏内容。</p>
         <ul style="padding-left: 18px; margin: 0">
           <li v-for="f in favorites" :key="`${f.targetType}-${f.targetId}`" style="margin: 8px 0">
@@ -158,18 +169,71 @@ async function logout() {
         </ul>
       </div>
 
+      <!-- 当前已保存的资料 -->
+      <div class="card" style="margin-top: 16px">
+        <h3>当前资料</h3>
+        <p class="muted">以下是你已经保存的资料信息，可在下方修改后保存。</p>
+        <div v-if="hasSavedProfile()">
+          <p>
+            学校：{{ profile?.school || "未填写" }}
+            <span style="margin-left: 16px">专业：{{ profile?.major || "未填写" }}</span>
+          </p>
+          <p>
+            年级：{{ profile?.grade || "未填写" }}
+            <span style="margin-left: 16px">学历：{{ profile?.degree || "未填写" }}</span>
+            <span style="margin-left: 16px">毕业年份：{{ profile?.graduationYear || "未填写" }}</span>
+          </p>
+          <div v-if="(profile?.experiences?.length ?? 0) > 0">
+            <p>实习 / 项目经历：</p>
+            <ul style="padding-left: 18px; margin: 0">
+              <li v-for="(exp, i) in profile?.experiences" :key="i" style="margin: 6px 0">
+                <strong>{{ exp.type === "internship" ? "实习" : "项目" }}</strong>
+                · {{ exp.title }}
+                <span v-if="exp.role">· {{ exp.role }}</span>
+                <span v-if="exp.startDate || exp.endDate">· {{ exp.startDate || "?" }} ~ {{ exp.endDate || "至今" }}</span>
+                <div v-if="exp.description" class="muted" style="font-size: 13px">{{ exp.description }}</div>
+              </li>
+            </ul>
+          </div>
+          <p v-else class="muted">暂无实习 / 项目经历。</p>
+        </div>
+        <p v-else class="muted">还没有保存任何资料，填写下方表单后点击「保存资料」即可。</p>
+      </div>
+
+      <!-- 编辑资料 -->
       <div class="card" style="margin-top: 16px">
         <h3>完善资料（选填）</h3>
+        <p class="muted">
+          学校、专业、年级、学历、毕业年份均为选填；保存后会展示在「当前资料」中，方便 HR 了解你的背景。
+        </p>
         <div class="row">
-          <div class="field" style="flex: 1"><label>学校</label><input v-model="edu.school" /></div>
-          <div class="field" style="flex: 1"><label>专业</label><input v-model="edu.major" /></div>
+          <div class="field" style="flex: 1">
+            <label>学校</label>
+            <input v-model="edu.school" maxlength="128" placeholder="如 某大学" />
+          </div>
+          <div class="field" style="flex: 1">
+            <label>专业</label>
+            <input v-model="edu.major" maxlength="128" placeholder="如 计算机" />
+          </div>
         </div>
         <div class="row">
-          <div class="field" style="flex: 1"><label>年级</label><input v-model="edu.grade" placeholder="如 大三" /></div>
-          <div class="field" style="flex: 1"><label>学历</label><input v-model="edu.degree" placeholder="如 本科" /></div>
-          <div class="field" style="flex: 1"><label>毕业年份</label><input v-model="edu.graduationYear" placeholder="如 2027" /></div>
+          <div class="field" style="flex: 1">
+            <label>年级</label>
+            <input v-model="edu.grade" maxlength="32" placeholder="如 大三" />
+          </div>
+          <div class="field" style="flex: 1">
+            <label>学历</label>
+            <input v-model="edu.degree" maxlength="32" placeholder="如 本科" />
+          </div>
+          <div class="field" style="flex: 1">
+            <label>毕业年份</label>
+            <input v-model="edu.graduationYear" maxlength="16" placeholder="如 2027" />
+          </div>
         </div>
-        <button class="primary" :disabled="saving" @click="saveEdu">保存资料</button>
+        <button class="primary" :disabled="saving" @click="saveEdu">
+          {{ saving ? "保存中…" : "保存资料" }}
+        </button>
+        <p v-if="eduMsg" class="muted" style="margin-top: 8px">{{ eduMsg }}</p>
       </div>
     </template>
   </div>
