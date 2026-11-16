@@ -15,7 +15,7 @@ const me = ref<User | null>(null);
 const profile = ref<Profile | null>(null);
 const myQuestions = ref<Question[]>([]);
 const favorites = ref<Favorite[]>([]);
-const avatarInput = ref("");
+const avatarFile = ref<File | null>(null);
 const avatarMsg = ref("");
 const eduMsg = ref("");
 const error = ref("");
@@ -45,7 +45,6 @@ const hasSavedProfile = () =>
 onMounted(async () => {
   try {
     me.value = await api.me();
-    avatarInput.value = me.value.avatarUrl ?? "";
     try {
       profile.value = await api.getProfile();
       edu.value = {
@@ -65,16 +64,27 @@ onMounted(async () => {
   }
 });
 
-async function saveAvatar() {
+function onAvatarPick(event: Event) {
+  const input = event.target as HTMLInputElement;
+  avatarFile.value = input.files?.[0] ?? null;
+  avatarMsg.value = "";
+}
+
+async function uploadAvatar() {
+  if (!avatarFile.value) {
+    avatarMsg.value = "请先选择图片文件";
+    return;
+  }
   saving.value = true;
   error.value = "";
   avatarMsg.value = "";
   try {
-    const updated = await api.updateAvatar(avatarInput.value.trim());
+    const updated = await api.uploadAvatar(avatarFile.value);
     if (me.value) me.value.avatarUrl = updated.avatarUrl ?? null;
-    avatarMsg.value = "头像已保存";
+    avatarMsg.value = "头像已上传并更新";
+    avatarFile.value = null;
   } catch (e: any) {
-    error.value = `保存头像失败：${e.message}`;
+    error.value = `上传头像失败：${e.message}`;
   } finally {
     saving.value = false;
   }
@@ -126,19 +136,19 @@ async function logout() {
       <button class="link" @click="logout">退出登录</button>
     </div>
 
-    <!-- 头像 -->
+    <!-- 头像（仅支持本站上传，不使用外部 URL） -->
     <div class="card" style="margin-top: 16px">
       <h3>头像</h3>
-      <p class="muted">填写图片 URL 即可使用自定义头像；留空则使用昵称首字生成的默认头像。</p>
-      <div class="row">
-        <input v-model="avatarInput" placeholder="https://…/avatar.png" style="flex: 1" />
-        <button class="primary" :disabled="saving" @click="saveAvatar">
-          {{ saving ? "保存中…" : "保存头像" }}
+      <p class="muted">支持 PNG / JPEG / WEBP，大小不超过 2MB；头像保存在本站，不接受外部链接。</p>
+      <div class="row" style="align-items: center">
+        <UserAvatar :nickname="me?.nickname" :avatar-url="me?.avatarUrl" :size="56" />
+        <input type="file" accept="image/png,image/jpeg,image/webp" @change="onAvatarPick" style="flex: 1" />
+        <button class="primary" :disabled="saving || !avatarFile" @click="uploadAvatar">
+          {{ saving ? "上传中…" : "上传头像" }}
         </button>
       </div>
       <p v-if="avatarMsg" class="muted">{{ avatarMsg }}</p>
     </div>
-
     <!-- 学生：我的问题 / 我的收藏 / 当前资料 / 完善资料 -->
     <template v-if="me?.role === 'student'">
       <div class="card" style="margin-top: 16px">

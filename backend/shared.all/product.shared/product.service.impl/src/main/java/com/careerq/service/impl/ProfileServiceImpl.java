@@ -67,15 +67,6 @@ public class ProfileServiceImpl implements ProfileService {
         return toView(userDao.findById(user.getId()).orElseThrow());
     }
 
-    @Override
-    @Transactional
-    public ProfileView updateAvatar(AuthUser user, String avatarUrl) {
-        userDao.findById(user.getId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
-        userDao.updateAvatar(user.getId(), blankToNull(avatarUrl));
-        return toView(userDao.findById(user.getId()).orElseThrow());
-    }
-
     private ProfileView toView(UserDO user) {
         List<ExperienceView> experiences = experienceDao.findByUserId(user.getId()).stream()
                 .map(e -> new ExperienceView(e.getId(), e.getType(), e.getTitle(), e.getRole(),

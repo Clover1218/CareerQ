@@ -92,20 +92,5 @@ private MockHttpSession registerHr(String phone) throws Exception {
         mockMvc.perform(get("/api/v1/me/profile"))
                 .andExpect(status().isUnauthorized());
     }
-    @Test
-    void avatarCanBeUpdated() throws Exception {
-        MockHttpSession session = register("13800000402");
-        mockMvc.perform(put("/api/v1/me/avatar").with(csrf()).session(session)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of(
-                                "avatarUrl", "https://example.com/a.png"))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.avatarUrl").value("https://example.com/a.png"));
-
-        mockMvc.perform(get("/api/v1/me/profile").session(session))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.avatarUrl").value("https://example.com/a.png"));
-    }
-
 
 }

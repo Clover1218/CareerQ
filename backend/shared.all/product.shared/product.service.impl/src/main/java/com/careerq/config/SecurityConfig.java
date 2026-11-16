@@ -57,6 +57,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/api/v1/questions/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/posts/**", "/api/v1/feed/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/avatars/**").permitAll()
                         .requestMatchers(
                                 "/api/v1/system/**",
                                 "/api/v1/auth/sms-code",

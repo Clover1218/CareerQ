@@ -66,9 +66,4 @@ public final class ProfileDtos {
             String graduationYear,
             @Valid
             List<ExperienceItem> experiences) {
-    }
-    public record UpdateAvatarRequest(
-            @Size(max = 255, message = "头像地址不能超过 255 字")
-            String avatarUrl) {
-    }
-}
+    }}

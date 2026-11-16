@@ -3,7 +3,7 @@ package com.careerq.controller;
 import com.careerq.common.ApiResponse;
 
 import com.careerq.profile.ProfileDtos.ProfileView;
-import com.careerq.profile.ProfileDtos.UpdateAvatarRequest;
+
 import com.careerq.profile.ProfileDtos.UpdateRequest;
 import com.careerq.security.AuthUsers;
 import com.careerq.service.ProfileService;
@@ -37,13 +37,5 @@ public class ProfileController {
     public ApiResponse<ProfileView> update(Authentication authentication,
                                            @Valid @RequestBody UpdateRequest request) {
         return ApiResponse.ok(profileService.update(AuthUsers.require(authentication), request));
-    }
-
-    /** 更新头像地址（传空字符串表示清空）。 */
-    @PutMapping("/avatar")
-    public ApiResponse<ProfileView> updateAvatar(Authentication authentication,
-                                                 @Valid @RequestBody UpdateAvatarRequest request) {
-        return ApiResponse.ok(profileService.updateAvatar(
-                AuthUsers.require(authentication), request.avatarUrl()));
     }
 }

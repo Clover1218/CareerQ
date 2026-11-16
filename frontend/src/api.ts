@@ -292,10 +292,20 @@ export const api = {
     });
   },
 
-  updateAvatar(avatarUrl: string): Promise<Profile> {
-    return request<Profile>("/me/avatar", {
-      method: "PUT",
-      body: JSON.stringify({ avatarUrl }),
+  async uploadAvatar(file: File): Promise<Profile> {
+    if (!csrfToken) await ensureCsrf();
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`${BASE}/me/avatar`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "X-XSRF-TOKEN": csrfToken as string },
+      body: form,
     });
+    const body = await res.json().catch(() => ({ code: -1, message: `HTTP ${res.status}` }));
+    if (!res.ok || body.code !== 0) {
+      throw new ApiError(body.message ?? `HTTP ${res.status}`, body.code ?? -1, res.status);
+    }
+    return body.data as Profile;
   },
 };
