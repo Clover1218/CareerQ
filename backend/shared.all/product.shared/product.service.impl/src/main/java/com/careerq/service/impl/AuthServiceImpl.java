@@ -60,7 +60,7 @@ public class AuthServiceImpl implements AuthService {
         verifyCode(request.phone(), request.code());
         String phoneHash = sha256(request.phone());
         UserDO user = new UserDO();
-        user.setRole("student");
+        user.setRole(normalizeRegisterRole(request.role()));
         user.setPhoneHash(phoneHash);
         user.setPhoneVerifiedAt(LocalDateTime.now());
         user.setNickname(defaultNickname(request.nickname(), request.phone()));
@@ -121,6 +121,16 @@ public class AuthServiceImpl implements AuthService {
         session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
     }
 
+    private static String normalizeRegisterRole(String role) {
+        if (role == null || role.isBlank()) {
+            return "student";
+        }
+        String value = role.trim().toLowerCase();
+        if (!"student".equals(value) && !"hr".equals(value)) {
+            throw new BusinessException(ErrorCode.INVALID_PARAM, "role 只能是 student 或 hr");
+        }
+        return value;
+    }
     private static String defaultNickname(String nickname, String phone) {
         String value = blankToNull(nickname);
         return value != null ? value : "用户" + phone.substring(phone.length() - 4);

@@ -30,7 +30,7 @@ watch(() => route.fullPath, refresh);
     <div class="brand" @click="router.push('/')">职问桥 <span>CareerQ</span></div>
     <nav class="nav">
       <router-link to="/">公开问答</router-link>
-      <router-link to="/ask">提问</router-link>
+      <router-link v-if="!user || user.role === 'student'" to="/ask">提问</router-link>
       <router-link v-if="user?.role === 'hr'" to="/hr/private-pool">私密工单</router-link>
     </nav>
     <div class="account">

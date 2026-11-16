@@ -141,4 +141,47 @@ class AuthFlowTests {
         mockMvc.perform(get("/api/v1/me"))
                 .andExpect(status().isUnauthorized());
     }
+    @Test
+    void registerHrAccountHasHrRole() throws Exception {
+        String phone = "13800000610";
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/register").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "phone", phone, "code", "123456", "nickname", "HR用户", "role", "hr"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.user.role").value("hr"))
+                .andReturn();
+        assertNotNull(result.getRequest().getSession(false));
+    }
+
+    @Test
+    void hrCannotCreateQuestion() throws Exception {
+        MockHttpSession session = (MockHttpSession) mockMvc.perform(post("/api/v1/auth/register").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "phone", "13800000611", "code", "123456",
+                                "nickname", "HR不能提问", "role", "hr"))))
+                .andExpect(status().isOk())
+                .andReturn().getRequest().getSession(false);
+        assertNotNull(session);
+
+        mockMvc.perform(post("/api/v1/questions").with(csrf()).session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "title", "HR 不应该能提问",
+                                "body", "验证角色限制",
+                                "scope", "public"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void registerInvalidRoleRejected() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/register").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "phone", "13800000612", "code", "123456",
+                                "nickname", "非法角色", "role", "admin"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40001));
+    }
 }

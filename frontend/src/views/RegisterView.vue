@@ -8,6 +8,7 @@ const route = useRoute();
 const phone = ref(String(route.query.phone ?? ""));
 const code = ref("123456");
 const nickname = ref("");
+const role = ref<"student" | "hr">("student");
 const school = ref("");
 const major = ref("");
 const grade = ref("");
@@ -33,6 +34,7 @@ async function submit() {
       phone: phone.value.trim(),
       code: code.value.trim(),
       nickname: nickname.value.trim() || undefined,
+      role: role.value,
       school: school.value.trim() || undefined,
       major: major.value.trim() || undefined,
       grade: grade.value.trim() || undefined,
@@ -65,6 +67,16 @@ async function submit() {
         <input v-model="code" placeholder="6 位验证码" style="flex: 1" />
         <button @click="sendCode">发送验证码</button>
       </div>
+    </div>
+    <div class="field">
+      <label>身份</label>
+      <div class="row">
+        <label style="flex: 1"><input v-model="role" type="radio" value="student" style="width: auto" /> 学生</label>
+        <label style="flex: 1"><input v-model="role" type="radio" value="hr" style="width: auto" /> HR</label>
+      </div>
+      <p v-if="role === 'hr'" class="muted">
+        HR 账号用于回答问题、认领私密工单；真实在职认证暂缓，当前注册后直接可用。
+      </p>
     </div>
     <div class="field">
       <label>昵称（选填，不填自动生成）</label>

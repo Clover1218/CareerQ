@@ -136,6 +136,7 @@ export const api = {
     school?: string;
     major?: string;
     grade?: string;
+    role?: "student" | "hr";
   }): Promise<void> {
     await request<{ user: User }>("/auth/register", {
       method: "POST",
