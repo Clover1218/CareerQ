@@ -167,6 +167,7 @@ public class AuthServiceImpl implements AuthService {
                 user.getId(),
                 user.getRole(),
                 user.getNickname(),
+                user.getAvatarUrl(),
                 user.getSchool(),
                 user.getMajor(),
                 user.getGrade());

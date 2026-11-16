@@ -30,12 +30,22 @@ class ProfileFlowTests {
     @Autowired
     private ObjectMapper objectMapper;
 
+private MockHttpSession registerHr(String phone) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/register").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "phone", phone, "code", "123456", "nickname", "HR资料用户",
+                                "role", "hr", "company", "某互联网公司", "position", "HRBP"))))
+                .andExpect(status().isOk())
+                .andReturn();
+        return (MockHttpSession) result.getRequest().getSession(false);
+    }
+
     private MockHttpSession register(String phone) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/register").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "phone", phone, "code", "123456", "nickname", "资料用户"))))
-                .andDo(org.springframework.test.web.servlet.result.MockMvcResultHandlers.print())
                 .andReturn();
         return (MockHttpSession) result.getRequest().getSession(false);
     }
@@ -82,4 +92,20 @@ class ProfileFlowTests {
         mockMvc.perform(get("/api/v1/me/profile"))
                 .andExpect(status().isUnauthorized());
     }
+    @Test
+    void avatarCanBeUpdated() throws Exception {
+        MockHttpSession session = register("13800000402");
+        mockMvc.perform(put("/api/v1/me/avatar").with(csrf()).session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "avatarUrl", "https://example.com/a.png"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.avatarUrl").value("https://example.com/a.png"));
+
+        mockMvc.perform(get("/api/v1/me/profile").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.avatarUrl").value("https://example.com/a.png"));
+    }
+
+
 }

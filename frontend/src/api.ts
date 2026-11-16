@@ -4,6 +4,7 @@ export interface User {
   id: number;
   role: "student" | "hr" | "operator" | "admin";
   nickname: string;
+  avatarUrl?: string | null;
   school?: string | null;
   major?: string | null;
   grade?: string | null;
@@ -67,6 +68,36 @@ export interface PageResult<T> {
   nextCursor: number | null;
 }
 
+export interface Experience {
+  id?: number;
+  type: "internship" | "project";
+  title: string;
+  role?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  description?: string | null;
+}
+
+export interface Profile {
+  id: number;
+  role: string;
+  nickname: string;
+  avatarUrl?: string | null;
+  school?: string | null;
+  major?: string | null;
+  grade?: string | null;
+  degree?: string | null;
+  graduationYear?: string | null;
+  experiences: Experience[];
+}
+
+export interface Favorite {
+  targetType: "question" | "answer" | "post";
+  targetId: number;
+  title: string;
+  excerpt?: string | null;
+  createdAt: string;
+}
 export class ApiError extends Error {
   code: number;
   status: number;
@@ -228,5 +259,43 @@ export const api = {
 
   posts(): Promise<PublicPost[]> {
     return request<PublicPost[]>("/posts");
+  },
+  listMyQuestions(scope?: string): Promise<PageResult<Question>> {
+    const params = new URLSearchParams();
+    if (scope) params.set("scope", scope);
+    params.set("limit", "20");
+    return request<PageResult<Question>>(`/questions/mine?${params.toString()}`);
+  },
+
+  listFavorites(targetType?: string): Promise<PageResult<Favorite>> {
+    const params = new URLSearchParams();
+    if (targetType) params.set("targetType", targetType);
+    params.set("limit", "20");
+    return request<PageResult<Favorite>>(`/me/favorites?${params.toString()}`);
+  },
+
+  getProfile(): Promise<Profile> {
+    return request<Profile>("/me/profile");
+  },
+
+  updateProfile(payload: {
+    school?: string | null;
+    major?: string | null;
+    grade?: string | null;
+    degree?: string | null;
+    graduationYear?: string | null;
+    experiences: Experience[];
+  }): Promise<Profile> {
+    return request<Profile>("/me/profile", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateAvatar(avatarUrl: string): Promise<Profile> {
+    return request<Profile>("/me/avatar", {
+      method: "PUT",
+      body: JSON.stringify({ avatarUrl }),
+    });
   },
 };

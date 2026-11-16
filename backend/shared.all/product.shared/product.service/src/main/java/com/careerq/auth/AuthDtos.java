@@ -50,6 +50,7 @@ public final class AuthDtos {
             Long id,
             String role,
             String nickname,
+            String avatarUrl,
             String school,
             String major,
             String grade) {

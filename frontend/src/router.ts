@@ -6,6 +6,7 @@ import QuestionListView from "./views/QuestionListView.vue";
 import QuestionDetailView from "./views/QuestionDetailView.vue";
 import AskView from "./views/AskView.vue";
 import PrivatePoolView from "./views/PrivatePoolView.vue";
+import MyView from "./views/MyView.vue";
 
 export const router = createRouter({
   history: createWebHistory("/careerq/"),
@@ -19,6 +20,7 @@ export const router = createRouter({
     // 需要登录：发帖 / 私密工单
     { path: "/ask", component: AskView, meta: { requiresAuth: true, role: "student" } },
     { path: "/hr/private-pool", component: PrivatePoolView, meta: { requiresAuth: true } },
+    { path: "/me", component: MyView, meta: { requiresAuth: true } },
     { path: "/:pathMatch(.*)*", redirect: "/" },
   ],
 });

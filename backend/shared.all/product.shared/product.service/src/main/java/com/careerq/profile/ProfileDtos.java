@@ -28,6 +28,7 @@ public final class ProfileDtos {
             Long id,
             String role,
             String nickname,
+            String avatarUrl,
             String school,
             String major,
             String grade,
@@ -65,5 +66,9 @@ public final class ProfileDtos {
             String graduationYear,
             @Valid
             List<ExperienceItem> experiences) {
+    }
+    public record UpdateAvatarRequest(
+            @Size(max = 255, message = "头像地址不能超过 255 字")
+            String avatarUrl) {
     }
 }
