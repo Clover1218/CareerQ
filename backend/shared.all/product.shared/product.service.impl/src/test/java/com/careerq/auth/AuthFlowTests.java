@@ -116,14 +116,28 @@ class AuthFlowTests {
     }
 
     @Test
-    void authWritesRequireCsrf() throws Exception {
-        for (String operation : new String[]{"sms-code", "login", "register", "logout"}) {
-            mockMvc.perform(post("/api/v1/auth/{operation}", operation))
-                    .andExpect(status().isForbidden())
-                    .andExpect(jsonPath("$.code").value(40300));
-        }
+    void authWritesDoNotRequireCsrf() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "phone", "13800000620", "code", "123456"))))
+                .andExpect(status().isOk());
     }
 
+    @Test
+    void contentWritesStillRequireCsrf() throws Exception {
+        MockHttpSession session = (MockHttpSession) register("13800000621", "CSRF学生")
+                .getRequest().getSession(false);
+        assertNotNull(session);
+        mockMvc.perform(post("/api/v1/questions").session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "title", "不带 CSRF 的问题",
+                                "body", "应被拒绝",
+                                "scope", "public"))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(40300));
+    }
     @Test
     void meRequiresLogin() throws Exception {
         mockMvc.perform(get("/api/v1/me"))

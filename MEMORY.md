@@ -12,6 +12,8 @@
 | 定位 | 面向大学生与 HR 的公开、异步、结构化职业问答信息库，不做私聊社交 |
 | 策划书 | `docs/项目策划书-CareerQ.md`（项目单一事实来源，改动须在提交正文说明） |
 | 后端结构 | Maven 三个业务模块。 `product.api` 放 Spring MVC Controller，`product.service` 放接口和 DTO，`product.service.impl` 放服务实现、启动类及 MyBatis 持久层（`com.careerq.dao` 和 `com.careerq.dataobject`）。 |
+| 本地启动 | `powershell -ExecutionPolicy Bypass -File scripts/dev-start.ps1`（后端 dev,demo + 前端 Vite 一键重启） |
+| CSRF | `/api/v1/auth/**`、`/api/v1/system/**` 免 CSRF（登录不再 403）；其余写接口必须带 `X-XSRF-TOKEN` |
 | 构建命令 | `mvn -f backend/pom.xml test`；打包 `mvn -f backend/pom.xml package -DskipTests`，jar 在 `product.service.impl/target/`。沙箱/受限环境若 Mockito 自附加失败，加 `-DargLine=-Djdk.attach.allowAttachSelf=true` |
 | 技术方案 | `docs/技术方案-CareerQ.md`（**v0.5 实施版**，Spring Boot + 自建部署） |
 | 接口契约 | `docs/接口契约-职问桥.md`（前后端联调唯一依据，v1.1） |
