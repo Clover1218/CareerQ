@@ -7,13 +7,13 @@
 | 项 | 值 |
 |---|---|
 | 项目 | CareerQ / 职问桥（长期项目，王、季、李共同开发；2026-11-14 起**脱离比赛约束**） |
-| 人类团队 | 王、季、李；具体分工暂未确定 |
+| 人类团队 | 王、季、李；按 2026-11-15《三人全栈模块开发计划》（讨论稿）：王=模块A公开广场，季=模块B账号+学生提问，李=模块C HR+运营审核 |
 | 对外名称 | **职问桥**　Slogan：让好问题遇见对的人，让经验公开沉淀 |
 | 定位 | 面向大学生与 HR 的公开、异步、结构化职业问答信息库，不做私聊社交 |
-| 策划书 | `docs/项目策划书-职问桥.md`（项目单一事实来源，改动须在提交正文说明） |
+| 策划书 | `docs/项目策划书-CareerQ.md`（项目单一事实来源，改动须在提交正文说明） |
 | 后端结构 | Maven 三个业务模块。 `product.api` 放 Spring MVC Controller，`product.service` 放接口和 DTO，`product.service.impl` 放服务实现、启动类及 MyBatis 持久层（`com.careerq.dao` 和 `com.careerq.dataobject`）。 |
-| 构建命令 | `mvn -f backend/pom.xml test`；打包 `mvn -f backend/pom.xml package -DskipTests`，jar 在 `product.service.impl/target/` |
-| 技术方案 | `docs/技术方案-职问桥.md`（**v0.5 实施版**，Spring Boot + 自建部署） |
+| 构建命令 | `mvn -f backend/pom.xml test`；打包 `mvn -f backend/pom.xml package -DskipTests`，jar 在 `product.service.impl/target/`。沙箱/受限环境若 Mockito 自附加失败，加 `-DargLine=-Djdk.attach.allowAttachSelf=true` |
+| 技术方案 | `docs/技术方案-CareerQ.md`（**v0.5 实施版**，Spring Boot + 自建部署） |
 | 接口契约 | `docs/接口契约-职问桥.md`（前后端联调唯一依据，v1.1） |
 | 实施计划 | `docs/实施计划-职问桥.md`（M0—M6 里程碑，进行中） |
 | 开发平台 | **自建部署**：前端静态（Nginx/CDN）+ Spring Boot + MySQL 8；Qoder Sites 不再强制 |
@@ -22,9 +22,10 @@
 | ⚠️ 分工 | **用户本人负责 Spring Boot 后端与前后端连接**；前端界面由队友负责；Qoder Sites 与 Spring Boot 的关系待确认 |
 | ✅ 已裁决 | 2026-11-14：采用**方案 C（公开提问 + 私密工单混合）**；Qoder Sites 强制。详见 `docs/流程v2评估-私密问答与公开沉淀.md` |
 | Web 技术栈 | 响应式 Web：Vue3 + TypeScript + Vite；FastAPI + PostgreSQL + Redis；Caddy/CDN |
-| 工作区 | `D:\CareerQ` |
+| 工作区 | `E:\CareerQ`（Qorder 的 `site/` 已移至 `E:\CareerQ-external\qorder-site-2026-11-15`，未删除） |
 | 远端仓库 | `https://github.com/Clover1218/CareerQ.git`（`main` 已建立，2026-11-11 首次推送成功） |
 | 主干规则 | 所有改动经 PR 合并进入 `main`；禁止直接推送或强制推送 `main` |
+| 当前分支/HEAD | `feature/codex-ssm-persistence` @ `efe24d4`（= `origin/main`，2026-11-16） |
 | 记忆规范 | `记忆书写规范.md`（六条铁律 + 三层记忆 + 写作模板） |
 | 日志 | 当天 `YYYY-MM-DD_<署名>.md`，每位成员或 AI 只追加自己的文件 |
 | 共享交换区 | `shared/`，AI 只写自己前缀的文件 |
@@ -35,9 +36,11 @@
 
 | 成员 | 开发分工 |
 |---|---|
-| 王 | 用户端与运营后台前端；响应式页面、API 对接、前端测试，并指导李完成辅助组件 |
-| 季 | 后端与平台基础；数据库、登录权限、问答互动、审核状态机、CI 与部署 |
-| 李 | 产品质量与集成；验收用例、测试数据、联调与演示验收，并在王指导下承担辅助前端开发 |
+| 王 | 模块 A：公开广场与内容浏览（公开列表/详情/公开沉淀/精选） |
+| 季（用户） | 模块 B：账号与学生提问（注册登录退出、学生工作区、提问、我的问题）；后端+前后端连接 |
+| 李 | 模块 C：HR 回答与运营审核（HR 问题池、回答、运营审核、举报处理） |
+
+> 注：上述为《三人全栈模块开发计划》讨论稿；早前协议中季含运营审核，现已划归李，待三人最终确认。
 
 ### AI 协作者
 
@@ -91,7 +94,7 @@
 - 2026-11-14 用户裁决：采用**方案 C（公开提问 + 私密工单混合）**；**Qoder Sites 为比赛强制平台**。技术方案升级 **v0.3**（Qoder Sites 托管，FastAPI / PostgreSQL / Redis / Caddy 退出主线），策划书同步为混合形态。
 - 2026-11-14 后端栈修订：用户负责 **Spring Boot 后端与前后端连接**，前端界面由队友负责；技术方案升 **v0.4**（Sites 可能仅托管前端，后端 Spring Boot 独立部署），新增 `docs/接口契约-职问桥.md`。Qoder Sites 与 Spring Boot 的部署关系待确认。
 - 2026-11-14 前后端约定锁定：前端 **Vue3 + TypeScript**；鉴权 **Cookie 会话 + CSRF Token**；Qoder Sites 暂按「只托管前端静态资源」推进，后端 Spring Boot 独立部署。
-- ⚠️ 路径不一致待确认：`MEMORY.md` 速查表「工作区」写 `D:\CareerQ`，本会话实际为 `E:\CareerQ`。
+- ✅ 工作区已确认：实际为 `E:\CareerQ`（此前 `D:\CareerQ` 记录作废）。
 - 2026-11-14 脱离比赛：Qoder Sites 强制取消，改自建部署；技术方案升 **v0.5 实施版**，新建 `docs/实施计划-职问桥.md`（M0—M6）。环境实测：**Java 11 不满足 Spring Boot 3（需 JDK 21）**，Maven/Node 可用，Docker 与 PostgreSQL 未装。下一步 M0。
 - 2026-11-14 ⚠️ 同机并发事故：另一会话中途切换分支并把未提交 M2 改动收进 `wip/m2-auth`；已 ff 合并回 `ds/private-qna-flow`。教训：动手前确认分支 + 建锁，提交前再确认分支。
 - 2026-11-14 按用户模块结构重构 backend：拆为 `product.service.api` / `product.service.impl` / `product.api` 三模块（Maven 聚合），Java 21；`mvn test` 16/16、冒烟 14 项通过。模块名按用户更正为 `product.service.impl`。
@@ -120,3 +123,10 @@
 
 - 阿里云 RDS MySQL 8.0.36，独立库 `careerq`（utf8mb4）；`dewudb` 已被其他项目占用，不复用。
 - 凭证只走环境变量 `SPRING_DATASOURCE_*` / `DB_*`，不入仓库；`scripts/verify-mysql.ps1` 可在真库复验。
+## 六、最新现状（2026-11-16）
+
+- 仓库：`main` = `efe24d4`（PR #1–#6 全部已合并，无开放 PR）；当前分支 `feature/codex-ssm-persistence` 已同步推送；工作区干净。
+- 数据库：阿里云 RDS MySQL 8.0.36 独立库 `careerq` 已验证（Flyway V1–V3、16 表、冒烟 18/18）；凭证只走环境变量。
+- 后端能力：认证/权限（登录注册分离、CSRF 强制）、学生提问与我的问题、HR 问题池与私密闭环、运营审核与举报、互动（点赞/有用/收藏/我的收藏）、可选资料（学历/经历），测试 38/38。
+- 前端：`frontend/` 只有 6 个页面（广场、详情、登录、注册、提问、HR 私密池）；缺：我的问题页、运营审核台、举报处理页、我的收藏、资料页、HR 公开池、搜索/精选、404/角色导航。
+- 待办：按新计划更新 `docs/模块分工-季.md`（运营审核改归李）；补季负责的前端页面；接口契约/OpenAPI 与实现对齐。
