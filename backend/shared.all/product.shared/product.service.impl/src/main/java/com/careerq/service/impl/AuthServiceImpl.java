@@ -6,7 +6,9 @@ import com.careerq.auth.AuthDtos.RegisterRequest;
 import com.careerq.auth.AuthDtos.UserView;
 import com.careerq.common.BusinessException;
 import com.careerq.common.ErrorCode;
+import com.careerq.dao.HrProfileDao;
 import com.careerq.dao.UserDao;
+import com.careerq.dataobject.HrProfileDO;
 import com.careerq.dataobject.UserDO;
 import com.careerq.security.AuthUser;
 import com.careerq.service.AuthService;
@@ -20,6 +22,7 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -29,17 +32,21 @@ import java.util.HexFormat;
 
 /**
  * 登录 / 注册 / 登出 / 当前用户。
- * 规则：未注册手机号不能直接登录（返回 40401），必须走注册；注册成功后即建立会话。
+ * 注册规则：
+ * - 学生：手机号 + 验证码即可，不收集学校等具体信息（资料可在“完善资料”里选填）；
+ * - HR：手机号 + 验证码 + 就职公司（行业/职位可选），同时写入 hr_profiles（认证状态 pending，真实认证暂缓）。
  */
 @Service
 public class AuthServiceImpl implements AuthService {
 
     private final UserDao userDao;
     private final SmsCodeService smsCodeService;
+    private final HrProfileDao hrProfileDao;
 
-    public AuthServiceImpl(UserDao userDao, SmsCodeService smsCodeService) {
+    public AuthServiceImpl(UserDao userDao, SmsCodeService smsCodeService, HrProfileDao hrProfileDao) {
         this.userDao = userDao;
         this.smsCodeService = smsCodeService;
+        this.hrProfileDao = hrProfileDao;
     }
 
     @Override
@@ -56,22 +63,36 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional
     public LoginResult register(RegisterRequest request, HttpServletRequest httpRequest) {
         verifyCode(request.phone(), request.code());
+        String role = normalizeRegisterRole(request.role());
+        String company = blankToNull(request.company());
+        if ("hr".equals(role) && company == null) {
+            throw new BusinessException(ErrorCode.INVALID_PARAM, "HR 注册需要填写就职公司");
+        }
+
         String phoneHash = sha256(request.phone());
         UserDO user = new UserDO();
-        user.setRole(normalizeRegisterRole(request.role()));
+        user.setRole(role);
         user.setPhoneHash(phoneHash);
         user.setPhoneVerifiedAt(LocalDateTime.now());
         user.setNickname(defaultNickname(request.nickname(), request.phone()));
-        user.setSchool(blankToNull(request.school()));
-        user.setMajor(blankToNull(request.major()));
-        user.setGrade(blankToNull(request.grade()));
         user.setStatus("active");
         try {
             userDao.insert(user);
         } catch (DuplicateKeyException duplicate) {
             throw new BusinessException(ErrorCode.PHONE_ALREADY_REGISTERED);
+        }
+
+        if ("hr".equals(role)) {
+            HrProfileDO profile = new HrProfileDO();
+            profile.setUserId(user.getId());
+            profile.setCompanyDisplay(company);
+            profile.setIndustry(blankToNull(request.industry()));
+            profile.setPosition(blankToNull(request.position()));
+            profile.setVerifyStatus("pending");
+            hrProfileDao.insert(profile);
         }
 
         establishSession(user, httpRequest);
@@ -131,6 +152,7 @@ public class AuthServiceImpl implements AuthService {
         }
         return value;
     }
+
     private static String defaultNickname(String nickname, String phone) {
         String value = blankToNull(nickname);
         return value != null ? value : "用户" + phone.substring(phone.length() - 4);

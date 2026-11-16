@@ -1,5 +1,7 @@
 package com.careerq.auth;
 
+import com.careerq.dao.HrProfileDao;
+import com.careerq.dataobject.HrProfileDO;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +32,9 @@ class AuthFlowTests {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private HrProfileDao hrProfileDao;
 
     private MvcResult register(String phone, String nickname) throws Exception {
         return mockMvc.perform(post("/api/v1/auth/register").with(csrf())
@@ -147,11 +152,17 @@ class AuthFlowTests {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/register").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "phone", phone, "code", "123456", "nickname", "HR用户", "role", "hr"))))
+                                "phone", phone, "code", "123456", "nickname", "HR用户",
+                                "company", "某互联网公司", "position", "HRBP", "role", "hr"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.user.role").value("hr"))
                 .andReturn();
         assertNotNull(result.getRequest().getSession(false));
+        long userId = objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data").path("user").path("id").asLong();
+        HrProfileDO profile = hrProfileDao.findByUserId(userId).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals("某互联网公司", profile.getCompanyDisplay());
+        org.junit.jupiter.api.Assertions.assertEquals("pending", profile.getVerifyStatus());
     }
 
     @Test
@@ -160,7 +171,7 @@ class AuthFlowTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "phone", "13800000611", "code", "123456",
-                                "nickname", "HR不能提问", "role", "hr"))))
+                                "nickname", "HR不能提问", "company", "某互联网公司", "role", "hr"))))
                 .andExpect(status().isOk())
                 .andReturn().getRequest().getSession(false);
         assertNotNull(session);
@@ -183,5 +194,27 @@ class AuthFlowTests {
                                 "nickname", "非法角色", "role", "admin"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(40001));
+    }    @Test
+    void hrRegisterRequiresCompany() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/register").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "phone", "13800000613", "code", "123456",
+                                "nickname", "无公司HR", "role", "hr"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40001));
     }
+
+    @Test
+    void studentRegisterNeedsOnlyPhoneAndCode() throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/register").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "phone", "13800000614", "code", "123456"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.user.role").value("student"))
+                .andReturn();
+        assertNotNull(result.getRequest().getSession(false));
+    }
+
 }

@@ -133,10 +133,13 @@ export const api = {
     phone: string;
     code: string;
     nickname?: string;
-    school?: string;
-    major?: string;
-    grade?: string;
+
+
+
     role?: "student" | "hr";
+    company?: string;
+    industry?: string;
+    position?: string;
   }): Promise<void> {
     await request<{ user: User }>("/auth/register", {
       method: "POST",
