@@ -10,6 +10,7 @@ import com.careerq.question.QuestionDtos.QuestionView;
 import com.careerq.security.AuthUser;
 import com.careerq.security.AuthUsers;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,6 +31,7 @@ public class QuestionController {
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('STUDENT')")
     public ApiResponse<QuestionView> create(Authentication authentication,
                                             @Valid @RequestBody CreateRequest request) {
         AuthUser user = AuthUsers.require(authentication);
