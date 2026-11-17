@@ -16,6 +16,8 @@ public class UserDO {
 
     private String phoneEnc;
 
+    private String avatarUrl;
+
     private LocalDateTime phoneVerifiedAt;
 
     private String nickname;
@@ -116,6 +118,14 @@ public class UserDO {
 
     public void setAgeGroup(String ageGroup) {
         this.ageGroup = ageGroup;
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
     }
 
     public String getPhoneEnc() {
