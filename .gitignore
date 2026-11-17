@@ -29,6 +29,3 @@ dist/
 Thumbs.db
 .idea/
 .vscode/
-
-# 运行时上传数据（头像等）
-data/

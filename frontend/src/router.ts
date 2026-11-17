@@ -6,7 +6,6 @@ import QuestionListView from "./views/QuestionListView.vue";
 import QuestionDetailView from "./views/QuestionDetailView.vue";
 import AskView from "./views/AskView.vue";
 import PrivatePoolView from "./views/PrivatePoolView.vue";
-import MyView from "./views/MyView.vue";
 
 export const router = createRouter({
   history: createWebHistory("/careerq/"),
@@ -18,9 +17,8 @@ export const router = createRouter({
     { path: "/login", component: LoginView },
     { path: "/register", component: RegisterView },
     // 需要登录：发帖 / 私密工单
-    { path: "/ask", component: AskView, meta: { requiresAuth: true, role: "student" } },
+    { path: "/ask", component: AskView, meta: { requiresAuth: true } },
     { path: "/hr/private-pool", component: PrivatePoolView, meta: { requiresAuth: true } },
-    { path: "/me", component: MyView, meta: { requiresAuth: true } },
     { path: "/:pathMatch(.*)*", redirect: "/" },
   ],
 });
@@ -33,11 +31,7 @@ router.beforeEach(async (to) => {
     return true;
   }
   try {
-    const me = await api.me();
-    const requiredRole = to.meta.role as string | undefined;
-    if (requiredRole && me.role !== requiredRole) {
-      return "/";
-    }
+    await api.me();
     return true;
   } catch {
     return { path: "/login", query: { redirect: to.fullPath } };

@@ -6,7 +6,6 @@ const items = ref<Question[]>([]);
 const tag = ref("");
 const cursor = ref<number | null>(null);
 const loading = ref(false);
-const me = ref<{ role: string } | null>(null);
 const error = ref("");
 const publicPosts = ref<PublicPost[]>([]);
 const postsError = ref("");
@@ -35,7 +34,6 @@ async function loadPublicPosts() {
 }
 
 onMounted(() => {
-  void api.me().then((u) => (me.value = u)).catch(() => (me.value = null));
   void load(true);
   void loadPublicPosts();
 });
@@ -44,7 +42,7 @@ onMounted(() => {
 <template>
   <div class="between">
     <h2>公开问答</h2>
-    <router-link v-if="!me || me.role === 'student'" class="btn primary" to="/ask">我要提问</router-link>
+    <router-link class="btn primary" to="/ask">我要提问</router-link>
   </div>
 
   <div class="card">
