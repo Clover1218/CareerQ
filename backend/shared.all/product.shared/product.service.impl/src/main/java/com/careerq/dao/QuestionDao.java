@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -54,6 +55,37 @@ public interface QuestionDao {
     List<QuestionDO> list(@Param("scope") String scope, @Param("status") String status,
                           @Param("cursor") Long cursor, @Param("tag") String tag,
                           @Param("unanswered") boolean unanswered, @Param("limit") int limit);
+
+    @Select("select coalesce(max(id), 0) from questions where scope = #{scope} and status = #{status}")
+    long findMaxId(@Param("scope") String scope, @Param("status") String status);
+
+    /** 推荐流候选池：固定快照上界，排除当前用户已“不喜欢”的问题。 */
+    @Select("""
+            <script>
+            select q.* from questions q
+            where q.scope = #{scope} and q.status = #{status}
+              and q.id &lt;= #{maxId}
+            <if test="since != null">and q.created_at &gt;= #{since}</if>
+            <if test="tag != null">
+                and exists (
+                    select 1 from question_tags qt join tags t on t.id = qt.tag_id
+                    where qt.question_id = q.id and t.slug = #{tag}
+                )
+            </if>
+            <if test="excludeUserId != null">
+                and not exists (
+                    select 1 from interactions i
+                    where i.user_id = #{excludeUserId} and i.target_type = 'question'
+                      and i.target_id = q.id and i.type = 'dislike'
+                )
+            </if>
+            order by q.id desc limit #{limit}
+            </script>
+            """)
+    List<QuestionDO> listFeedCandidates(@Param("scope") String scope, @Param("status") String status,
+                                        @Param("maxId") long maxId, @Param("since") LocalDateTime since,
+                                        @Param("tag") String tag, @Param("excludeUserId") Long excludeUserId,
+                                        @Param("limit") int limit);
 
     @Select("""
             <script>

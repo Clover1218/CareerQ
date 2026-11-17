@@ -68,11 +68,11 @@ public class DemoDataSeeder implements CommandLineRunner {
         UserDO hr = createUser("13800000002", "hr", "某互联网公司 HR");
         createUser("13800000003", "operator", "运营小助手");
 
-        TagDO intern = createTag("实习");
-        TagDO resume = createTag("简历");
-        TagDO interview = createTag("面试准备");
-        TagDO autumn = createTag("秋招");
-        TagDO career = createTag("职业规划");
+        TagDO intern = requireTag("实习");
+        TagDO resume = requireTag("简历");
+        TagDO interview = requireTag("面试准备");
+        TagDO autumn = requireTag("秋招");
+        TagDO career = requireTag("职业规划");
 
         QuestionDO q1 = new QuestionDO();
         q1.setScope("public");
@@ -366,10 +366,9 @@ public class DemoDataSeeder implements CommandLineRunner {
         log.info("[demo] 演示数据已写入：学生 13800000001 / HR 13800000002 / 运营 13800000003（验证码 123456）");
     }
 
-    private TagDO createTag(String name) {
-        TagDO tag = TagDO.of(name, name);
-        tagDao.insert(tag);
-        return tag;
+    private TagDO requireTag(String slug) {
+        return tagDao.findBySlug(slug)
+                .orElseThrow(() -> new IllegalStateException("固定标签缺失：" + slug + "，请检查 V5 迁移"));
     }
 
     private UserDO createUser(String phone, String role, String nickname) {

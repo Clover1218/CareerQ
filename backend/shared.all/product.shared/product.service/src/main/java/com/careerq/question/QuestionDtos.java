@@ -53,11 +53,16 @@ public final class QuestionDtos {
             int replyCount,
             int likeCount,
             int favoriteCount,
-            LocalDateTime createdAt) {
+            LocalDateTime createdAt,
+            List<String> matchedTags) {
+    }
+
+    /** 推荐流分页：游标不透明，使用字符串而不是公共 PageResult 的 Long。 */
+    public record FeedPage(List<QuestionFeedItem> items, String nextCursor) {
     }
 
     /** 当前查看者对问题/回答的互动状态。 */
-    public record ViewerState(boolean liked, boolean usefuled, boolean favorited) {
+    public record ViewerState(boolean liked, boolean usefuled, boolean favorited, boolean disliked) {
     }
 
     public record QuestionDetail(QuestionView question, List<AnswerView> answers, List<FollowupView> followups,

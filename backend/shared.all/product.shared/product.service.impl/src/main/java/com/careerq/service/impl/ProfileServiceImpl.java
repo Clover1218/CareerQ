@@ -8,7 +8,6 @@ import com.careerq.dataobject.ExperienceDO;
 import com.careerq.dataobject.UserDO;
 import com.careerq.profile.ProfileDtos.ExperienceItem;
 import com.careerq.profile.ProfileDtos.ExperienceView;
-import com.careerq.profile.ProfileDtos.PatchRequest;
 import com.careerq.profile.ProfileDtos.ProfileView;
 import com.careerq.profile.ProfileDtos.UpdateRequest;
 import com.careerq.security.AuthUser;
@@ -50,51 +49,11 @@ public class ProfileServiceImpl implements ProfileService {
         userDO.setGraduationYear(blankToNull(request.graduationYear()));
         userDao.updateProfile(userDO);
 
-        replaceExperiences(user.getId(), request.experiences() == null ? List.of() : request.experiences());
-        return toView(userDao.findById(user.getId()).orElseThrow());
-    }
-
-    @Override
-    @Transactional
-    public ProfileView patch(AuthUser user, PatchRequest request) {
-        UserDO userDO = userDao.findById(user.getId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
-
-        if (request.nickname() != null) {
-            String nickname = request.nickname().trim();
-            if (nickname.isEmpty()) {
-                throw new BusinessException(ErrorCode.INVALID_PARAM, "昵称不能为空");
-            }
-            userDO.setNickname(nickname);
-        }
-        if (request.school() != null) {
-            userDO.setSchool(blankToNull(request.school()));
-        }
-        if (request.major() != null) {
-            userDO.setMajor(blankToNull(request.major()));
-        }
-        if (request.grade() != null) {
-            userDO.setGrade(blankToNull(request.grade()));
-        }
-        if (request.degree() != null) {
-            userDO.setDegree(blankToNull(request.degree()));
-        }
-        if (request.graduationYear() != null) {
-            userDO.setGraduationYear(blankToNull(request.graduationYear()));
-        }
-        userDao.updateProfile(userDO);
-
-        if (request.experiences() != null) {
-            replaceExperiences(user.getId(), request.experiences());
-        }
-        return toView(userDao.findById(user.getId()).orElseThrow());
-    }
-
-    private void replaceExperiences(Long userId, List<ExperienceItem> items) {
-        experienceDao.deleteByUserId(userId);
+        experienceDao.deleteByUserId(user.getId());
+        List<ExperienceItem> items = request.experiences() == null ? List.of() : request.experiences();
         for (ExperienceItem item : items) {
             ExperienceDO experience = new ExperienceDO();
-            experience.setUserId(userId);
+            experience.setUserId(user.getId());
             experience.setType(normalizeType(item.type()));
             experience.setTitle(item.title().trim());
             experience.setRole(blankToNull(item.role()));
@@ -105,6 +64,7 @@ public class ProfileServiceImpl implements ProfileService {
             experience.setUpdatedAt(LocalDateTime.now());
             experienceDao.insert(experience);
         }
+        return toView(userDao.findById(user.getId()).orElseThrow());
     }
 
     private ProfileView toView(UserDO user) {
