@@ -4,6 +4,7 @@ export interface User {
   id: number;
   role: "student" | "hr" | "operator" | "admin";
   nickname: string;
+  avatarUrl?: string | null;
   school?: string | null;
   major?: string | null;
   grade?: string | null;
@@ -67,6 +68,36 @@ export interface PageResult<T> {
   nextCursor: number | null;
 }
 
+export interface Experience {
+  id?: number;
+  type: "internship" | "project";
+  title: string;
+  role?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  description?: string | null;
+}
+
+export interface Profile {
+  id: number;
+  role: string;
+  nickname: string;
+  avatarUrl?: string | null;
+  school?: string | null;
+  major?: string | null;
+  grade?: string | null;
+  degree?: string | null;
+  graduationYear?: string | null;
+  experiences: Experience[];
+}
+
+export interface Favorite {
+  targetType: "question" | "answer" | "post";
+  targetId: number;
+  title: string;
+  excerpt?: string | null;
+  createdAt: string;
+}
 export class ApiError extends Error {
   code: number;
   status: number;
@@ -133,9 +164,13 @@ export const api = {
     phone: string;
     code: string;
     nickname?: string;
-    school?: string;
-    major?: string;
-    grade?: string;
+
+
+
+    role?: "student" | "hr";
+    company?: string;
+    industry?: string;
+    position?: string;
   }): Promise<void> {
     await request<{ user: User }>("/auth/register", {
       method: "POST",
@@ -224,5 +259,53 @@ export const api = {
 
   posts(): Promise<PublicPost[]> {
     return request<PublicPost[]>("/posts");
+  },
+  listMyQuestions(scope?: string): Promise<PageResult<Question>> {
+    const params = new URLSearchParams();
+    if (scope) params.set("scope", scope);
+    params.set("limit", "20");
+    return request<PageResult<Question>>(`/questions/mine?${params.toString()}`);
+  },
+
+  listFavorites(targetType?: string): Promise<PageResult<Favorite>> {
+    const params = new URLSearchParams();
+    if (targetType) params.set("targetType", targetType);
+    params.set("limit", "20");
+    return request<PageResult<Favorite>>(`/me/favorites?${params.toString()}`);
+  },
+
+  getProfile(): Promise<Profile> {
+    return request<Profile>("/me/profile");
+  },
+
+  updateProfile(payload: {
+    school?: string | null;
+    major?: string | null;
+    grade?: string | null;
+    degree?: string | null;
+    graduationYear?: string | null;
+    experiences: Experience[];
+  }): Promise<Profile> {
+    return request<Profile>("/me/profile", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async uploadAvatar(file: File): Promise<Profile> {
+    if (!csrfToken) await ensureCsrf();
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`${BASE}/me/avatar`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "X-XSRF-TOKEN": csrfToken as string },
+      body: form,
+    });
+    const body = await res.json().catch(() => ({ code: -1, message: `HTTP ${res.status}` }));
+    if (!res.ok || body.code !== 0) {
+      throw new ApiError(body.message ?? `HTTP ${res.status}`, body.code ?? -1, res.status);
+    }
+    return body.data as Profile;
   },
 };

@@ -2,6 +2,7 @@
 import { onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { api, type User } from "./api";
+import UserAvatar from "./components/UserAvatar.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -15,11 +16,7 @@ async function refresh() {
   }
 }
 
-async function logout() {
-  await api.logout();
-  user.value = null;
-  router.push("/login");
-}
+
 
 onMounted(refresh);
 watch(() => route.fullPath, refresh);
@@ -30,14 +27,15 @@ watch(() => route.fullPath, refresh);
     <div class="brand" @click="router.push('/')">职问桥 <span>CareerQ</span></div>
     <nav class="nav">
       <router-link to="/">公开问答</router-link>
-      <router-link to="/ask">提问</router-link>
+      <router-link v-if="!user || user.role === 'student'" to="/ask">提问</router-link>
       <router-link v-if="user?.role === 'hr'" to="/hr/private-pool">私密工单</router-link>
     </nav>
     <div class="account">
       <template v-if="user">
-        <span class="role">{{ user.role === "hr" ? "HR" : user.role }}</span>
-        <span class="nick">{{ user.nickname }}</span>
-        <button class="link" @click="logout">退出</button>
+        <router-link to="/me" class="account-link">
+          <UserAvatar :nickname="user.nickname" :avatar-url="user.avatarUrl" :size="28" />
+          <span class="nick">{{ user.nickname }}</span>
+        </router-link>
       </template>
       <template v-else>
         <router-link to="/login">登录</router-link>

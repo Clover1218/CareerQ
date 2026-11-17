@@ -28,6 +28,7 @@ public final class ProfileDtos {
             Long id,
             String role,
             String nickname,
+            String avatarUrl,
             String school,
             String major,
             String grade,
@@ -65,5 +66,4 @@ public final class ProfileDtos {
             String graduationYear,
             @Valid
             List<ExperienceItem> experiences) {
-    }
-}
+    }}
