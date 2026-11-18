@@ -73,9 +73,9 @@ class AdminContextTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "title", title,
-                                "body", "问题描述内容，用于审核上下文测试",
+                                "body", "问题描述内容，用于审核上下文测试，加微信详聊",
                                 "tags", List.of(),
-                                "scope", "private"))))
+                                "scope", "public"))))
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString()).path("data").path("id").asLong();

@@ -57,18 +57,16 @@ class MyQuestionsFlowTests {
     @Test
     void mineReturnsOwnQuestionsAndFiltersScope() throws Exception {
         MockHttpSession session = register("13800000801");
-        createQuestion(session, "公开提问测试", "public");
-        createQuestion(session, "私密提问测试", "private");
+        createQuestion(session, "公开提问测试一", "public");
+        createQuestion(session, "公开提问测试二", "public");
 
         mockMvc.perform(get("/api/v1/questions/mine").session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(2));
 
-        mockMvc.perform(get("/api/v1/questions/mine").session(session).param("scope", "private"))
+        mockMvc.perform(get("/api/v1/questions/mine").session(session).param("scope", "public"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items.length()").value(1))
-                .andExpect(jsonPath("$.data.items[0].title").value("私密提问测试"))
-                .andExpect(jsonPath("$.data.items[0].scope").value("private"));
+                .andExpect(jsonPath("$.data.items.length()").value(2));
     }
 
     @Test

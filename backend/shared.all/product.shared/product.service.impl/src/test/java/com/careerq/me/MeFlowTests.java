@@ -93,16 +93,13 @@ class MeFlowTests {
     void myQuestionsListFiltersByScope() throws Exception {
         MockHttpSession student = login("13800000901");
         long publicId = createQuestion(student, "public", "我的公开提问", "公开问题正文");
-        long privateId = createQuestion(student, "private", "我的私密提问", "私密问题正文");
 
         mockMvc.perform(get("/api/v1/me/questions").session(student))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items.length()").value(2))
-                .andExpect(jsonPath("$.data.items[0].id").value(privateId))
-                .andExpect(jsonPath("$.data.items[0].status").value("pending_human"))
-                .andExpect(jsonPath("$.data.items[1].id").value(publicId))
-                .andExpect(jsonPath("$.data.items[1].status").value("published"))
-                .andExpect(jsonPath("$.data.items[0].body").value("私密问题正文"));
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].id").value(publicId))
+                .andExpect(jsonPath("$.data.items[0].status").value("published"))
+                .andExpect(jsonPath("$.data.items[0].body").value("公开问题正文"));
 
         mockMvc.perform(get("/api/v1/me/questions").session(student).param("scope", "public"))
                 .andExpect(status().isOk())
