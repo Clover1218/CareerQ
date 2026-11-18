@@ -19,8 +19,8 @@ export const router = createRouter({
     { path: "/register", component: RegisterView },
     // 需要登录：我的问答 / 发帖 / 私密工单
     { path: "/me", name: "my-qa", component: MyQaView, meta: { requiresAuth: true } },
-    { path: "/ask", component: AskView, meta: { requiresAuth: true } },
-    { path: "/hr/private-pool", component: PrivatePoolView, meta: { requiresAuth: true } },
+    { path: "/ask", component: AskView, meta: { requiresAuth: true, role: "student" } },
+    { path: "/hr/private-pool", component: PrivatePoolView, meta: { requiresAuth: true, role: "hr" } },
     { path: "/:pathMatch(.*)*", redirect: "/" },
   ],
 });
@@ -38,6 +38,9 @@ router.beforeEach(async (to) => {
   const user = userStore.isAuthenticated ? userStore.user : await userStore.fetchUserInfo(true);
   if (!user) {
     return { path: "/login", query: { redirect: to.fullPath } };
+  }
+  if (to.meta.role && user.role !== to.meta.role) {
+    return "/";
   }
   return true;
 });

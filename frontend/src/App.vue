@@ -49,7 +49,7 @@ watch(() => route.fullPath, refresh);
               <nav class="nav">
                 <router-link to="/">公开问答</router-link>
                 <router-link to="/me">我的问答</router-link>
-                <router-link to="/ask">提问</router-link>
+                <router-link v-if="user?.role === 'student' || !user" to="/ask">提问</router-link>
                 <router-link v-if="user?.role === 'hr'" to="/hr/private-pool">私密工单</router-link>
               </nav>
               <div class="account">

@@ -42,6 +42,17 @@ public final class QuestionDtos {
             LocalDateTime firstAnswerAt) {
     }
 
+    public record HrAnswerSummary(
+            Long id,
+            String body,
+            String lengthType,
+            String status,
+            LocalDateTime createdAt) {
+    }
+
+    public record HrAnsweredQuestionView(QuestionView question, HrAnswerSummary myAnswer) {
+    }
+
     /** 公开 feed 摘要：不含作者；正文不做字数截断，由前端按行折叠。 */
     public record QuestionFeedItem(
             Long id,

@@ -43,6 +43,9 @@ public class FollowupServiceImpl implements FollowupService {
     @Override
     @Transactional
     public FollowupView create(AuthUser sender, Long questionId, CreateRequest request) {
+        if (!"student".equals(sender.getRole())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "只有学生可以追问");
+        }
         QuestionDO question = questionDao.findByIdForUpdate(questionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
         requireVisible(sender, question);

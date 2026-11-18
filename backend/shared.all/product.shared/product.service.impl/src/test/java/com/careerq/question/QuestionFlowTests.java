@@ -280,9 +280,7 @@ class QuestionFlowTests {
                         .session(hr).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("body", "也可以先做一次模拟面试评估基础。"))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.hr").value(true))
-                .andExpect(jsonPath("$.data.senderRole").value("hr"));
+                .andExpect(status().isForbidden());
 
         mockMvc.perform(post("/api/v1/interactions").session(student).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -294,13 +292,13 @@ class QuestionFlowTests {
                         .session(student))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.answerCount").value(1))
-                .andExpect(jsonPath("$.data.followupCount").value(2))
-                .andExpect(jsonPath("$.data.replyCount").value(3))
+                .andExpect(jsonPath("$.data.followupCount").value(1))
+                .andExpect(jsonPath("$.data.replyCount").value(2))
                 .andReturn();
 
         JsonNode data = objectMapper.readTree(threadResult.getResponse().getContentAsString()).path("data");
         JsonNode items = data.path("items");
-        assertEquals(3, items.size());
+        assertEquals(2, items.size());
         List<String> kinds = new ArrayList<>();
         int hrAnswerIndex = -1;
         int studentFollowupIndex = -1;
@@ -324,7 +322,7 @@ class QuestionFlowTests {
         assertTrue(kinds.contains("followup"));
         assertTrue(hrAnswerIndex >= 0);
         assertTrue(studentFollowupIndex >= 0);
-        assertEquals(2, kinds.stream().filter("followup"::equals).count());
+        assertEquals(1, kinds.stream().filter("followup"::equals).count());
 
         mockMvc.perform(get("/api/v1/questions/{id}/thread", questionId))
                 .andExpect(status().isOk())

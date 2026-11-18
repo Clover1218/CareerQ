@@ -49,11 +49,13 @@ public class AdminController {
     }
 
     @GetMapping("/moderation/words")
+    @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<List<WordView>> words() {
         return ApiResponse.ok(adminService.words());
     }
 
     @PostMapping("/moderation/words")
+    @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<WordView> upsertWord(@Valid @RequestBody WordRequest request) {
         return ApiResponse.ok(adminService.upsertWord(request));
     }

@@ -217,7 +217,7 @@ class ModerationFlowTests {
 
     @Test
     void blockWordRejectsContent() throws Exception {
-        MockHttpSession operator = loginAs("13800000309", "operator");
+        MockHttpSession operator = loginAs("13800000309", "admin");
         mockMvc.perform(post("/api/v1/admin/moderation/words")
                         .session(operator).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)

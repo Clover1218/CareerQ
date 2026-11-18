@@ -551,7 +551,7 @@ onBeforeUnmount(() => {
                 {{ entry.kind === "hr_answer" ? "回答于" : "追问于" }} {{ formatTime(entry.createdAt) }}
               </span>
               <div class="flex shrink-0 items-center gap-4">
-                <button v-if="!ownerMode" class="feed-action" aria-label="回复" @click="replyTo(entry)">
+                <button v-if="!ownerMode && user?.role !== 'hr'" class="feed-action" aria-label="回复" @click="replyTo(entry)">
                   <FeedIcon name="comment" />
                   <span>回复</span>
                 </button>

@@ -90,11 +90,12 @@ mvn -f backend/pom.xml -pl shared.all/product.shared/product.service.impl spring
 | GET | `/api/v1/questions/{id}` | 问题详情 + 回答列表 | 公开（私密仅作者/运营） |
 | POST | `/api/v1/questions/{id}/answers` | 回答（自动发布/转人工） | HR |
 | GET | `/api/v1/hr/question-pool` | HR 未答问题池 | HR |
+| GET | `/api/v1/hr/answered-questions?cursor=&limit=` | 当前 HR 已回答公开问题（游标分页） | HR |
 | POST | `/api/v1/interactions` | 点赞/收藏/有用 | 登录 |
 
 | GET | `/api/v1/hr/private-pool` | HR 私密待认领池（作者匿名） | HR |
 | POST | `/api/v1/hr/questions/{id}/claim` | 认领私密问题 | HR |
-| POST | `/api/v1/questions/{id}/followups` | 追问（公开/私密） | 登录（私密需可见） |
+| POST | `/api/v1/questions/{id}/followups` | 追问（公开/私密） | STUDENT |
 | GET | `/api/v1/questions/{id}/followups` | 追问列表 | 公开/可见者 |
 | POST | `/api/v1/questions/{id}/close` | 关闭私密问题 | 作者 |
 | POST | `/api/v1/questions/{id}/publish` | 申请脱敏公开 | 作者 |
@@ -104,7 +105,7 @@ mvn -f backend/pom.xml -pl shared.all/product.shared/product.service.impl spring
 | GET | `/api/v1/feed/highlights` | 精选（公开帖 Top10） | 公开 |
 | GET | `/api/v1/admin/moderation/queue` | 待人工审核队列 | OPERATOR/ADMIN |
 | POST | `/api/v1/admin/moderation/{targetType}/{id}/decide` | 通过/驳回/下架 | OPERATOR/ADMIN |
-| GET/POST | `/api/v1/admin/moderation/words` | 词库查询/维护 | OPERATOR/ADMIN |
+| GET/POST | `/api/v1/admin/moderation/words` | 词库查询/维护 | ADMIN |
 | GET | `/api/v1/admin/reports` | 举报队列 | OPERATOR/ADMIN |
 | POST | `/api/v1/admin/reports/{id}/handle` | 处理举报（dismiss/remove） | OPERATOR/ADMIN |
 | GET | `/api/v1/admin/metrics` | 审核/举报计数 | OPERATOR/ADMIN |
