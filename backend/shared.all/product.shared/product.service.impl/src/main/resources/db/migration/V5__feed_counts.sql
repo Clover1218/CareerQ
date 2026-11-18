@@ -1,4 +1,4 @@
--- V4: 公开问答 feed 计数（收藏数 + 公开追问数）
+-- V5: 公开问答 feed 计数（收藏数 + 公开追问数）
 ALTER TABLE questions ADD COLUMN favorite_count INT NOT NULL DEFAULT 0;
 ALTER TABLE questions ADD COLUMN followup_count INT NOT NULL DEFAULT 0;
 

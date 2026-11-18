@@ -1,5 +1,7 @@
 package com.careerq.auth;
 
+import com.careerq.dao.HrProfileDao;
+import com.careerq.dataobject.HrProfileDO;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +32,9 @@ class AuthFlowTests {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private HrProfileDao hrProfileDao;
 
     private MvcResult register(String phone, String nickname) throws Exception {
         return mockMvc.perform(post("/api/v1/auth/register").with(csrf())
@@ -111,14 +116,28 @@ class AuthFlowTests {
     }
 
     @Test
-    void authWritesRequireCsrf() throws Exception {
-        for (String operation : new String[]{"sms-code", "login", "register", "logout"}) {
-            mockMvc.perform(post("/api/v1/auth/{operation}", operation))
-                    .andExpect(status().isForbidden())
-                    .andExpect(jsonPath("$.code").value(40300));
-        }
+    void authWritesDoNotRequireCsrf() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "phone", "13800000620", "code", "123456"))))
+                .andExpect(status().isOk());
     }
 
+    @Test
+    void contentWritesStillRequireCsrf() throws Exception {
+        MockHttpSession session = (MockHttpSession) register("13800000621", "CSRF学生")
+                .getRequest().getSession(false);
+        assertNotNull(session);
+        mockMvc.perform(post("/api/v1/questions").session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "title", "不带 CSRF 的问题",
+                                "body", "应被拒绝",
+                                "scope", "public"))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(40300));
+    }
     @Test
     void meRequiresLogin() throws Exception {
         mockMvc.perform(get("/api/v1/me"))
@@ -141,4 +160,75 @@ class AuthFlowTests {
         mockMvc.perform(get("/api/v1/me"))
                 .andExpect(status().isUnauthorized());
     }
+    @Test
+    void registerHrAccountHasHrRole() throws Exception {
+        String phone = "13800000610";
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/register").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "phone", phone, "code", "123456", "nickname", "HR用户",
+                                "company", "某互联网公司", "position", "HRBP", "role", "hr"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.user.role").value("hr"))
+                .andReturn();
+        assertNotNull(result.getRequest().getSession(false));
+        long userId = objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data").path("user").path("id").asLong();
+        HrProfileDO profile = hrProfileDao.findByUserId(userId).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals("某互联网公司", profile.getCompanyDisplay());
+        org.junit.jupiter.api.Assertions.assertEquals("pending", profile.getVerifyStatus());
+    }
+
+    @Test
+    void hrCannotCreateQuestion() throws Exception {
+        MockHttpSession session = (MockHttpSession) mockMvc.perform(post("/api/v1/auth/register").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "phone", "13800000611", "code", "123456",
+                                "nickname", "HR不能提问", "company", "某互联网公司", "role", "hr"))))
+                .andExpect(status().isOk())
+                .andReturn().getRequest().getSession(false);
+        assertNotNull(session);
+
+        mockMvc.perform(post("/api/v1/questions").with(csrf()).session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "title", "HR 不应该能提问",
+                                "body", "验证角色限制",
+                                "scope", "public"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void registerInvalidRoleRejected() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/register").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "phone", "13800000612", "code", "123456",
+                                "nickname", "非法角色", "role", "admin"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40001));
+    }    @Test
+    void hrRegisterRequiresCompany() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/register").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "phone", "13800000613", "code", "123456",
+                                "nickname", "无公司HR", "role", "hr"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40001));
+    }
+
+    @Test
+    void studentRegisterNeedsOnlyPhoneAndCode() throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/register").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "phone", "13800000614", "code", "123456"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.user.role").value("student"))
+                .andReturn();
+        assertNotNull(result.getRequest().getSession(false));
+    }
+
 }

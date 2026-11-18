@@ -44,6 +44,19 @@ public interface InteractionDao {
                    @Param("type") String type);
 
     @Select("""
+            select count(*) from interactions i
+            where i.type = 'like' and (
+                (i.target_type = 'question' and exists (
+                    select 1 from questions q where q.id = i.target_id and q.author_id = #{authorId}
+                )) or
+                (i.target_type = 'answer' and exists (
+                    select 1 from answers a where a.id = i.target_id and a.author_id = #{authorId}
+                ))
+            )
+            """)
+    long countLikesReceived(Long authorId);
+
+    @Select("""
             <script>
             select * from interactions
             where user_id = #{userId} and type = #{type}

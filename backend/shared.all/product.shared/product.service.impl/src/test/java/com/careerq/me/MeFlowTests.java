@@ -218,6 +218,13 @@ class MeFlowTests {
         mockMvc.perform(patch("/api/v1/me/profile")
                         .session(session).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("school", ""))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.school").value(""));
+
+        mockMvc.perform(patch("/api/v1/me/profile")
+                        .session(session).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("nickname", "   "))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(40001));

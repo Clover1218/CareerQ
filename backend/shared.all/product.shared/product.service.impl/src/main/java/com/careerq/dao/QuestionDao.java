@@ -98,6 +98,12 @@ public interface QuestionDao {
     List<QuestionDO> listByAuthor(@Param("authorId") Long authorId, @Param("scope") String scope,
                                   @Param("cursor") Long cursor, @Param("limit") int limit);
 
+    @Select("select count(*) from questions where author_id = #{authorId}")
+    long countByAuthor(Long authorId);
+
+    @Select("select coalesce(sum(answer_count), 0) from questions where author_id = #{authorId}")
+    long countReceivedAnswers(Long authorId);
+
     @Update("update questions set status = #{status}, updated_at = current_timestamp where id = #{id}")
     int updateStatus(@Param("id") Long id, @Param("status") String status);
 

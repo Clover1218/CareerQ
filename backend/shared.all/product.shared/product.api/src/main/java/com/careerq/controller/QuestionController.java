@@ -13,6 +13,7 @@ import com.careerq.question.QuestionDtos.ThreadView;
 import com.careerq.security.AuthUser;
 import com.careerq.security.AuthUsers;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -33,6 +34,7 @@ public class QuestionController {
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('STUDENT')")
     public ApiResponse<QuestionView> create(Authentication authentication,
                                             @Valid @RequestBody CreateRequest request) {
         AuthUser user = AuthUsers.require(authentication);
@@ -46,6 +48,13 @@ public class QuestionController {
         return ApiResponse.ok(questionService.list(tag, cursor, limit));
     }
 
+    @GetMapping("/mine")
+    public ApiResponse<PageResult<QuestionView>> mine(Authentication authentication,
+                                                      @RequestParam(required = false) String scope,
+                                                      @RequestParam(required = false) Long cursor,
+                                                      @RequestParam(defaultValue = "20") int limit) {
+        return ApiResponse.ok(questionService.mine(AuthUsers.require(authentication), scope, cursor, limit));
+    }
     @GetMapping("/{id}")
     public ApiResponse<QuestionDetail> detail(Authentication authentication, @PathVariable Long id) {
         return ApiResponse.ok(questionService.detail(AuthUsers.optional(authentication), id));

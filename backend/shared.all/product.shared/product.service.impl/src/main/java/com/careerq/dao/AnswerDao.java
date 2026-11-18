@@ -36,6 +36,9 @@ public interface AnswerDao {
     @Select("select count(*) from answers where status = #{status}")
     long countByStatus(String status);
 
+    @Select("select count(*) from answers where author_id = #{authorId} and status = 'published'")
+    long countPublishedByAuthor(Long authorId);
+
     @Select("select * from answers where question_id = #{questionId} and status = #{status} order by id")
     List<AnswerDO> findByQuestionIdAndStatusOrderByIdAsc(@Param("questionId") Long questionId,
                                                         @Param("status") String status);
