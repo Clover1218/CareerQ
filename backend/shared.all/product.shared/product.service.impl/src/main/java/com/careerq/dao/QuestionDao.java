@@ -104,6 +104,22 @@ public interface QuestionDao {
     @Select("select coalesce(sum(answer_count), 0) from questions where author_id = #{authorId}")
     long countReceivedAnswers(Long authorId);
 
+    @Select("""
+            <script>
+            select q.* from questions q
+            where q.scope = 'public' and q.status = 'published'
+              and exists (
+                  select 1 from answers a
+                  where a.question_id = q.id and a.author_id = #{hrId}
+              )
+            <if test="cursor != null">and q.id &lt; #{cursor}</if>
+            order by q.id desc limit #{limit}
+            </script>
+            """)
+    List<QuestionDO> listPublicAnsweredByHr(@Param("hrId") Long hrId,
+                                             @Param("cursor") Long cursor,
+                                             @Param("limit") int limit);
+
     @Update("update questions set status = #{status}, updated_at = current_timestamp where id = #{id}")
     int updateStatus(@Param("id") Long id, @Param("status") String status);
 

@@ -39,6 +39,24 @@ public interface AnswerDao {
     @Select("select count(*) from answers where author_id = #{authorId} and status = 'published'")
     long countPublishedByAuthor(Long authorId);
 
+    @Select("""
+            <script>
+            select a.* from answers a
+            join (
+                select question_id, max(id) as answer_id
+                from answers
+                where author_id = #{authorId} and question_id in
+                <foreach collection="questionIds" item="questionId" open="(" separator="," close=")">
+                    #{questionId}
+                </foreach>
+                group by question_id
+            ) latest on latest.answer_id = a.id
+            order by a.question_id
+            </script>
+            """)
+    List<AnswerDO> findLatestByAuthorAndQuestionIds(@Param("authorId") Long authorId,
+                                                    @Param("questionIds") List<Long> questionIds);
+
     @Select("select * from answers where question_id = #{questionId} and status = #{status} order by id")
     List<AnswerDO> findByQuestionIdAndStatusOrderByIdAsc(@Param("questionId") Long questionId,
                                                         @Param("status") String status);

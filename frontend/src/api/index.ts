@@ -33,6 +33,19 @@ export interface Question {
   firstAnswerAt?: string | null;
 }
 
+export interface HrAnswerSummary {
+  id: number;
+  body: string;
+  lengthType: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface HrAnsweredQuestion {
+  question: Question;
+  myAnswer: HrAnswerSummary;
+}
+
 /** 公开 feed 卡片初始态：只有标题和摘要，不含作者与正文 */
 export interface QuestionFeedItem {
   id: number;
@@ -200,6 +213,12 @@ export const api = {
     if (cursor) params.set("cursor", String(cursor));
     params.set("limit", "20");
     return request<PageResult<Question>>(`/me/questions?${params.toString()}`);
+  },
+
+  hrAnsweredQuestions(cursor?: number | null, limit = 20): Promise<PageResult<HrAnsweredQuestion>> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (cursor != null) params.set("cursor", String(cursor));
+    return request<PageResult<HrAnsweredQuestion>>(`/hr/answered-questions?${params.toString()}`);
   },
 
   getProfile(): Promise<Profile> {

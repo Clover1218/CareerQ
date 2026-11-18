@@ -5,6 +5,7 @@ import com.careerq.service.QuestionService;
 import com.careerq.common.ApiResponse;
 import com.careerq.common.PageResult;
 import com.careerq.question.QuestionDtos.QuestionView;
+import com.careerq.question.QuestionDtos.HrAnsweredQuestionView;
 
 import com.careerq.security.AuthUsers;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -31,6 +32,15 @@ public class HrController {
     public ApiResponse<PageResult<QuestionView>> questionPool(@RequestParam(required = false) Long cursor,
                                                               @RequestParam(defaultValue = "20") int limit) {
         return ApiResponse.ok(questionService.hrQuestionPool(cursor, limit));
+    }
+
+    @GetMapping("/answered-questions")
+    @PreAuthorize("hasRole('HR')")
+    public ApiResponse<PageResult<HrAnsweredQuestionView>> answeredQuestions(
+            Authentication authentication,
+            @RequestParam(required = false) Long cursor,
+            @RequestParam(defaultValue = "20") int limit) {
+        return ApiResponse.ok(questionService.hrAnsweredQuestions(AuthUsers.require(authentication), cursor, limit));
     }
 
     @GetMapping("/private-pool")

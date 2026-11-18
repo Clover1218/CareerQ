@@ -6,6 +6,7 @@ import com.careerq.followup.FollowupDtos.FollowupView;
 import com.careerq.security.AuthUsers;
 import com.careerq.service.FollowupService;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,6 +28,7 @@ public class FollowupController {
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('STUDENT')")
     public ApiResponse<FollowupView> create(Authentication authentication,
                                             @PathVariable Long id,
                                             @Valid @RequestBody CreateRequest request) {

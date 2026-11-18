@@ -152,4 +152,18 @@ class AdminContextTests {
         mockMvc.perform(get("/api/v1/admin/moderation/queue").session(student))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    void operatorCanReviewButCannotManageModerationWords() throws Exception {
+        MockHttpSession operator = loginAs("13800000706", "operator");
+        mockMvc.perform(get("/api/v1/admin/moderation/queue").session(operator))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/admin/moderation/words").session(operator))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/admin/moderation/words").session(operator).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "word", "不应由运营配置", "category", "test", "action", "block"))))
+                .andExpect(status().isForbidden());
+    }
 }

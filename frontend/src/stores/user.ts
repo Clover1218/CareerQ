@@ -42,10 +42,7 @@ export const useUserStore = defineStore("user", () => {
 
   const userId = computed<number | null>(() => user.value?.id ?? null);
 
-  // 后端有 student/hr/operator/admin 四种角色，前端目前只有学生与 HR 两套视图
-  const role = computed<"student" | "hr">(() =>
-    user.value && user.value.role !== "student" ? "hr" : "student",
-  );
+  const role = computed(() => user.value?.role ?? null);
 
   const isAuthenticated = computed(() => user.value !== null);
   const nickname = computed(() => user.value?.nickname ?? anonymousName.value);

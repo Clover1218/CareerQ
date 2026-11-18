@@ -22,6 +22,8 @@ import com.careerq.feed.FeedTuning;
 import com.careerq.followup.FollowupDtos.FollowupView;
 import com.careerq.question.QuestionDtos.CreateRequest;
 import com.careerq.question.QuestionDtos.FeedPage;
+import com.careerq.question.QuestionDtos.HrAnswerSummary;
+import com.careerq.question.QuestionDtos.HrAnsweredQuestionView;
 import com.careerq.question.QuestionDtos.QuestionContentView;
 import com.careerq.question.QuestionDtos.QuestionDetail;
 import com.careerq.question.QuestionDtos.QuestionFeedItem;
@@ -391,6 +393,35 @@ public class QuestionServiceImpl implements QuestionService {
     @Transactional(readOnly = true)
     public PageResult<QuestionView> hrQuestionPool(Long cursor, int limit) {
         return listPage(PUBLIC, PUBLISHED, null, true, cursor, limit);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResult<HrAnsweredQuestionView> hrAnsweredQuestions(AuthUser hr, Long cursor, int limit) {
+        int size = Math.clamp(limit, 1, 50);
+        List<QuestionDO> rows = questionDao.listPublicAnsweredByHr(hr.getId(), cursor, size + 1);
+        boolean hasMore = rows.size() > size;
+        List<QuestionDO> page = hasMore ? rows.subList(0, size) : rows;
+        List<Long> questionIds = page.stream().map(QuestionDO::getId).toList();
+        Map<Long, AnswerDO> latestAnswers = questionIds.isEmpty()
+                ? Map.of()
+                : answerDao.findLatestByAuthorAndQuestionIds(hr.getId(), questionIds).stream()
+                        .collect(java.util.stream.Collectors.toMap(AnswerDO::getQuestionId, answer -> answer));
+
+        List<HrAnsweredQuestionView> items = page.stream()
+                .map(question -> {
+                    AnswerDO answer = latestAnswers.get(question.getId());
+                    if (answer == null) {
+                        return null;
+                    }
+                    return new HrAnsweredQuestionView(toView(question, false),
+                            new HrAnswerSummary(answer.getId(), answer.getBody(), answer.getLengthType(),
+                                    answer.getStatus(), answer.getCreatedAt()));
+                })
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        Long nextCursor = hasMore ? page.get(page.size() - 1).getId() : null;
+        return new PageResult<>(items, nextCursor);
     }
 
     /** HR 私密待认领池：只返回 open 状态的私密问题，作者信息匿名化。 */

@@ -3,6 +3,7 @@ package com.careerq.service;
 import com.careerq.common.PageResult;
 import com.careerq.question.QuestionDtos.CreateRequest;
 import com.careerq.question.QuestionDtos.FeedPage;
+import com.careerq.question.QuestionDtos.HrAnsweredQuestionView;
 import com.careerq.question.QuestionDtos.QuestionContentView;
 import com.careerq.question.QuestionDtos.QuestionDetail;
 import com.careerq.question.QuestionDtos.QuestionFeedItem;
@@ -28,6 +29,8 @@ public interface QuestionService {
 
 
     PageResult<QuestionView> hrQuestionPool(Long cursor, int limit);
+
+    PageResult<HrAnsweredQuestionView> hrAnsweredQuestions(AuthUser hr, Long cursor, int limit);
 
     PageResult<QuestionView> hrPrivatePool(Long cursor, int limit);
 

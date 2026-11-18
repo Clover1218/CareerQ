@@ -131,7 +131,7 @@ onMounted(load);
       <strong>{{ f.senderRole === "hr" ? "HR" : "学生" }}：</strong>{{ f.body }}
       <span v-if="f.status !== 'published'" class="tag">{{ reviewStatus[f.status] }}</span>
     </div>
-    <template v-if="me && (detail.question.scope === 'public' || detail.question.status === 'assigned')">
+    <template v-if="me?.role === 'student' && (detail.question.scope === 'public' || detail.question.status === 'assigned')">
       <div class="field" style="margin-top: 12px">
         <textarea v-model="followupBody" placeholder="继续追问…" />
       </div>
