@@ -2,9 +2,11 @@
 import { ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ApiError, api } from "../api";
+import { useUserStore } from "@/stores/user";
 
 const router = useRouter();
 const route = useRoute();
+const userStore = useUserStore();
 const phone = ref(String(route.query.phone ?? ""));
 const code = ref("123456");
 const nickname = ref("");
@@ -37,6 +39,8 @@ async function submit() {
       major: major.value.trim() || undefined,
       grade: grade.value.trim() || undefined,
     });
+    // 注册即登录：同步 store，保证顶部栏立刻显示用户
+    await userStore.fetchUserInfo(true);
     router.push(String(route.query.redirect ?? "/"));
   } catch (e: any) {
     if (e instanceof ApiError && e.code === 40901) {

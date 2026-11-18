@@ -5,8 +5,11 @@ import com.careerq.service.QuestionService;
 import com.careerq.common.ApiResponse;
 import com.careerq.common.PageResult;
 import com.careerq.question.QuestionDtos.CreateRequest;
+import com.careerq.question.QuestionDtos.QuestionContentView;
 import com.careerq.question.QuestionDtos.QuestionDetail;
+import com.careerq.question.QuestionDtos.QuestionFeedItem;
 import com.careerq.question.QuestionDtos.QuestionView;
+import com.careerq.question.QuestionDtos.ThreadView;
 import com.careerq.security.AuthUser;
 import com.careerq.security.AuthUsers;
 import jakarta.validation.Valid;
@@ -39,9 +42,9 @@ public class QuestionController {
     }
 
     @GetMapping
-    public ApiResponse<PageResult<QuestionView>> list(@RequestParam(required = false) String tag,
-                                                      @RequestParam(required = false) Long cursor,
-                                                      @RequestParam(defaultValue = "20") int limit) {
+    public ApiResponse<PageResult<QuestionFeedItem>> list(@RequestParam(required = false) String tag,
+                                                          @RequestParam(required = false) Long cursor,
+                                                          @RequestParam(defaultValue = "20") int limit) {
         return ApiResponse.ok(questionService.list(tag, cursor, limit));
     }
 
@@ -55,6 +58,16 @@ public class QuestionController {
     @GetMapping("/{id}")
     public ApiResponse<QuestionDetail> detail(Authentication authentication, @PathVariable Long id) {
         return ApiResponse.ok(questionService.detail(AuthUsers.optional(authentication), id));
+    }
+
+    @GetMapping("/{id}/content")
+    public ApiResponse<QuestionContentView> content(Authentication authentication, @PathVariable Long id) {
+        return ApiResponse.ok(questionService.content(AuthUsers.optional(authentication), id));
+    }
+
+    @GetMapping("/{id}/thread")
+    public ApiResponse<ThreadView> thread(Authentication authentication, @PathVariable Long id) {
+        return ApiResponse.ok(questionService.thread(AuthUsers.optional(authentication), id));
     }
 
     @PostMapping("/{id}/close")

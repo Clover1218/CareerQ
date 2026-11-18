@@ -24,9 +24,13 @@ public class QuestionDO {
 
     private int answerCount;
 
+    private int followupCount;
+
     private int usefulCount;
 
     private Integer likeCount;
+
+    private Integer favoriteCount;
 
     private LocalDateTime createdAt = LocalDateTime.now();
 
@@ -96,12 +100,28 @@ public class QuestionDO {
         return answerCount;
     }
 
+    public int getFollowupCount() {
+        return followupCount;
+    }
+
+    public void setFollowupCount(int followupCount) {
+        this.followupCount = followupCount;
+    }
+
     public int getLikeCount() {
         return likeCount == null ? 0 : likeCount;
     }
 
     public void setLikeCount(Integer likeCount) {
         this.likeCount = likeCount;
+    }
+
+    public int getFavoriteCount() {
+        return favoriteCount == null ? 0 : favoriteCount;
+    }
+
+    public void setFavoriteCount(Integer favoriteCount) {
+        this.favoriteCount = favoriteCount;
     }
 
     public int getUsefulCount() {

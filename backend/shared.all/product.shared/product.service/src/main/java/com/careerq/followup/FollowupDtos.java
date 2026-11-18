@@ -1,5 +1,6 @@
 package com.careerq.followup;
 
+import com.careerq.common.UserBrief;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -17,6 +18,6 @@ public final class FollowupDtos {
     }
 
     public record FollowupView(Long id, Long questionId, String senderRole, String body, String status,
-                               LocalDateTime createdAt) {
+                               LocalDateTime createdAt, UserBrief author, boolean hr) {
     }
 }

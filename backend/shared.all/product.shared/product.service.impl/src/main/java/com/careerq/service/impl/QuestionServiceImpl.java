@@ -14,23 +14,37 @@ import com.careerq.dao.UserDao;
 import com.careerq.dataobject.AnswerDO;
 import com.careerq.dataobject.PublicPostDO;
 import com.careerq.dataobject.QuestionDO;
+import com.careerq.dataobject.QuestionTagDO;
 import com.careerq.dataobject.TagDO;
+import com.careerq.feed.FeedCursor;
+import com.careerq.feed.FeedScorer;
+import com.careerq.feed.FeedTuning;
 import com.careerq.followup.FollowupDtos.FollowupView;
 import com.careerq.question.QuestionDtos.CreateRequest;
+import com.careerq.question.QuestionDtos.FeedPage;
+import com.careerq.question.QuestionDtos.QuestionContentView;
 import com.careerq.question.QuestionDtos.QuestionDetail;
+import com.careerq.question.QuestionDtos.QuestionFeedItem;
 import com.careerq.question.QuestionDtos.QuestionView;
+import com.careerq.question.QuestionDtos.ThreadItemView;
+import com.careerq.question.QuestionDtos.ThreadView;
 import com.careerq.question.QuestionDtos.ViewerState;
 import com.careerq.security.AuthUser;
 import com.careerq.service.FollowupService;
 import com.careerq.service.ModerationService;
 import com.careerq.service.QuestionService;
+import com.careerq.service.TagAffinityService;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -53,6 +67,7 @@ public class QuestionServiceImpl implements QuestionService {
     private final FollowupService followupService;
     private final PublicPostDao publicPostDao;
     private final InteractionDao interactionDao;
+    private final TagAffinityService tagAffinityService;
 
     public QuestionServiceImpl(QuestionDao questionDao,
                                AnswerDao answerDao,
@@ -61,7 +76,8 @@ public class QuestionServiceImpl implements QuestionService {
                                ModerationService moderationService,
                                FollowupService followupService,
                                PublicPostDao publicPostDao,
-                               InteractionDao interactionDao) {
+                               InteractionDao interactionDao,
+                               TagAffinityService tagAffinityService) {
         this.questionDao = questionDao;
         this.answerDao = answerDao;
         this.tagDao = tagDao;
@@ -70,6 +86,7 @@ public class QuestionServiceImpl implements QuestionService {
         this.followupService = followupService;
         this.publicPostDao = publicPostDao;
         this.interactionDao = interactionDao;
+        this.tagAffinityService = tagAffinityService;
     }
 
     @Override
@@ -95,9 +112,158 @@ public class QuestionServiceImpl implements QuestionService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResult<QuestionView> list(String tag, Long cursor, int limit) {
+    public PageResult<QuestionFeedItem> list(String tag, Long cursor, int limit) {
         String tagFilter = tag == null || tag.isBlank() ? null : tag;
-        return listPage(PUBLIC, PUBLISHED, tagFilter, false, cursor, limit);
+        int size = Math.clamp(limit, 1, 50);
+        List<QuestionDO> rows = questionDao.list(PUBLIC, PUBLISHED, cursor, tagFilter, false, size + 1);
+        boolean hasNext = rows.size() > size;
+        List<QuestionFeedItem> items = rows.stream().limit(size).map(this::toFeedItem).toList();
+        return new PageResult<>(items, hasNext ? rows.get(size - 1).getId() : null);
+    }
+
+    /**
+     * 推荐流：固定快照上重算完整排序，再按页码切片。
+     * 亲和分来自 user_tag_affinity（已按 30 天半衰期衰减），问题侧按标签求和后压扁。
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public FeedPage feed(AuthUser viewer, String tag, String cursor, int limit) {
+        String tagFilter = tag == null || tag.isBlank() ? null : tag.trim();
+        int size = Math.clamp(limit, 1, 50);
+        FeedCursor page = cursor == null || cursor.isBlank()
+                ? FeedCursor.first(questionDao.findMaxId(PUBLIC, PUBLISHED))
+                : FeedCursor.decode(cursor);
+        if (page.page() >= FeedTuning.MAX_PAGE) {
+            return new FeedPage(List.of(), null);
+        }
+
+        Long viewerId = viewer == null ? null : viewer.getId();
+        LocalDateTime snapshotAt = page.snapshotTime();
+        List<QuestionDO> candidates = loadCandidates(page, tagFilter, viewerId, size);
+        if (candidates.isEmpty()) {
+            return new FeedPage(List.of(), null);
+        }
+
+        Map<Long, List<QuestionTagDO>> tagsByQuestion = loadQuestionTags(candidates);
+        Map<Long, Double> affinity = viewerId == null
+                ? Map.of()
+                : tagAffinityService.effectiveScores(viewerId, snapshotAt);
+        boolean hasAffinity = !affinity.isEmpty();
+
+        List<ScoredQuestion> scored = new ArrayList<>(candidates.size());
+        for (QuestionDO question : candidates) {
+            List<QuestionTagDO> tags = tagsByQuestion.getOrDefault(question.getId(), List.of());
+            double questionAffinity = 0;
+            double minAffinity = 0;
+            List<QuestionTagDO> positive = new ArrayList<>();
+            for (QuestionTagDO tagRow : tags) {
+                Double value = affinity.get(tagRow.getTagId());
+                if (value == null) {
+                    continue;
+                }
+                questionAffinity += value;
+                minAffinity = Math.min(minAffinity, value);
+                if (value > 0) {
+                    positive.add(tagRow);
+                }
+            }
+            questionAffinity = FeedScorer.clamp(questionAffinity,
+                    -FeedTuning.MAX_QUESTION_AFFINITY, FeedTuning.MAX_QUESTION_AFFINITY);
+            positive.sort(Comparator.comparingDouble(
+                    (QuestionTagDO tagRow) -> affinity.getOrDefault(tagRow.getTagId(), 0.0)).reversed());
+            List<String> matchedTags = positive.stream().limit(2).map(QuestionTagDO::getName).toList();
+            double score = FeedScorer.score(question, questionAffinity, hasAffinity, page.seed(), snapshotAt);
+            scored.add(new ScoredQuestion(question, tags, score, matchedTags, minAffinity));
+        }
+        scored.sort(Comparator.comparingDouble(ScoredQuestion::score)
+                .thenComparingLong((ScoredQuestion item) -> item.question().getId())
+                .reversed());
+
+        List<ScoredQuestion> ordered = diversify(filterNegatives(scored, size));
+        int start = page.page() * size;
+        if (start >= ordered.size()) {
+            return new FeedPage(List.of(), null);
+        }
+        int end = Math.min(start + size, ordered.size());
+        List<QuestionFeedItem> items = ordered.subList(start, end).stream()
+                .map(item -> toFeedItem(item.question(),
+                        item.tags().stream().map(QuestionTagDO::getName).toList(), item.matchedTags()))
+                .toList();
+        boolean hasMore = end < ordered.size() && page.page() + 1 < FeedTuning.MAX_PAGE;
+        return new FeedPage(items, hasMore ? page.next().encode() : null);
+    }
+
+    private List<QuestionDO> loadCandidates(FeedCursor page, String tag, Long viewerId, int size) {
+        LocalDateTime since = page.snapshotTime().minusDays(FeedTuning.CANDIDATE_WINDOW_DAYS);
+        List<QuestionDO> rows = questionDao.listFeedCandidates(PUBLIC, PUBLISHED, page.maxId(), since,
+                tag, viewerId, FeedTuning.CANDIDATE_LIMIT);
+        if (rows.size() < size) {
+            // 时间窗口内太少时放宽到不限时间，宁可有内容也不要空 Feed
+            rows = questionDao.listFeedCandidates(PUBLIC, PUBLISHED, page.maxId(), null,
+                    tag, viewerId, FeedTuning.CANDIDATE_LIMIT);
+        }
+        return rows;
+    }
+
+    private Map<Long, List<QuestionTagDO>> loadQuestionTags(List<QuestionDO> questions) {
+        List<Long> ids = questions.stream().map(QuestionDO::getId).toList();
+        Map<Long, List<QuestionTagDO>> result = new LinkedHashMap<>();
+        for (QuestionTagDO row : tagDao.findTagsByQuestionIds(ids)) {
+            result.computeIfAbsent(row.getQuestionId(), key -> new ArrayList<>()).add(row);
+        }
+        return result;
+    }
+
+    /** 硬负向过滤带兜底：过滤后不足一页就逐步放宽阈值，最后允许全部通过。 */
+    private List<ScoredQuestion> filterNegatives(List<ScoredQuestion> sorted, int size) {
+        List<ScoredQuestion> filtered = sorted.stream()
+                .filter(item -> item.minAffinity() > FeedTuning.HARD_NEGATIVE_THRESHOLD).toList();
+        if (filtered.size() >= size) {
+            return new ArrayList<>(filtered);
+        }
+        List<ScoredQuestion> relaxed = sorted.stream()
+                .filter(item -> item.minAffinity() > FeedTuning.HARD_NEGATIVE_THRESHOLD - 4).toList();
+        return relaxed.size() >= size ? new ArrayList<>(relaxed) : new ArrayList<>(sorted);
+    }
+
+    /** 任意连续 3 条不来自同一一级分类；被挤出的条目按原顺序追加到末尾。 */
+    private List<ScoredQuestion> diversify(List<ScoredQuestion> input) {
+        if (input.size() < 3) {
+            return input;
+        }
+        List<ScoredQuestion> result = new ArrayList<>(input.size());
+        List<ScoredQuestion> deferred = new ArrayList<>();
+        String lastCategory = null;
+        int run = 0;
+        for (ScoredQuestion item : input) {
+            String category = primaryCategory(item.tags());
+            if (category != null && category.equals(lastCategory) && run >= 2) {
+                deferred.add(item);
+                continue;
+            }
+            result.add(item);
+            if (category != null && category.equals(lastCategory)) {
+                run++;
+            } else {
+                lastCategory = category;
+                run = category == null ? 0 : 1;
+            }
+        }
+        result.addAll(deferred);
+        return result;
+    }
+
+    private String primaryCategory(List<QuestionTagDO> tags) {
+        return tags.stream()
+                .filter(tag -> tag.getCategory() != null)
+                .max(Comparator.comparingInt(QuestionTagDO::getWeight)
+                        .thenComparing(QuestionTagDO::getTagId))
+                .map(QuestionTagDO::getCategory)
+                .orElse(null);
+    }
+
+    private record ScoredQuestion(QuestionDO question, List<QuestionTagDO> tags,
+                                  double score, List<String> matchedTags, double minAffinity) {
     }
 
     @Override
@@ -132,7 +298,11 @@ public class QuestionServiceImpl implements QuestionService {
             }
             maskAuthor = !isAuthor;
         } else if (!PUBLISHED.equals(question.getStatus())) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "问题不存在");
+            // 作者需要在自己的提问列表里看到审核中/未通过的公开问题
+            boolean isAuthor = current != null && current.getId().equals(question.getAuthorId());
+            if (!isAuthor) {
+                throw new BusinessException(ErrorCode.NOT_FOUND, "问题不存在");
+            }
         }
 
         Long viewerId = current == null ? null : current.getId();
@@ -140,13 +310,81 @@ public class QuestionServiceImpl implements QuestionService {
         List<AnswerView> answers = answerDao.findVisible(question.getId(), ownAnswerAuthor)
                 .stream().map(answer -> toAnswerView(answer, viewerId)).toList();
         List<FollowupView> followups = followupService.list(current, question.getId());
-        ViewerState viewer = viewerId == null
-                ? new ViewerState(false, false, false)
-                : new ViewerState(
-                        interactionDao.exists(viewerId, "question", question.getId(), "like"),
-                        interactionDao.exists(viewerId, "question", question.getId(), "useful"),
-                        interactionDao.exists(viewerId, "question", question.getId(), "favorite"));
-        return new QuestionDetail(toView(question, maskAuthor), answers, followups, viewer);
+        return new QuestionDetail(toView(question, maskAuthor), answers, followups,
+                viewerState(current, question.getId()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public QuestionContentView content(AuthUser current, Long id) {
+        QuestionDO question = requirePublishedPublic(id);
+        return new QuestionContentView(toView(question, false), viewerState(current, question.getId()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ThreadView thread(AuthUser current, Long id) {
+        QuestionDO question = requirePublishedPublic(id);
+        Long viewerId = current == null ? null : current.getId();
+        List<ThreadItemView> items = new ArrayList<>();
+
+        for (AnswerDO answer : answerDao.findVisible(question.getId(), null)) {
+            boolean liked = viewerId != null
+                    && interactionDao.exists(viewerId, "answer", answer.getId(), "like");
+            items.add(new ThreadItemView(
+                    "answer-" + answer.getId(),
+                    "hr_answer",
+                    answer.getId(),
+                    answer.getBody(),
+                    authorOf(answer.getAuthorId()),
+                    true,
+                    answer.getStatus(),
+                    answer.getLikeCount(),
+                    liked,
+                    answer.getCreatedAt()));
+        }
+
+        for (FollowupView followup : followupService.list(current, question.getId())) {
+            items.add(new ThreadItemView(
+                    "followup-" + followup.id(),
+                    "followup",
+                    followup.id(),
+                    followup.body(),
+                    followup.author(),
+                    followup.hr(),
+                    followup.status(),
+                    0,
+                    false,
+                    followup.createdAt()));
+        }
+
+        items.sort(Comparator
+                .comparing(ThreadItemView::createdAt, Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparingInt(item -> "hr_answer".equals(item.kind()) ? 0 : 1)
+                .thenComparing(ThreadItemView::id));
+
+        int answerCount = question.getAnswerCount();
+        int followupCount = question.getFollowupCount();
+        return new ThreadView(items, viewerState(current, question.getId()),
+                answerCount, followupCount, answerCount + followupCount);
+    }
+
+    private QuestionDO requirePublishedPublic(Long id) {
+        return questionDao.findById(id)
+                .filter(question -> PUBLIC.equals(question.getScope()) && PUBLISHED.equals(question.getStatus()))
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
+    }
+
+    private ViewerState viewerState(AuthUser current, Long questionId) {
+        if (current == null) {
+            return new ViewerState(false, false, false, false);
+        }
+        Long viewerId = current.getId();
+        return new ViewerState(
+                interactionDao.exists(viewerId, "question", questionId, "like"),
+                interactionDao.exists(viewerId, "question", questionId, "useful"),
+                interactionDao.exists(viewerId, "question", questionId, "favorite"),
+                interactionDao.exists(viewerId, "question", questionId, "dislike"));
     }
 
     @Override
@@ -299,6 +537,27 @@ public class QuestionServiceImpl implements QuestionService {
         }
     }
 
+    private QuestionFeedItem toFeedItem(QuestionDO question) {
+        return toFeedItem(question, tagDao.findNamesByQuestionId(question.getId()), List.of());
+    }
+
+    private QuestionFeedItem toFeedItem(QuestionDO question, List<String> tags, List<String> matchedTags) {
+        int answerCount = question.getAnswerCount();
+        int followupCount = question.getFollowupCount();
+        return new QuestionFeedItem(
+                question.getId(),
+                question.getTitle(),
+                question.getBody() == null ? "" : question.getBody(),
+                tags,
+                answerCount,
+                followupCount,
+                answerCount + followupCount,
+                question.getLikeCount(),
+                question.getFavoriteCount(),
+                question.getCreatedAt(),
+                matchedTags);
+    }
+
     private QuestionView toView(QuestionDO question, boolean maskAuthor) {
         return new QuestionView(
                 question.getId(),
@@ -310,8 +569,10 @@ public class QuestionServiceImpl implements QuestionService {
                 maskAuthor ? new UserBrief(question.getAuthorId(), ANONYMOUS_NICKNAME) : authorOf(question.getAuthorId()),
                 question.getCreatedAt(),
                 question.getAnswerCount(),
+                question.getFollowupCount(),
                 question.getUsefulCount(),
                 question.getLikeCount(),
+                question.getFavoriteCount(),
                 question.getFirstAnswerAt());
     }
 

@@ -2,6 +2,7 @@ package com.careerq.question;
 
 import com.careerq.dataobject.UserDO;
 import com.careerq.dao.UserDao;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,9 +13,12 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -73,13 +77,19 @@ class QuestionFlowTests {
     }
 
     private long createQuestion(MockHttpSession session, String scope) throws Exception {
+        return createQuestion(session, scope, "实习面试一般会问什么？",
+                "想了解常见的面试问题与准备方式。", List.of("实习", "面试准备"));
+    }
+
+    private long createQuestion(MockHttpSession session, String scope, String title, String body,
+                                List<String> tags) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/questions")
                         .session(session).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "title", "实习面试一般会问什么？",
-                                "body", "想了解常见的面试问题与准备方式。",
-                                "tags", List.of("实习", "面试准备"),
+                                "title", title,
+                                "body", body,
+                                "tags", tags,
                                 "scope", scope))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("private".equals(scope) ? "pending_human" : "published"))
@@ -188,5 +198,136 @@ class QuestionFlowTests {
         mockMvc.perform(get("/api/v1/questions/{id}", questionId).session(student))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.question.scope").value("private"));
+    }
+
+    @Test
+    void publicFeedReturnsBodyAndContentReturnsAuthor() throws Exception {
+        MockHttpSession student = login("13800000106");
+        String longBody = "这是一段用于验证全文展示的较长问题描述，不限制字数也不应被截断。".repeat(4);
+        long questionId = createQuestion(student, "public", "公开问答全文展开测试", longBody,
+                List.of("全文展开测试"));
+
+        mockMvc.perform(get("/api/v1/questions").param("tag", "全文展开测试"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].id").value(questionId))
+                .andExpect(jsonPath("$.data.items[0].title").value("公开问答全文展开测试"))
+                .andExpect(jsonPath("$.data.items[0].excerpt").value(longBody))
+                .andExpect(jsonPath("$.data.items[0].truncated").doesNotExist())
+                .andExpect(jsonPath("$.data.items[0].body").doesNotExist())
+                .andExpect(jsonPath("$.data.items[0].author").doesNotExist())
+                .andExpect(jsonPath("$.data.items[0].replyCount").value(0))
+                .andExpect(jsonPath("$.data.items[0].favoriteCount").value(0));
+
+        mockMvc.perform(get("/api/v1/questions/{id}/content", questionId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.question.id").value(questionId))
+                .andExpect(jsonPath("$.data.question.body").value(longBody))
+                .andExpect(jsonPath("$.data.question.author.nickname").value("测试用户"))
+                .andExpect(jsonPath("$.data.question.createdAt").isNotEmpty())
+                .andExpect(jsonPath("$.data.viewer.liked").value(false))
+                .andExpect(jsonPath("$.data.viewer.favorited").value(false));
+
+        mockMvc.perform(post("/api/v1/interactions").session(student).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "targetType", "question", "targetId", questionId, "type", "favorite"))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/questions/{id}/content", questionId).session(student))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.question.favoriteCount").value(1))
+                .andExpect(jsonPath("$.data.viewer.favorited").value(true));
+
+        mockMvc.perform(get("/api/v1/questions").param("tag", "全文展开测试"))
+                .andExpect(jsonPath("$.data.items[0].favoriteCount").value(1));
+
+        long privateId = createQuestion(student, "private", "私密问题不可展开测试", "私密内容",
+                List.of("全文展开测试"));
+        mockMvc.perform(get("/api/v1/questions/{id}/content", privateId))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/questions/{id}/thread", privateId))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void threadMergesHrAnswersAndFollowupsWithHrFlags() throws Exception {
+        MockHttpSession student = login("13800000107");
+        long questionId = createQuestion(student, "public", "回答流合并测试",
+                "想了解回答与追问如何平级展示。", List.of("回答流测试"));
+
+        mockMvc.perform(post("/api/v1/questions/{id}/followups", questionId)
+                        .session(student).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("body", "想先了解一下准备周期。"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.hr").value(false))
+                .andExpect(jsonPath("$.data.author.nickname").value("测试用户"));
+
+        MockHttpSession hr = loginAsHr("13800000108");
+        MvcResult answerResult = mockMvc.perform(post("/api/v1/questions/{id}/answers", questionId)
+                        .session(hr).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "body", "建议预留两到三周，先梳理项目再做模拟面试。",
+                                "lengthType", "detailed"))))
+                .andExpect(status().isOk())
+                .andReturn();
+        long answerId = objectMapper.readTree(answerResult.getResponse().getContentAsString())
+                .path("data").path("id").asLong();
+
+        mockMvc.perform(post("/api/v1/questions/{id}/followups", questionId)
+                        .session(hr).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("body", "也可以先做一次模拟面试评估基础。"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.hr").value(true))
+                .andExpect(jsonPath("$.data.senderRole").value("hr"));
+
+        mockMvc.perform(post("/api/v1/interactions").session(student).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "targetType", "answer", "targetId", answerId, "type", "like"))))
+                .andExpect(status().isOk());
+
+        MvcResult threadResult = mockMvc.perform(get("/api/v1/questions/{id}/thread", questionId)
+                        .session(student))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.answerCount").value(1))
+                .andExpect(jsonPath("$.data.followupCount").value(2))
+                .andExpect(jsonPath("$.data.replyCount").value(3))
+                .andReturn();
+
+        JsonNode data = objectMapper.readTree(threadResult.getResponse().getContentAsString()).path("data");
+        JsonNode items = data.path("items");
+        assertEquals(3, items.size());
+        List<String> kinds = new ArrayList<>();
+        int hrAnswerIndex = -1;
+        int studentFollowupIndex = -1;
+        for (int i = 0; i < items.size(); i++) {
+            JsonNode item = items.get(i);
+            kinds.add(item.path("kind").asText());
+            assertTrue(item.path("author").path("nickname").asText().length() > 0);
+            if ("hr_answer".equals(item.path("kind").asText())) {
+                hrAnswerIndex = i;
+                assertTrue(item.path("hr").asBoolean());
+                assertEquals(answerId, item.path("id").asLong());
+                assertTrue(item.path("liked").asBoolean());
+            }
+            if ("followup".equals(item.path("kind").asText())
+                    && "测试用户".equals(item.path("author").path("nickname").asText())
+                    && !item.path("hr").asBoolean()) {
+                studentFollowupIndex = i;
+            }
+        }
+        assertTrue(kinds.contains("hr_answer"));
+        assertTrue(kinds.contains("followup"));
+        assertTrue(hrAnswerIndex >= 0);
+        assertTrue(studentFollowupIndex >= 0);
+        assertEquals(2, kinds.stream().filter("followup"::equals).count());
+
+        mockMvc.perform(get("/api/v1/questions/{id}/thread", questionId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.viewer.liked").value(false));
     }
 }

@@ -42,6 +42,23 @@ public interface UserDao {
             where id = #{id}
             """)
     int updateProfile(UserDO user);
+
+    @Update("""
+            <script>
+            update users
+            <set>
+                <if test="nickname != null">nickname = #{nickname},</if>
+                <if test="school != null">school = #{school},</if>
+                <if test="major != null">major = #{major},</if>
+                <if test="grade != null">grade = #{grade},</if>
+                <if test="degree != null">degree = #{degree},</if>
+                <if test="graduationYear != null">graduation_year = #{graduationYear},</if>
+                updated_at = current_timestamp
+            </set>
+            where id = #{id}
+            </script>
+            """)
+    int patchProfile(UserDO user);
     @Update("update users set avatar_url = #{avatarUrl}, updated_at = current_timestamp where id = #{id}")
     int updateAvatar(@Param("id") Long id, @Param("avatarUrl") String avatarUrl);
 }

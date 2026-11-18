@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { api, type QuestionDetail, type User } from "../api";
+import { storeToRefs } from "pinia";
+import { api, type QuestionDetail } from "../api";
+import { useUserStore } from "@/stores/user";
 
 const route = useRoute();
 const router = useRouter();
+const { user: me } = storeToRefs(useUserStore());
 const detail = ref<QuestionDetail | null>(null);
-const me = ref<User | null>(null);
 const error = ref("");
 const answerBody = ref("");
 const followupBody = ref("");
@@ -16,7 +18,6 @@ const questionId = Number(route.params.id);
 async function load() {
   try {
     detail.value = await api.getQuestion(questionId);
-    me.value = await api.me().catch(() => null);
   } catch (e: any) {
     error.value = e.message;
   }

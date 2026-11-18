@@ -9,6 +9,7 @@ import com.careerq.dataobject.UserDO;
 import com.careerq.profile.ProfileDtos.ExperienceItem;
 import com.careerq.profile.ProfileDtos.ExperienceView;
 import com.careerq.profile.ProfileDtos.ProfileView;
+import com.careerq.profile.ProfileDtos.PatchRequest;
 import com.careerq.profile.ProfileDtos.UpdateRequest;
 import com.careerq.security.AuthUser;
 import com.careerq.service.ProfileService;
@@ -63,6 +64,43 @@ public class ProfileServiceImpl implements ProfileService {
             experience.setCreatedAt(LocalDateTime.now());
             experience.setUpdatedAt(LocalDateTime.now());
             experienceDao.insert(experience);
+        }
+        return toView(userDao.findById(user.getId()).orElseThrow());
+    }
+
+    @Override
+    @Transactional
+    public ProfileView patch(AuthUser user, PatchRequest request) {
+        UserDO userDO = userDao.findById(user.getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
+        if (request.nickname() != null) {
+            if (request.nickname().isBlank()) {
+                throw new BusinessException(ErrorCode.INVALID_PARAM, "昵称不能为空");
+            }
+            userDO.setNickname(request.nickname().trim());
+        }
+        if (request.school() != null) userDO.setSchool(request.school().trim());
+        if (request.major() != null) userDO.setMajor(request.major().trim());
+        if (request.grade() != null) userDO.setGrade(request.grade().trim());
+        if (request.degree() != null) userDO.setDegree(request.degree().trim());
+        if (request.graduationYear() != null) userDO.setGraduationYear(request.graduationYear().trim());
+        userDao.patchProfile(userDO);
+
+        if (request.experiences() != null) {
+            experienceDao.deleteByUserId(user.getId());
+            for (ExperienceItem item : request.experiences()) {
+                ExperienceDO experience = new ExperienceDO();
+                experience.setUserId(user.getId());
+                experience.setType(normalizeType(item.type()));
+                experience.setTitle(item.title().trim());
+                experience.setRole(blankToNull(item.role()));
+                experience.setStartDate(blankToNull(item.startDate()));
+                experience.setEndDate(blankToNull(item.endDate()));
+                experience.setDescription(blankToNull(item.description()));
+                experience.setCreatedAt(LocalDateTime.now());
+                experience.setUpdatedAt(LocalDateTime.now());
+                experienceDao.insert(experience);
+            }
         }
         return toView(userDao.findById(user.getId()).orElseThrow());
     }
