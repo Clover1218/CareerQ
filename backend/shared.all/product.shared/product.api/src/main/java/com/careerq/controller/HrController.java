@@ -10,8 +10,6 @@ import com.careerq.security.AuthUsers;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -33,16 +31,12 @@ public class HrController {
         return ApiResponse.ok(questionService.hrQuestionPool(cursor, limit));
     }
 
-    @GetMapping("/private-pool")
+    @GetMapping("/answered-questions")
     @PreAuthorize("hasRole('HR')")
-    public ApiResponse<PageResult<QuestionView>> privatePool(@RequestParam(required = false) Long cursor,
-                                                             @RequestParam(defaultValue = "20") int limit) {
-        return ApiResponse.ok(questionService.hrPrivatePool(cursor, limit));
+    public ApiResponse<PageResult<QuestionView>> answeredQuestions(Authentication authentication,
+                                                                   @RequestParam(required = false) Long cursor,
+                                                                   @RequestParam(defaultValue = "20") int limit) {
+        return ApiResponse.ok(questionService.hrAnsweredQuestions(AuthUsers.require(authentication), cursor, limit));
     }
 
-    @PostMapping("/questions/{id}/claim")
-    @PreAuthorize("hasRole('HR')")
-    public ApiResponse<QuestionView> claim(Authentication authentication, @PathVariable Long id) {
-        return ApiResponse.ok(questionService.claim(AuthUsers.require(authentication), id));
-    }
 }

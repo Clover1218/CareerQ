@@ -57,6 +57,19 @@ public interface QuestionDao {
 
     @Select("""
             <script>
+            select distinct q.* from questions q
+            join answers a on a.question_id = q.id
+            where q.scope = 'public' and q.status = 'published' and a.author_id = #{hrId}
+            <if test="cursor != null">and q.id &lt; #{cursor}</if>
+            order by q.id desc limit #{limit}
+            </script>
+            """)
+    List<QuestionDO> listPublicAnsweredByHr(@Param("hrId") Long hrId,
+                                           @Param("cursor") Long cursor,
+                                           @Param("limit") int limit);
+
+    @Select("""
+            <script>
             select * from questions where author_id = #{authorId}
             <if test="scope != null">and scope = #{scope}</if>
             <if test="cursor != null">and id &lt; #{cursor}</if>
@@ -68,13 +81,6 @@ public interface QuestionDao {
 
     @Update("update questions set status = #{status}, updated_at = current_timestamp where id = #{id}")
     int updateStatus(@Param("id") Long id, @Param("status") String status);
-
-    @Update("""
-            update questions set status = #{status}, assigned_hr_id = #{assignedHrId},
-                closed_at = #{closedAt}, updated_at = current_timestamp
-            where id = #{id}
-            """)
-    int updatePrivateState(QuestionDO question);
 
     @Update("""
             update questions set answer_count = answer_count + 1,

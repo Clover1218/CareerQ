@@ -2,9 +2,7 @@ package com.careerq.dataobject;
 
 import java.time.LocalDateTime;
 
-/**
- * 私密问答脱敏后的公开沉淀。需经二次审核（M5）后才会对外展示。
- */
+/** 已审核的公开问答沉淀内容。 */
 public class PublicPostDO {
 
     private Long id;

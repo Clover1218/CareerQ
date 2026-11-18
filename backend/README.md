@@ -74,7 +74,7 @@ mvn -f backend/pom.xml -pl shared.all/product.shared/product.service.impl spring
 
 - Flyway 管理，脚本在 `src/main/resources/db/migration/`。
 - 约定：迁移脚本保持 MySQL 方言中立，确保 H2（MySQL 模式）与 MySQL 8 都能执行。
-- 已包含 `V1__init.sql`：用户、HR 资料、问题（公开/私密）、回答、追问、观点帖、标签、互动、举报、审核记录、词库、审计日志、公开沉淀表。
+- 已包含 `V1__init.sql`：用户、HR 资料、问题、回答、追问、观点帖、标签、互动、举报、审核记录、词库、审计日志、公开沉淀表。旧库字段保留以兼容历史结构；当前产品仅支持公开问题。
 
 ## 已实现接口（M2–M3）
 
@@ -85,19 +85,16 @@ mvn -f backend/pom.xml -pl shared.all/product.shared/product.service.impl spring
 | POST | `/api/v1/auth/register` | 注册学生账号并建立会话 | 公开 |
 | POST | `/api/v1/auth/logout` | 登出 | 登录 |
 | GET | `/api/v1/me` | 当前用户 | 登录 |
-| POST | `/api/v1/questions` | 提问（`scope`=public/private） | 登录 |
+| POST | `/api/v1/questions` | 提问（仅 `scope`=public） | 学生 |
 | GET | `/api/v1/questions?tag=&cursor=&limit=` | 公开问题列表 | 公开 |
-| GET | `/api/v1/questions/{id}` | 问题详情 + 回答列表 | 公开（私密仅作者/运营） |
+| GET | `/api/v1/questions/{id}` | 已发布公开问题详情 + 回答列表 | 公开 |
 | POST | `/api/v1/questions/{id}/answers` | 回答（自动发布/转人工） | HR |
 | GET | `/api/v1/hr/question-pool` | HR 未答问题池 | HR |
 | POST | `/api/v1/interactions` | 点赞/收藏/有用 | 登录 |
 
-| GET | `/api/v1/hr/private-pool` | HR 私密待认领池（作者匿名） | HR |
-| POST | `/api/v1/hr/questions/{id}/claim` | 认领私密问题 | HR |
-| POST | `/api/v1/questions/{id}/followups` | 追问（公开/私密） | 登录（私密需可见） |
+| GET | `/api/v1/hr/answered-questions` | 当前 HR 已回答的问题 | HR |
+| POST | `/api/v1/questions/{id}/followups` | 对公开问题追问 | 学生 |
 | GET | `/api/v1/questions/{id}/followups` | 追问列表 | 公开/可见者 |
-| POST | `/api/v1/questions/{id}/close` | 关闭私密问题 | 作者 |
-| POST | `/api/v1/questions/{id}/publish` | 申请脱敏公开 | 作者 |
 
 | POST | `/api/v1/reports` | 举报（question/answer/post/public_post） | 登录 |
 | GET | `/api/v1/posts` | 已审核公开沉淀列表 | 公开 |
@@ -127,7 +124,7 @@ mvn -f backend/pom.xml -pl shared.all/product.shared/product.service.impl spring
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-test.ps1
 ```
 
-自动构建并启动后端（dev,demo，端口 18080），跑通「公开问答 → 审核 → 回答 → 互动 → 私密工单 → 脱敏公开 → 举报处理」并断言结果。
+自动构建并启动后端（dev,demo，端口 18080），跑通「公开问答 → 审核 → 回答 → 互动 → 举报处理」并断言结果。
 
 ## 前后端联调
 

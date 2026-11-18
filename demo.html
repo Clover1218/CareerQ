@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f7f4">
+  <title>职问桥 · 职业问答</title>
+  <style>
+    :root {
+      --paper: #f6f7f4;
+      --white: #fff;
+      --ink: #202a28;
+      --muted: #78817c;
+      --line: #e5e9e4;
+      --green: #216b59;
+      --green-dark: #174e42;
+      --green-soft: #eaf3ee;
+      --coral: #df7157;
+      --coral-soft: #fbede8;
+      --gold: #c48e36;
+      --gold-soft: #f8f1e3;
+      --shadow: 0 18px 60px rgba(27, 44, 37, .12);
+      font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+      color: var(--ink);
+      background: var(--paper);
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; background: var(--paper); }
+    button, input, textarea { font: inherit; }
+    button { color: inherit; cursor: pointer; }
+    .topbar { height: 68px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.92); display: flex; align-items: center; position: sticky; top: 0; z-index: 10; backdrop-filter: blur(12px); }
+    .topbar-inner { width: min(1240px, calc(100% - 48px)); margin: auto; display: flex; align-items: center; gap: 34px; }
+    .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; font-size: 18px; font-weight: 760; white-space: nowrap; }
+    .brand-mark { width: 32px; height: 32px; border-radius: 9px; background: var(--green); color: white; display: grid; place-items: center; }
+    .brand-mark svg { width: 19px; height: 19px; }
+    .topnav { display: flex; align-items: center; gap: 25px; color: #65706b; font-size: 14px; }
+    .topnav a { color: inherit; text-decoration: none; }
+    .topnav a.active { color: var(--green); font-weight: 700; }
+    .top-actions { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+    .quiet-note { font-size: 12px; color: var(--muted); }
+    .btn { min-height: 38px; border: 1px solid transparent; border-radius: 7px; padding: 0 15px; background: transparent; font-size: 13px; font-weight: 650; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: .15s ease; }
+    .btn:hover { transform: translateY(-1px); }
+    .btn svg { width: 16px; height: 16px; }
+    .btn-primary { color: white; background: var(--green); }
+    .btn-primary:hover { background: var(--green-dark); }
+    .btn-outline { color: var(--green); border-color: #cbd9d2; background: white; }
+    .btn-plain { color: #52605a; }
+    .btn-small { min-height: 32px; padding: 0 11px; font-size: 12px; }
+    .shell { width: min(1240px, calc(100% - 48px)); margin: 0 auto; }
+    .page-head { padding: 34px 0 22px; display: flex; align-items: end; justify-content: space-between; gap: 24px; }
+    .eyebrow { color: var(--green); text-transform: uppercase; font-size: 11px; font-weight: 750; letter-spacing: 1.1px; }
+    h1 { font-size: 28px; line-height: 1.2; margin: 7px 0 6px; letter-spacing: 0; }
+    .page-head p { color: var(--muted); font-size: 14px; margin: 0; }
+    .page-head-actions { display: flex; gap: 9px; }
+    .layout { display: grid; grid-template-columns: 205px minmax(0, 1fr) 245px; gap: 25px; align-items: start; padding-bottom: 60px; }
+    .sidebar { border-right: 1px solid var(--line); padding: 2px 19px 0 0; min-height: 570px; }
+    .side-label { color: #9aa29d; font-size: 10px; font-weight: 750; letter-spacing: .8px; margin: 12px 0 10px; }
+    .side-item { width: 100%; border: 0; background: transparent; padding: 10px 11px; border-radius: 6px; text-align: left; display: flex; align-items: center; gap: 10px; color: #68736e; font-size: 13px; margin: 2px 0; }
+    .side-item:hover { background: #edf1ed; }
+    .side-item.selected { color: var(--green-dark); background: var(--green-soft); font-weight: 700; }
+    .side-item svg { width: 16px; height: 16px; }
+    .side-count { margin-left: auto; color: #98a19c; font-size: 11px; }
+    .side-rule { height: 1px; background: var(--line); margin: 19px 0; }
+    .side-prompt { padding: 14px 12px; background: #eef3ee; border-radius: 7px; margin-top: 22px; }
+    .side-prompt strong { display: block; font-size: 12px; margin-bottom: 6px; }
+    .side-prompt p { color: #68736e; font-size: 11px; line-height: 1.6; margin: 0 0 10px; }
+    .feed-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 0 0 15px; border-bottom: 1px solid var(--line); }
+    .feed-tabs { display: flex; gap: 18px; }
+    .feed-tab { border: 0; border-bottom: 2px solid transparent; background: none; color: #7d8782; padding: 9px 0; font-size: 13px; }
+    .feed-tab.active { border-color: var(--green); color: var(--green-dark); font-weight: 700; }
+    .search { position: relative; width: 208px; }
+    .search svg { position: absolute; left: 11px; top: 10px; width: 15px; height: 15px; color: #8b9690; }
+    .search input { height: 36px; width: 100%; border: 1px solid var(--line); border-radius: 6px; background: white; padding: 0 10px 0 34px; outline: none; font-size: 12px; }
+    .search input:focus, .field input:focus, .field textarea:focus { border-color: #6a9a88; box-shadow: 0 0 0 3px rgba(33,107,89,.09); }
+    .question-list { display: flex; flex-direction: column; }
+    .question { padding: 19px 0 18px; border-bottom: 1px solid var(--line); }
+    .question-top { display: flex; align-items: center; gap: 9px; color: #818b85; font-size: 11px; }
+    .avatar { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #dce8e0; color: #376451; font-size: 11px; font-weight: 750; flex: 0 0 auto; }
+    .avatar.coral { background: #f5e0d9; color: #a64d36; }
+    .avatar.gold { background: #f3ebd6; color: #98702e; }
+    .avatar.photo { object-fit: cover; }
+    .author { color: #45514b; font-size: 12px; font-weight: 650; }
+    .dot { color: #bdc4bf; }
+    .status { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; color: #748078; }
+    .status::before { content: ""; width: 6px; height: 6px; background: #bdc7c0; border-radius: 50%; }
+    .status.answered { color: var(--green); }
+    .status.answered::before { background: #55a07f; }
+    .status.waiting { color: #b17b2d; }
+    .status.waiting::before { background: #d4a14e; }
+    .question h2 { font-size: 16px; line-height: 1.45; margin: 11px 0 6px; font-weight: 710; cursor: pointer; }
+    .question h2:hover { color: var(--green); }
+    .question-excerpt { color: #737e78; font-size: 12px; line-height: 1.7; margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .tags { display: flex; gap: 7px; margin-top: 11px; flex-wrap: wrap; }
+    .tag { font-size: 10px; padding: 4px 8px; border-radius: 4px; background: #eef1ee; color: #637069; }
+    .question-bottom { display: flex; align-items: center; gap: 17px; margin-top: 14px; color: #87918b; font-size: 11px; }
+    .metric { display: inline-flex; align-items: center; gap: 5px; }
+    .metric svg { width: 14px; height: 14px; }
+    .question-bottom .answer-action { margin-left: auto; color: var(--green); font-weight: 700; cursor: pointer; }
+    .right-rail { padding-left: 2px; }
+    .rail-block { padding: 0 0 20px; margin-bottom: 21px; border-bottom: 1px solid var(--line); }
+    .rail-title { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 730; margin: 0 0 13px; }
+    .rail-title a { color: var(--green); text-decoration: none; font-weight: 600; font-size: 11px; }
+    .pulse { background: #f0f3ef; padding: 14px; border-radius: 6px; }
+    .pulse-top { display: flex; align-items: baseline; justify-content: space-between; }
+    .pulse strong { font-size: 25px; color: var(--green-dark); }
+    .pulse span { color: #78837c; font-size: 11px; }
+    .pulse p { font-size: 11px; color: #77827b; margin: 6px 0 0; }
+    .hr-row { display: flex; align-items: center; gap: 9px; margin: 12px 0; }
+    .hr-row .avatar { width: 33px; height: 33px; }
+    .hr-meta { min-width: 0; }
+    .hr-meta strong { display: block; font-size: 11px; margin-bottom: 3px; }
+    .hr-meta span { color: #87918b; font-size: 10px; }
+    .hr-row .tiny-count { margin-left: auto; color: #6c7971; font-size: 10px; white-space: nowrap; }
+    .topic-row { display: flex; align-items: center; justify-content: space-between; color: #59655e; font-size: 11px; padding: 8px 0; border-bottom: 1px solid #e9ede8; }
+    .topic-row:last-child { border: 0; }
+    .topic-row span:last-child { color: #9aa39d; font-size: 10px; }
+    .footer { border-top: 1px solid var(--line); padding: 20px 0 28px; color: #929b95; font-size: 11px; }
+    .footer-inner { display: flex; justify-content: space-between; gap: 15px; }
+    .empty { padding: 45px 15px; text-align: center; color: var(--muted); font-size: 13px; }
+    .overlay { display: none; position: fixed; inset: 0; z-index: 30; background: rgba(22,32,28,.45); align-items: center; justify-content: center; padding: 20px; }
+    .overlay.open { display: flex; }
+    .modal { width: min(520px, 100%); max-height: min(780px, 92vh); overflow: auto; border-radius: 10px; box-shadow: var(--shadow); background: white; position: relative; }
+    .modal-close { position: absolute; top: 15px; right: 15px; width: 33px; height: 33px; border: 0; background: #f1f3f0; border-radius: 50%; display: grid; place-items: center; color: #69746e; }
+    .modal-close svg { width: 16px; height: 16px; }
+    .modal-body { padding: 30px; }
+    .modal-kicker { font-size: 11px; color: var(--green); font-weight: 750; letter-spacing: .8px; }
+    .modal h2 { margin: 8px 42px 7px 0; font-size: 22px; line-height: 1.35; }
+    .modal-sub { color: var(--muted); font-size: 12px; line-height: 1.7; margin: 0 0 20px; }
+    .role-switch { display: grid; grid-template-columns: 1fr 1fr; padding: 4px; background: #f0f3f0; border-radius: 7px; margin: 17px 0 20px; }
+    .role-option { border: 0; border-radius: 5px; background: transparent; color: #6c7771; padding: 10px; font-size: 13px; font-weight: 650; }
+    .role-option.active { background: white; box-shadow: 0 1px 4px rgba(20,35,28,.1); color: var(--green-dark); }
+    .field { margin: 13px 0; }
+    .field label { display: block; font-size: 12px; color: #4e5a53; font-weight: 650; margin: 0 0 7px; }
+    .field input, .field textarea { width: 100%; border: 1px solid #dfe5df; background: #fff; border-radius: 6px; padding: 11px 12px; outline: none; color: var(--ink); font-size: 13px; }
+    .field input { height: 42px; }
+    .field textarea { resize: vertical; min-height: 115px; line-height: 1.6; }
+    .code-row { display: flex; gap: 8px; }
+    .code-row input { flex: 1; min-width: 0; }
+    .code-row .btn { white-space: nowrap; }
+    .form-note { color: #89938d; font-size: 11px; line-height: 1.6; margin: 10px 0 16px; }
+    .form-error { color: #bd4d38; font-size: 11px; min-height: 16px; margin: 7px 0; }
+    .wide { width: 100%; }
+    .detail-modal { width: min(690px, 100%); }
+    .detail-modal .modal-body { padding: 32px 36px; }
+    .detail-meta { color: #818b85; font-size: 11px; display: flex; align-items: center; gap: 8px; margin: 15px 0; }
+    .detail-copy { color: #4e5a53; font-size: 13px; line-height: 1.9; white-space: pre-line; }
+    .answer-section { border-top: 1px solid var(--line); margin-top: 21px; padding-top: 18px; }
+    .answer-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 740; margin-bottom: 13px; }
+    .answer-card { background: #f4f7f3; border-left: 3px solid #75a78c; padding: 14px 16px; border-radius: 0 6px 6px 0; margin: 11px 0; }
+    .answer-card p { font-size: 12px; color: #4e5b53; line-height: 1.8; margin: 10px 0 0; }
+    .answer-card .answer-by { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; color: #526158; }
+    .answer-card .avatar { width: 27px; height: 27px; }
+    .no-answer { padding: 16px; color: #818b85; background: #f7f8f6; font-size: 12px; border-radius: 6px; }
+    .workspace { min-height: calc(100vh - 68px); }
+    .workspace-head { background: var(--green-dark); color: white; padding: 26px 0 25px; }
+    .workspace-head-inner { width: min(1100px, calc(100% - 48px)); margin: auto; display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+    .workspace-head .eyebrow { color: #b9d9c8; }
+    .workspace-head h1 { margin: 7px 0 4px; }
+    .workspace-head p { margin: 0; color: #d0e2d8; font-size: 13px; }
+    .workspace-body { width: min(1100px, calc(100% - 48px)); margin: 25px auto 55px; display: grid; grid-template-columns: 205px minmax(0, 1fr); gap: 32px; }
+    .work-nav { border-right: 1px solid var(--line); padding-right: 17px; min-height: 450px; }
+    .work-nav button { width: 100%; }
+    .work-main { min-width: 0; }
+    .work-title-row { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin: 0 0 17px; }
+    .work-title-row h2 { font-size: 18px; margin: 0; }
+    .work-title-row p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+    .work-panel { border-top: 1px solid var(--line); }
+    .work-question { padding: 16px 0; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 15px; }
+    .work-question-copy { flex: 1; min-width: 0; }
+    .work-question-copy strong { display: block; font-size: 13px; line-height: 1.5; margin-bottom: 6px; cursor: pointer; }
+    .work-question-copy strong:hover { color: var(--green); }
+    .work-question-copy span { font-size: 10px; color: #849088; }
+    .work-question .btn { flex: 0 0 auto; }
+    .status-pill { color: #9a6b25; background: var(--gold-soft); border-radius: 4px; font-size: 10px; padding: 5px 8px; white-space: nowrap; }
+    .student-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; margin-bottom: 26px; }
+    .summary-cell { padding: 14px 15px; border-bottom: 1px solid var(--line); background: white; }
+    .summary-cell strong { display: block; font-size: 22px; color: var(--green-dark); margin-bottom: 4px; }
+    .summary-cell span { font-size: 11px; color: #7b867f; }
+    .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 15px); opacity: 0; pointer-events: none; z-index: 80; background: #233a31; color: white; padding: 11px 16px; border-radius: 6px; font-size: 12px; transition: .2s; box-shadow: var(--shadow); }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 175px minmax(0,1fr); }
+      .right-rail { display: none; }
+      .sidebar { padding-right: 13px; }
+    }
+    @media (max-width: 680px) {
+      .topbar { height: 60px; }
+      .topbar-inner, .shell { width: calc(100% - 30px); }
+      .topbar-inner { gap: 16px; }
+      .topnav { display: none; }
+      .quiet-note { display: none; }
+      .top-actions { gap: 5px; }
+      .top-actions .btn { min-height: 34px; padding: 0 10px; }
+      .brand { font-size: 16px; }
+      .page-head { padding: 25px 0 17px; align-items: flex-start; flex-direction: column; gap: 14px; }
+      h1 { font-size: 24px; }
+      .layout { display: block; }
+      .sidebar { display: flex; gap: 4px; overflow-x: auto; min-height: 0; border-right: 0; border-bottom: 1px solid var(--line); padding: 0 0 11px; margin-bottom: 15px; }
+      .side-label, .side-rule, .side-prompt { display: none; }
+      .side-item { width: auto; flex: 0 0 auto; white-space: nowrap; padding: 8px 10px; }
+      .side-item svg { display: none; }
+      .side-count { display: none; }
+      .feed-toolbar { align-items: flex-start; flex-direction: column; }
+      .search { width: 100%; }
+      .question h2 { font-size: 15px; }
+      .footer-inner { flex-direction: column; }
+      .workspace-head-inner { width: calc(100% - 30px); align-items: flex-start; }
+      .workspace-head-inner > .btn { align-self: center; }
+      .workspace-body { width: calc(100% - 30px); display: block; margin-top: 18px; }
+      .work-nav { border: 0; min-height: 0; display: flex; overflow-x: auto; gap: 5px; padding: 0 0 11px; margin-bottom: 17px; border-bottom: 1px solid var(--line); }
+      .work-nav .side-item { width: auto; }
+      .work-question { align-items: flex-start; flex-wrap: wrap; }
+      .work-question-copy { flex-basis: calc(100% - 30px); }
+      .work-question .btn { margin-left: 37px; }
+      .student-summary { gap: 7px; }
+      .summary-cell { padding: 11px 9px; }
+      .summary-cell strong { font-size: 19px; }
+      .summary-cell span { font-size: 10px; }
+      .modal-body, .detail-modal .modal-body { padding: 25px 21px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="#" id="homeLink" aria-label="职问桥首页">
+        <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h18M5 17V8l7-4 7 4v9M9 17v-5h6v5"/><path d="M2 20h20"/></svg></span>
+        职问桥
+      </a>
+      <nav class="topnav"><a class="active" href="#" id="browseLink">问答广场</a><a href="#topics" id="topicLink">热门话题</a></nav>
+      <div class="top-actions"><span class="quiet-note">公开 · 异步 · 有回应</span><button class="btn btn-plain" id="loginBtn">登录</button><button class="btn btn-primary" id="askTopBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>提出问题</button></div>
+    </div>
+  </header>
+  <main id="app"></main>
+  <footer class="footer" id="footer"><div class="shell footer-inner"><span>职问桥 · 让好问题遇见对的人，让经验公开沉淀</span><span>个人发起项目，非学校官方平台 · 回答不构成招聘承诺</span></div></footer>
+
+  <div class="overlay" id="loginOverlay" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+    <div class="modal"><button class="modal-close" data-close="loginOverlay" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 6-12 12M6 6l12 12"/></svg></button>
+      <div class="modal-body">
+        <div class="modal-kicker">欢迎回来</div><h2 id="loginTitle">登录职问桥</h2><p class="modal-sub" id="loginContext">登录后继续刚才的操作。</p>
+        <div class="role-switch"><button class="role-option active" data-role="student">学生</button><button class="role-option" data-role="hr">HR 答主</button></div>
+        <form id="loginForm">
+          <div class="field"><label for="identityInput">手机号或邮箱</label><input id="identityInput" autocomplete="username" placeholder="输入手机号或邮箱" required></div>
+          <div class="field"><label for="codeInput">验证码</label><div class="code-row"><input id="codeInput" inputmode="numeric" autocomplete="one-time-code" placeholder="输入验证码" required><button class="btn btn-outline" type="button" id="sendCodeBtn">获取验证码</button></div></div>
+          <p class="form-error" id="loginError"></p><p class="form-note" id="hrNote" hidden>HR 身份认证将在登录后完成。演示环境使用验证码 <b>246810</b>。</p>
+          <p class="form-note" id="studentNote">演示环境使用验证码 <b>246810</b>。</p>
+          <button class="btn btn-primary wide" type="submit">登录并继续</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="overlay" id="detailOverlay" role="dialog" aria-modal="true" aria-labelledby="detailTitle"><div class="modal detail-modal"><button class="modal-close" data-close="detailOverlay" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 6-12 12M6 6l12 12"/></svg></button><div class="modal-body" id="detailContent"></div></div></div>
+  <div class="overlay" id="composeOverlay" role="dialog" aria-modal="true" aria-labelledby="composeTitle"><div class="modal"><button class="modal-close" data-close="composeOverlay" aria-label="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 6-12 12M6 6l12 12"/></svg></button><div class="modal-body" id="composeContent"></div></div></div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const svg = {
+      search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg>',
+      message: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H5l-2 2v-8A7.5 7.5 0 0 1 10.5 5h2A7.5 7.5 0 0 1 20 11.5Z"/></svg>',
+      heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 8.8c0 5.2-8.8 10-8.8 10S3.2 14 3.2 8.8A4.2 4.2 0 0 1 12 6.7a4.2 4.2 0 0 1 8.8 2.1Z"/></svg>',
+      bookmark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-4-6 4Z"/></svg>',
+      spark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z"/><path d="m19 16 .8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8Z"/></svg>',
+      grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
+      help: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9a2.5 2.5 0 1 1 4.6 1.4c-.8 1-2.2 1.2-2.2 2.8M12 17h.01"/></svg>',
+      tag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 13 13 20.5a2 2 0 0 1-2.8 0L3.5 13.8a2 2 0 0 1 0-2.8L11 3.5h7.5a2 2 0 0 1 2 2Z"/><circle cx="16" cy="8" r="1"/></svg>'
+    };
+    const questions = [
+      {id:1, author:'匿名同学', initials:'匿', tone:'', age:'2 小时前', status:'answered', title:'面试时被问到“你最大的缺点是什么”，怎么回答才不显得套路？', excerpt:'最近在准备春招，面试里这个问题出现频率很高。说太真实怕减分，说“太追求完美”又很像背答案，想听听 HR 的视角。', tags:['面试准备','求职技巧'], answers:2, likes:18, views:326, detail:'最近在准备春招，面试里这个问题出现频率很高。说太真实怕减分，说“太追求完美”又很像背答案。想知道 HR 听到什么样的回答会觉得真诚、有自我认知，也想知道哪些表达容易踩雷。', replies:[{name:'林女士',title:'消费品行业 HR · 8 年经验',photo:'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=80&h=80&q=80',text:'与其找一个“安全缺点”，不如讲一个真实但可管理的习惯。结构可以是：具体场景、它带来的影响、你现在怎么调整。重点不是缺点多小，而是你能不能看见它并采取行动。尽量别把优点包装成缺点。'},{name:'周先生',title:'互联网招聘负责人',photo:'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=80&h=80&q=80',text:'我会继续追问“你具体做了什么改变”。所以例子一定要能落到行动上，比如开始给任务设检查点、主动同步风险，而不是只说“我正在改进”。'}]},
+      {id:2, author:'匿名同学', initials:'匿', tone:'coral', age:'今天 09:42', status:'waiting', title:'实习转正答辩要准备到什么程度？业务部门和 HR 分别关注什么？', excerpt:'还有三周要做转正答辩，团队没有特别明确的模板。除了项目结果，还应该重点呈现哪些内容？', tags:['实习','职场成长'], answers:0, likes:9, views:184, detail:'还有三周要做转正答辩，团队没有特别明确的模板。除了项目结果，还应该重点呈现哪些内容？我目前做的是运营岗位，担心只讲数据会显得没有思考。'},
+      {id:3, author:'匿名同学', initials:'匿', tone:'gold', age:'昨天', status:'answered', title:'非科班想转产品经理，第一份实习应该优先补哪方面的经历？', excerpt:'本科是新闻传播，做过校园媒体和社团项目。现在在学习产品基础，投简历时经常卡在“相关经历不足”。', tags:['职业规划','实习'], answers:1, likes:27, views:512, detail:'本科是新闻传播，做过校园媒体和社团项目。现在在学习产品基础，投简历时经常卡在“相关经历不足”。第一份实习应该优先找产品助理，还是先做运营、积累业务经验？'},
+      {id:4, author:'匿名同学', initials:'匿', tone:'', age:'昨天', status:'waiting', title:'小公司和大厂的第一份工作，应该怎么权衡？', excerpt:'手上有两个意向，一个业务空间大但团队规模小，一个流程成熟但岗位内容比较窄。想从成长和后续选择角度听听建议。', tags:['行业选择','职业规划'], answers:0, likes:14, views:271, detail:'手上有两个意向，一个业务空间大但团队规模小，一个流程成熟但岗位内容比较窄。想从成长速度、带教、稳定性和未来跳槽等角度听听建议。'},
+      {id:5, author:'匿名同学', initials:'匿', tone:'coral', age:'11 月 12 日', status:'answered', title:'简历项目经历没有量化结果，会不会直接被筛掉？', excerpt:'课程项目和社团项目有过程、有产出，但很难写成营收或增长数字。怎样表达才更可信？', tags:['简历','求职技巧'], answers:3, likes:31, views:601, detail:'课程项目和社团项目有过程、有产出，但很难写成营收或增长数字。怎样表达才更可信？如果没有明确业务数据，是否可以用规模、效率、覆盖人数来体现结果？'}
+    ];
+    let state = {view:'public', role:'student', intent:null, filter:'all', search:'', currentQuestion:null, user:null, ownQuestions:[], ownAnswers:[]};
+    const app = document.getElementById('app');
+    const byId = id => document.getElementById(id);
+    function escapeHtml(value='') { return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function showToast(text) { const t=byId('toast'); t.textContent=text; t.classList.add('show'); clearTimeout(showToast.timer); showToast.timer=setTimeout(()=>t.classList.remove('show'),2500); }
+    function openOverlay(id) { byId(id).classList.add('open'); document.body.style.overflow='hidden'; }
+    function closeOverlay(id) { byId(id).classList.remove('open'); if(!document.querySelector('.overlay.open')) document.body.style.overflow=''; }
+    function questionById(id) { return questions.find(q=>q.id===Number(id)) || state.ownQuestions.find(q=>q.id===Number(id)); }
+    function goLogin(intent) {
+      state.intent=intent || null;
+      byId('loginContext').textContent = intent==='ask' ? '登录后即可发布你的问题。' : intent?.startsWith('answer:') ? '登录后继续回答这条问题。' : '选择身份并使用手机号或邮箱登录。';
+      byId('loginError').textContent=''; byId('codeInput').value='';
+      setRole(state.role || 'student'); openOverlay('loginOverlay');
+    }
+    function setRole(role) { state.role=role; document.querySelectorAll('.role-option').forEach(b=>b.classList.toggle('active',b.dataset.role===role)); byId('studentNote').hidden=role==='hr'; byId('hrNote').hidden=role!=='hr'; }
+    function statusLabel(q) { return q.status==='answered' ? '已有回答' : q.status==='pending' ? '审核中' : '等待回答'; }
+    function renderQuestion(q) {
+      return `<article class="question"><div class="question-top"><span class="avatar ${q.tone||''}">${escapeHtml(q.initials||'匿')}</span><span class="author">${escapeHtml(q.author||'匿名同学')}</span><span class="dot">·</span><span>${escapeHtml(q.age||'刚刚')}</span><span class="status ${q.status==='answered'?'answered':q.status==='waiting'?'waiting':''}">${statusLabel(q)}</span></div><h2 data-detail="${q.id}">${escapeHtml(q.title)}</h2><p class="question-excerpt">${escapeHtml(q.excerpt||q.detail)}</p><div class="tags">${(q.tags||[]).map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join('')}</div><div class="question-bottom"><span class="metric">${svg.message}${q.answers||0} 条回答</span><span class="metric">${svg.heart}${q.likes||0}</span><span class="metric">${svg.search}${q.views||0}</span>${q.status==='waiting'?`<span class="answer-action" data-answer="${q.id}">HR 来回答 ${svg.message}</span>`:''}</div></article>`;
+    }
+    function filteredQuestions() {
+      const search=state.search.trim().toLowerCase();
+      return [...state.ownQuestions.filter(q=>q.status!=='pending'),...questions].filter(q=>{
+        const filterMatch=state.filter==='all'||(state.filter==='waiting'?q.status==='waiting':state.filter==='answered'?q.status==='answered':(q.tags||[]).includes(state.filter));
+        return filterMatch&&(!search||`${q.title} ${q.excerpt} ${(q.tags||[]).join(' ')}`.toLowerCase().includes(search));
+      });
+    }
+    function renderPublic() {
+      document.body.classList.remove('work-mode'); byId('footer').style.display='block';
+      const list=filteredQuestions();
+      app.innerHTML=`<div class="shell"><section class="page-head"><div><div class="eyebrow">职业经验，公开交流</div><h1>问答广场</h1><p>看看大家正在困扰什么，也许这里已经有你想要的答案。</p></div><div class="page-head-actions"><button class="btn btn-outline" id="hrLoginBtn">我是 HR，去回答</button><button class="btn btn-primary" id="askBtn">${svg.help}我有问题</button></div></section><div class="layout"><aside class="sidebar"><div class="side-label">浏览问答</div><button class="side-item ${state.filter==='all'?'selected':''}" data-filter="all">${svg.grid}全部问题<span class="side-count">${questions.length}</span></button><button class="side-item ${state.filter==='waiting'?'selected':''}" data-filter="waiting">${svg.message}等待回答<span class="side-count">${questions.filter(q=>q.status==='waiting').length}</span></button><button class="side-item ${state.filter==='answered'?'selected':''}" data-filter="answered">${svg.spark}已有回答</button><div class="side-rule"></div><div class="side-label">热门方向</div><button class="side-item ${state.filter==='面试准备'?'selected':''}" data-filter="面试准备">${svg.tag}面试准备</button><button class="side-item ${state.filter==='职业规划'?'selected':''}" data-filter="职业规划">${svg.tag}职业规划</button><button class="side-item ${state.filter==='实习'?'selected':''}" data-filter="实习">${svg.tag}实习与校招</button><button class="side-item ${state.filter==='简历'?'selected':''}" data-filter="简历">${svg.tag}简历求职</button><div class="side-prompt"><strong>你的问题值得被看见</strong><p>把困惑说清楚，邀请有经验的人来回答。</p><button class="btn btn-primary btn-small" id="sideAskBtn">开始提问</button></div></aside><section><div class="feed-toolbar"><div class="feed-tabs"><button class="feed-tab ${state.filter==='all'?'active':''}" data-feed="all">最新</button><button class="feed-tab ${state.filter==='waiting'?'active':''}" data-feed="waiting">待回应</button><button class="feed-tab ${state.filter==='answered'?'active':''}" data-feed="answered">有回答</button></div><label class="search">${svg.search}<input id="searchInput" value="${escapeHtml(state.search)}" placeholder="搜索问题或话题"></label></div><div class="question-list">${list.length?list.map(renderQuestion).join(''):'<div class="empty">没有找到相关问题</div>'}</div></section><aside class="right-rail"><section class="rail-block"><h3 class="rail-title">本周回应</h3><div class="pulse"><div class="pulse-top"><strong>86%</strong><span>问题获得回应</span></div><p>过去 7 天 · 23 个问题有了 HR 回答</p></div></section><section class="rail-block"><h3 class="rail-title">活跃答主 <a href="#" id="hrBrowse">查看全部</a></h3><div class="hr-row"><img class="avatar photo" src="https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=80&h=80&q=80" alt="林女士头像"><div class="hr-meta"><strong>林女士</strong><span>消费品行业 · 招聘</span></div><span class="tiny-count">回答 28</span></div><div class="hr-row"><img class="avatar photo" src="https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=80&h=80&q=80" alt="周先生头像"><div class="hr-meta"><strong>周先生</strong><span>互联网 · 招聘负责人</span></div><span class="tiny-count">回答 19</span></div><div class="hr-row"><span class="avatar gold">陈</span><div class="hr-meta"><strong>陈女士</strong><span>制造业 · 人才发展</span></div><span class="tiny-count">回答 14</span></div></section><section class="rail-block" id="topics"><h3 class="rail-title">正在讨论</h3><div class="topic-row"><span># 春招面试准备</span><span>32 个问题</span></div><div class="topic-row"><span># 第一份实习</span><span>21 个问题</span></div><div class="topic-row"><span># 职业方向选择</span><span>18 个问题</span></div></section></aside></div></div>`;
+      app.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{state.filter=b.dataset.filter;renderPublic();});
+      app.querySelectorAll('[data-feed]').forEach(b=>b.onclick=()=>{state.filter=b.dataset.feed;renderPublic();});
+      app.querySelectorAll('[data-detail]').forEach(b=>b.onclick=()=>openDetail(b.dataset.detail));
+      app.querySelectorAll('[data-answer]').forEach(b=>b.onclick=()=>goLogin(`answer:${b.dataset.answer}`));
+      byId('askBtn').onclick=()=>goLogin('ask'); byId('sideAskBtn').onclick=()=>goLogin('ask'); byId('hrLoginBtn').onclick=()=>{state.role='hr';goLogin(null);};
+      const search=byId('searchInput'); search.oninput=()=>{state.search=search.value; const pos=search.selectionStart; renderPublic(); const next=byId('searchInput'); next.focus(); next.setSelectionRange(pos,pos);};
+      byId('hrBrowse').onclick=e=>{e.preventDefault();state.role='hr';goLogin(null);};
+    }
+    function openDetail(id) {
+      const q=questionById(id); if(!q)return;
+      const replies=q.replies||[];
+      byId('detailContent').innerHTML=`<div class="modal-kicker">公开问题</div><h2 id="detailTitle">${escapeHtml(q.title)}</h2><div class="detail-meta"><span class="avatar ${q.tone||''}">${escapeHtml(q.initials||'匿')}</span><b>${escapeHtml(q.author||'匿名同学')}</b><span>·</span><span>${escapeHtml(q.age||'刚刚')}</span><span class="status ${q.status==='answered'?'answered':q.status==='waiting'?'waiting':''}">${statusLabel(q)}</span></div><div class="tags">${(q.tags||[]).map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join('')}</div><p class="detail-copy">${escapeHtml(q.detail||q.excerpt)}</p><section class="answer-section"><div class="answer-title">${svg.message} HR 回答 <span style="color:#8b958f;font-weight:500">${replies.length||q.answers||0}</span></div>${replies.length?replies.map(a=>`<article class="answer-card"><div class="answer-by"><img class="avatar photo" src="${escapeHtml(a.photo)}" alt=""><span>${escapeHtml(a.name)}</span><span style="font-weight:400;color:#859088">${escapeHtml(a.title)}</span></div><p>${escapeHtml(a.text)}</p></article>`):'<div class="no-answer">这个问题还没有回答，期待有经验的 HR 来分享。</div>'}</section><div style="display:flex;justify-content:flex-end;gap:9px;margin-top:20px"><button class="btn btn-outline" id="detailLogin">${q.status==='waiting'?'我是 HR，来回答':'登录后收藏'}</button><button class="btn btn-primary" id="detailAsk">我也想提问</button></div>`;
+      byId('detailLogin').onclick=()=>{closeOverlay('detailOverlay');if(q.status==='waiting'){state.role='hr';goLogin(`answer:${q.id}`);}else goLogin(null);};
+      byId('detailAsk').onclick=()=>{closeOverlay('detailOverlay');goLogin('ask');}; openOverlay('detailOverlay');
+    }
+    function renderWorkspace() {
+      byId('footer').style.display='none';
+      const hr=state.user.role==='hr';
+      app.innerHTML=`<section class="workspace"><header class="workspace-head"><div class="workspace-head-inner"><div><div class="eyebrow">${hr?'HR 答主工作台':'学生工作台'}</div><h1>${hr?'把经验，回答给需要的人':'把问题说出来'}</h1><p>${hr?'从真实问题出发，分享你的职业经验。':'跟进你的问题，也看看 HR 的公开回答。'}</p></div><button class="btn" id="logoutBtn" style="border-color:rgba(255,255,255,.35);color:white">退出登录</button></div></header><div class="workspace-body"><aside class="work-nav"><div class="side-label">工作台</div><button class="side-item selected">${hr?svg.message:svg.help}${hr?'待回答问题':'我的问题'}</button><button class="side-item" id="publicNav">${svg.grid}浏览问答广场</button><div class="side-rule"></div><div class="side-label">账号</div><button class="side-item">${svg.spark}${hr?'HR 身份认证':'个人资料'}<span class="side-count">${hr?'待认证':''}</span></button></aside><section class="work-main">${hr?renderHrHome():renderStudentHome()}</section></div></section>`;
+      byId('logoutBtn').onclick=()=>{state.user=null;state.view='public';byId('loginBtn').style.display='';byId('askTopBtn').style.display='';renderPublic();};
+      byId('publicNav').onclick=()=>{state.user=null;renderPublic();};
+      if(hr) bindHr(); else bindStudent();
+    }
+    function renderHrHome() {
+      const pending=questions.filter(q=>q.status==='waiting');
+      return `<div class="work-title-row"><div><h2>等待回答的问题</h2><p>按最新发布排序 · 公开问题</p></div><button class="btn btn-outline btn-small" id="hrProfileBtn">HR 身份认证 <span class="status-pill">待认证</span></button></div><div class="work-panel">${pending.map(q=>`<div class="work-question"><span class="avatar ${q.tone||''}">${q.initials}</span><div class="work-question-copy"><strong data-detail="${q.id}">${escapeHtml(q.title)}</strong><span>${escapeHtml(q.age)} · ${(q.tags||[]).map(escapeHtml).join(' / ')}</span></div><button class="btn btn-primary btn-small" data-answer-now="${q.id}">写回答</button></div>`).join('')}</div><div class="work-title-row" style="margin-top:30px"><div><h2>我的回答</h2><p>已提交的回答与处理状态</p></div></div><div class="work-panel">${state.ownAnswers.length?state.ownAnswers.map(a=>`<div class="work-question"><div class="work-question-copy"><strong>${escapeHtml(a.title)}</strong><span>刚刚 · ${escapeHtml(a.text.slice(0,70))}${a.text.length>70?'…':''}</span></div><span class="status-pill">审核中</span></div>`).join(''):'<div class="empty">还没有提交回答</div>'}</div>`;
+    }
+    function renderStudentHome() {
+      const waiting=state.ownQuestions.filter(q=>q.status==='pending').length;
+      return `<div class="student-summary"><div class="summary-cell"><strong>${state.ownQuestions.length}</strong><span>提出的问题</span></div><div class="summary-cell"><strong>${state.ownQuestions.filter(q=>q.status==='answered').length}</strong><span>收到回答</span></div><div class="summary-cell"><strong>${waiting}</strong><span>审核中</span></div></div><div class="work-title-row"><div><h2>我的问题</h2><p>问题审核通过后会公开展示，HR 可以浏览并回答。</p></div><button class="btn btn-primary btn-small" id="newQuestionBtn">${svg.help}提出问题</button></div><div class="work-panel">${state.ownQuestions.length?state.ownQuestions.map(q=>`<div class="work-question"><span class="avatar">${q.initials}</span><div class="work-question-copy"><strong>${escapeHtml(q.title)}</strong><span>刚刚 · ${(q.tags||[]).map(escapeHtml).join(' / ')}</span></div><span class="status-pill">${q.status==='pending'?'审核中':q.status==='answered'?'已有回答':'等待回答'}</span></div>`).join(''):'<div class="empty">你还没有提出问题</div>'}</div><div style="margin-top:28px;padding:17px 0;border-top:1px solid var(--line)"><div class="work-title-row"><div><h2>最近公开问答</h2><p>看看其他同学正在关注什么</p></div><button class="btn btn-plain btn-small" id="browseMoreBtn">进入问答广场 →</button></div>${questions.slice(0,2).map(q=>`<div class="work-question"><div class="work-question-copy"><strong data-detail="${q.id}">${escapeHtml(q.title)}</strong><span>${q.answers} 条回答 · ${escapeHtml(q.age)}</span></div></div>`).join('')}</div>`;
+    }
+    function bindHr() {
+      app.querySelectorAll('[data-answer-now]').forEach(b=>b.onclick=()=>openCompose('answer',b.dataset.answerNow));
+      app.querySelectorAll('[data-detail]').forEach(b=>b.onclick=()=>openDetail(b.dataset.detail));
+      byId('hrProfileBtn').onclick=()=>showToast('HR 身份认证流程将在后续版本开放');
+    }
+    function bindStudent() {
+      byId('newQuestionBtn').onclick=()=>openCompose('ask'); byId('browseMoreBtn').onclick=()=>{state.user=null;renderPublic();};
+      app.querySelectorAll('[data-detail]').forEach(b=>b.onclick=()=>openDetail(b.dataset.detail));
+    }
+    function openCompose(type,id) {
+      const q=id?questionById(id):null;
+      if(type==='answer'&&!q)return;
+      byId('composeContent').innerHTML=type==='ask'?`<div class="modal-kicker">学生提问</div><h2 id="composeTitle">说说你正在面对的问题</h2><p class="modal-sub">写清背景和困惑，更容易收到具体建议。</p><form id="composeForm"><div class="field"><label for="questionTitle">问题标题</label><input id="questionTitle" maxlength="80" placeholder="例如：面试时如何回答职业规划？" required></div><div class="field"><label for="questionBody">问题描述</label><textarea id="questionBody" maxlength="1200" placeholder="补充你的背景、尝试过的方法，以及最想了解的部分" required></textarea></div><div class="field"><label for="questionTag">话题</label><select id="questionTag" class="field input" style="height:42px;width:100%;border:1px solid #dfe5df;border-radius:6px;padding:0 10px;background:white;color:#46534b"><option>求职技巧</option><option>面试准备</option><option>简历</option><option>实习</option><option>职业规划</option><option>行业选择</option></select></div><p class="form-error" id="composeError"></p><button class="btn btn-primary wide" type="submit">提交问题</button></form>`:`<div class="modal-kicker">HR 公开回答</div><h2 id="composeTitle">分享你的经验</h2><p class="modal-sub">${escapeHtml(q.title)}</p><form id="composeForm"><div class="field"><label for="answerBody">回答内容</label><textarea id="answerBody" maxlength="2000" placeholder="结合具体场景分享你的判断和建议" required></textarea></div><p class="form-error" id="composeError"></p><button class="btn btn-primary wide" type="submit">提交回答</button></form>`;
+      byId('composeForm').onsubmit=e=>{e.preventDefault();const error=byId('composeError');
+        if(type==='ask') {const title=byId('questionTitle').value.trim(), body=byId('questionBody').value.trim();if(title.length<8||body.length<15){error.textContent='请补充更具体的问题标题和描述。';return;}state.ownQuestions.unshift({id:Date.now(),title,excerpt:body,detail:body,tags:[byId('questionTag').value],status:'pending',author:'我',initials:'我',answers:0,age:'刚刚'});}
+        else {const text=byId('answerBody').value.trim();if(text.length<20){error.textContent='再多分享一些具体经验吧。';return;}state.ownAnswers.unshift({title:q.title,text});}
+        closeOverlay('composeOverlay');renderWorkspace();showToast(type==='ask'?'问题已提交，审核通过后将公开展示':'回答已提交，审核通过后将公开展示');
+      };
+      openOverlay('composeOverlay');
+    }
+    byId('loginBtn').onclick=()=>goLogin(null); byId('askTopBtn').onclick=()=>state.user?openCompose('ask'):goLogin('ask');
+    byId('homeLink').onclick=e=>{e.preventDefault();state.user=null;state.filter='all';state.search='';renderPublic();};
+    byId('browseLink').onclick=e=>{e.preventDefault();state.user=null;renderPublic();};
+    byId('topicLink').onclick=e=>{e.preventDefault();document.getElementById('topics')?.scrollIntoView({behavior:'smooth'});};
+    document.querySelectorAll('.role-option').forEach(b=>b.onclick=()=>setRole(b.dataset.role));
+    document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>closeOverlay(b.dataset.close));
+    document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)closeOverlay(o.id);}));
+    byId('sendCodeBtn').onclick=()=>{const val=byId('identityInput').value.trim();if(!val){byId('loginError').textContent='请先输入手机号或邮箱。';return;}byId('loginError').textContent='演示验证码：246810';};
+    byId('loginForm').onsubmit=e=>{e.preventDefault();const id=byId('identityInput').value.trim(),code=byId('codeInput').value.trim();if(!id||code!=='246810'){byId('loginError').textContent='请检查登录信息，演示验证码为 246810。';return;}state.user={identity:id,role:state.role};state.view='workspace';closeOverlay('loginOverlay');byId('loginBtn').style.display='none';byId('askTopBtn').style.display='none';renderWorkspace();if(state.intent==='ask')openCompose('ask');else if(state.intent?.startsWith('answer:'))openCompose('answer',state.intent.split(':')[1]);state.intent=null;};
+    document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.overlay.open').forEach(o=>closeOverlay(o.id));});
+    renderPublic();
+  </script>
+</body>
+</html>

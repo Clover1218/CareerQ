@@ -26,12 +26,21 @@ watch(() => route.fullPath, refresh);
 </script>
 
 <template>
-  <header class="topbar">
-    <div class="brand" @click="router.push('/')">职问桥 <span>CareerQ</span></div>
-    <nav class="nav">
+  <header class="topbar" :class="{ 'topbar-hr': user?.role === 'hr', 'topbar-operator': user?.role === 'operator' || user?.role === 'admin' }">
+    <div class="brand" @click="router.push(user?.role === 'hr' ? '/hr/questions' : user?.role === 'operator' || user?.role === 'admin' ? '/admin/moderation' : '/')">
+      <template v-if="user?.role === 'hr'">HR 工作台 <span>CareerQ</span></template>
+      <template v-else-if="user?.role === 'operator' || user?.role === 'admin'">运营审核 <span>CareerQ</span></template>
+      <template v-else>职问桥 <span>CareerQ</span></template>
+    </div>
+    <nav v-if="user?.role === 'hr'" class="nav">
+      <router-link to="/hr/questions">公开问题池</router-link>
+    </nav>
+    <nav v-else-if="user?.role === 'operator' || user?.role === 'admin'" class="nav">
+      <router-link to="/admin/moderation">内容审核</router-link>
+    </nav>
+    <nav v-else class="nav">
       <router-link to="/">公开问答</router-link>
-      <router-link to="/ask">提问</router-link>
-      <router-link v-if="user?.role === 'hr'" to="/hr/private-pool">私密工单</router-link>
+      <router-link v-if="!user || user.role === 'student'" to="/ask">提问</router-link>
     </nav>
     <div class="account">
       <template v-if="user">
@@ -45,7 +54,7 @@ watch(() => route.fullPath, refresh);
       </template>
     </div>
   </header>
-  <main class="container">
+  <main class="container" :class="{ 'container-hr': user?.role === 'hr', 'container-operator': user?.role === 'operator' || user?.role === 'admin' }">
     <router-view />
   </main>
 </template>

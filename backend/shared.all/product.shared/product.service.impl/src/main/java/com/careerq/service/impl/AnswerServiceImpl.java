@@ -41,12 +41,7 @@ public class AnswerServiceImpl implements AnswerService {
     public AnswerView create(AuthUser hr, Long questionId, CreateRequest request) {
         QuestionDO question = questionDao.findByIdForUpdate(questionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
-        if ("private".equals(question.getScope())) {
-            boolean assignedToMe = hr.getId().equals(question.getAssignedHrId());
-            if (!assignedToMe || !"assigned".equals(question.getStatus())) {
-                throw new BusinessException(ErrorCode.FORBIDDEN, "该私密问题未指派给你");
-            }
-        } else if (!PUBLISHED.equals(question.getStatus())) {
+        if (!"public".equals(question.getScope()) || !PUBLISHED.equals(question.getStatus())) {
             throw new BusinessException(ErrorCode.CONFLICT, "问题当前不可回答");
         }
 
@@ -55,7 +50,7 @@ public class AnswerServiceImpl implements AnswerService {
         answer.setAuthorId(hr.getId());
         answer.setBody(request.body());
         answer.setLengthType(normalizeLengthType(request.lengthType()));
-        answer.setStatus("private".equals(question.getScope()) ? "pending_human" : moderationService.decide(request.body()));
+        answer.setStatus(moderationService.decide(request.body()));
         answerDao.insert(answer);
         if (!PUBLISHED.equals(answer.getStatus())) {
             moderationService.recordMachine("answer", answer.getId(), answer.getStatus());

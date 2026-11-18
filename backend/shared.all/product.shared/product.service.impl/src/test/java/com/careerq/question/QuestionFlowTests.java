@@ -82,7 +82,7 @@ class QuestionFlowTests {
                                 "tags", List.of("实习", "面试准备"),
                                 "scope", scope))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("private".equals(scope) ? "pending_human" : "published"))
+                .andExpect(jsonPath("$.data.status").value("published"))
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString())
                 .path("data").path("id").asLong();
@@ -138,6 +138,32 @@ class QuestionFlowTests {
 
         mockMvc.perform(get("/api/v1/hr/question-pool").session(hr))
                 .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/hr/answered-questions").session(hr))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].id").value(questionId));
+
+        MockHttpSession anotherHr = loginAsHr("13800000110");
+        mockMvc.perform(get("/api/v1/hr/answered-questions").session(anotherHr))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(0));
+
+        mockMvc.perform(get("/api/v1/hr/answered-questions").session(student))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void hrCannotCreateQuestion() throws Exception {
+        MockHttpSession hr = loginAsHr("13800000109");
+
+        mockMvc.perform(post("/api/v1/questions")
+                        .session(hr).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "title", "HR 不应创建学生问题",
+                                "body", "HR 工作台只提供回答相关能力。",
+                                "tags", List.of("权限"),
+                                "scope", "public"))))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -145,7 +171,6 @@ class QuestionFlowTests {
         MockHttpSession student = login("13800000105");
         long older = createQuestion(student, "public");
         long newer = createQuestion(student, "public");
-        createQuestion(student, "private");
 
         mockMvc.perform(get("/api/v1/questions").param("tag", "实习").param("limit", "1"))
                 .andExpect(status().isOk())
@@ -178,15 +203,30 @@ class QuestionFlowTests {
     }
 
     @Test
-    void privateQuestionOnlyVisibleToAuthor() throws Exception {
-        MockHttpSession student = login("13800000104");
-        long questionId = createQuestion(student, "private");
+    void authorCanSeeOwnQuestionWhilePendingReviewButOthersCannot() throws Exception {
+        MockHttpSession student = login("13800000111");
+        MvcResult created = mockMvc.perform(post("/api/v1/questions")
+                        .session(student).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "title", "实习沟通问题",
+                                "body", "可以加微信聊一下实习机会吗？",
+                                "tags", List.of("实习"),
+                                "scope", "public"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("pending_human"))
+                .andReturn();
+        long questionId = objectMapper.readTree(created.getResponse().getContentAsString())
+                .path("data").path("id").asLong();
 
         mockMvc.perform(get("/api/v1/questions/{id}", questionId))
-                .andExpect(status().isForbidden());
-
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/questions/{id}", questionId).session(login("13800000112")))
+                .andExpect(status().isNotFound());
         mockMvc.perform(get("/api/v1/questions/{id}", questionId).session(student))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.question.scope").value("private"));
+                .andExpect(jsonPath("$.data.question.status").value("pending_human"))
+                .andExpect(jsonPath("$.data.question.title").value("实习沟通问题"));
     }
+
 }

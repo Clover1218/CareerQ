@@ -16,7 +16,7 @@ export interface UserBrief {
 
 export interface Question {
   id: number;
-  scope: "public" | "private";
+  scope: "public";
   status: string;
   title: string;
   body: string;
@@ -49,13 +49,6 @@ export interface Followup {
   createdAt: string;
 }
 
-export interface PublicPost {
-  id: number;
-  title: string;
-  questionBody: string;
-  hrAnswer: string;
-}
-
 export interface QuestionDetail {
   question: Question;
   answers: Answer[];
@@ -65,6 +58,23 @@ export interface QuestionDetail {
 export interface PageResult<T> {
   items: T[];
   nextCursor: number | null;
+}
+
+export type ModerationTargetType = "question" | "answer" | "followup" | "public_post";
+
+export interface ModerationQueueItem {
+  targetType: ModerationTargetType;
+  targetId: number;
+  title: string | null;
+  snippet: string;
+  status: string;
+  createdAt: string;
+  body: string | null;
+  hrAnswer: string | null;
+  questionId: number | null;
+  questionTitle: string | null;
+  authorId: number | null;
+  authorNickname: string | null;
 }
 
 export class ApiError extends Error {
@@ -161,11 +171,11 @@ export const api = {
     return request<User>("/me");
   },
 
-  listQuestions(tag?: string, cursor?: number | null): Promise<PageResult<Question>> {
+  listQuestions(tag?: string, cursor?: number | null, limit = 20): Promise<PageResult<Question>> {
     const params = new URLSearchParams();
     if (tag) params.set("tag", tag);
     if (cursor) params.set("cursor", String(cursor));
-    params.set("limit", "20");
+    params.set("limit", String(limit));
     return request<PageResult<Question>>(`/questions?${params.toString()}`);
   },
 
@@ -177,7 +187,6 @@ export const api = {
     title: string;
     body: string;
     tags: string[];
-    scope: "public" | "private";
   }): Promise<Question> {
     return request<Question>("/questions", {
       method: "POST",
@@ -206,23 +215,34 @@ export const api = {
     });
   },
 
-  privatePool(): Promise<PageResult<Question>> {
-    return request<PageResult<Question>>("/hr/private-pool?limit=20");
+  hrQuestionPool(cursor?: number | null, limit = 5): Promise<PageResult<Question>> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (cursor) params.set("cursor", String(cursor));
+    return request<PageResult<Question>>(`/hr/question-pool?${params.toString()}`).then((page) => ({
+      ...page,
+      nextCursor: page.nextCursor ?? null,
+    }));
   },
 
-  claim(questionId: number): Promise<Question> {
-    return request<Question>(`/hr/questions/${questionId}/claim`, { method: "POST" });
+  hrAnsweredQuestions(cursor?: number | null, limit = 5): Promise<PageResult<Question>> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (cursor) params.set("cursor", String(cursor));
+    return request<PageResult<Question>>(`/hr/answered-questions?${params.toString()}`).then((page) => ({
+      ...page,
+      nextCursor: page.nextCursor ?? null,
+    }));
   },
 
-  closeQuestion(questionId: number): Promise<Question> {
-    return request<Question>(`/questions/${questionId}/close`, { method: "POST" });
+  moderationQueue(): Promise<ModerationQueueItem[]> {
+    return request<ModerationQueueItem[]>("/admin/moderation/queue");
   },
 
-  publishQuestion(questionId: number): Promise<Question> {
-    return request<Question>(`/questions/${questionId}/publish`, { method: "POST" });
+  decideModeration(targetType: ModerationTargetType, targetId: number,
+                   decision: "approve" | "reject" | "remove", note?: string): Promise<void> {
+    return request<void>(`/admin/moderation/${targetType}/${targetId}/decide`, {
+      method: "POST",
+      body: JSON.stringify({ decision, note: note?.trim() || undefined }),
+    });
   },
 
-  posts(): Promise<PublicPost[]> {
-    return request<PublicPost[]>("/posts");
-  },
 };

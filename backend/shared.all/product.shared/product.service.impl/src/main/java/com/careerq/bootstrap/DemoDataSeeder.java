@@ -2,8 +2,6 @@ package com.careerq.bootstrap;
 
 import com.careerq.dataobject.AnswerDO;
 import com.careerq.dao.AnswerDao;
-import com.careerq.dataobject.PublicPostDO;
-import com.careerq.dao.PublicPostDao;
 import com.careerq.dataobject.QuestionDO;
 import com.careerq.dao.QuestionDao;
 import com.careerq.dataobject.TagDO;
@@ -38,18 +36,15 @@ public class DemoDataSeeder implements CommandLineRunner {
     private final QuestionDao questionDao;
     private final AnswerDao answerDao;
     private final TagDao tagDao;
-    private final PublicPostDao publicPostDao;
 
     public DemoDataSeeder(UserDao userDao,
                           QuestionDao questionDao,
                           AnswerDao answerDao,
-                          TagDao tagDao,
-                          PublicPostDao publicPostDao) {
+                          TagDao tagDao) {
         this.userDao = userDao;
         this.questionDao = questionDao;
         this.answerDao = answerDao;
         this.tagDao = tagDao;
-        this.publicPostDao = publicPostDao;
     }
 
     @Override
@@ -104,17 +99,6 @@ public class DemoDataSeeder implements CommandLineRunner {
         q3.setStatus("published");
         questionDao.insert(q3);
         tagDao.linkToQuestion(q3.getId(), interview.getId());
-
-        // 一条已审核公开的私密沉淀
-        PublicPostDO post = new PublicPostDO();
-        post.setOriginalQuestionId(q2.getId());
-        post.setTitle("没有实习经历，简历怎么写才不空？");
-        post.setQuestionBody("大二还没有实习，简历应该怎么突出自己？");
-        post.setHrAnswer("突出课程项目、竞赛、社团与技能证书，用结果量化产出。");
-        post.setAnonymized(true);
-        post.setStatus("published");
-        post.setPublishedAt(LocalDateTime.now());
-        publicPostDao.insert(post);
 
         log.info("[demo] 演示数据已写入：学生 13800000001 / HR 13800000002 / 运营 13800000003（验证码 123456）");
     }

@@ -21,6 +21,7 @@
 | 鉴权 | **Cookie 会话 + CSRF Token**；登录/注册分离：未注册登录返回 40401，`POST /auth/register` 注册并建会话 |
 | ⚠️ 分工 | **用户本人负责 Spring Boot 后端与前后端连接**；前端界面由队友负责；Qoder Sites 与 Spring Boot 的关系待确认 |
 | ✅ 已裁决 | 2026-11-14：采用**方案 C（公开提问 + 私密工单混合）**；Qoder Sites 强制。详见 `docs/流程v2评估-私密问答与公开沉淀.md` |
+| ✅ 最新产品决策 | 2026-11-17：采用匿名公开问答；私密问题/工单暂缓，入口与 API 已移除。策划书与接口契约为当前依据。 |
 | Web 技术栈 | 响应式 Web：Vue3 + TypeScript + Vite；FastAPI + PostgreSQL + Redis；Caddy/CDN |
 | 工作区 | `D:\CareerQ` |
 | 远端仓库 | `https://github.com/Clover1218/CareerQ.git`（`main` 已建立，2026-11-11 首次推送成功） |

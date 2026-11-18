@@ -168,9 +168,6 @@ public class AdminServiceImpl implements AdminService {
             publicPostDao.updateCopy(id, copy.title().trim(), copy.questionBody().trim(), copy.hrAnswer().trim());
         }
         publicPostDao.updateStatus(id, status, approved ? LocalDateTime.now() : null);
-        if (question != null && "private".equals(question.getScope()) && "public_pending".equals(question.getStatus())) {
-            questionDao.updateStatus(question.getId(), approved ? "public_archived" : "public_rejected");
-        }
     }
 
     private void requirePending(String current, String next) {

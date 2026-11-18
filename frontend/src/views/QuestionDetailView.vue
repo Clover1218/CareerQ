@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute } from "vue-router";
 import { api, type QuestionDetail, type User } from "../api";
 
 const route = useRoute();
-const router = useRouter();
 const detail = ref<QuestionDetail | null>(null);
 const me = ref<User | null>(null);
 const error = ref("");
@@ -53,32 +52,15 @@ async function markUseful(answerId: number) {
   }
 }
 
-async function closeQuestion() {
-  try {
-    await api.closeQuestion(questionId);
-    await load();
-  } catch (e: any) {
-    error.value = e.message;
-  }
-}
-
-async function publishQuestion() {
-  try {
-    await api.publishQuestion(questionId);
-    await load();
-  } catch (e: any) {
-    error.value = e.message;
-  }
-}
+const reviewStatus: Record<string, string> = {
+  pending_machine: "机器审核中",
+  pending_human: "人工审核中",
+  published: "已发布",
+  rejected: "审核未通过",
+  removed: "已下架",
+};
 
 const isAuthor = () => detail.value && me.value && detail.value.question.author.id === me.value.id;
-const reviewStatus: Record<string, string> = {
-  pending_human: "待审核",
-  rejected: "审核未通过",
-  public_pending: "已结单，公开稿待审核",
-  public_archived: "已脱敏公开",
-  public_rejected: "公开稿审核未通过",
-};
 
 onMounted(load);
 </script>
@@ -92,23 +74,27 @@ onMounted(load);
       <router-link to="/" class="muted">返回列表</router-link>
     </div>
     <div class="row" style="margin: 8px 0">
-      <span class="tag">{{ detail.question.scope === "private" ? "私密工单" : "公开" }}</span>
+      <span class="tag">公开问题</span>
       <span class="tag">{{ reviewStatus[detail.question.status] ?? detail.question.status }}</span>
       <span v-for="t in detail.question.tags" :key="t" class="tag">{{ t }}</span>
       <span class="muted">{{ detail.question.author.nickname }}</span>
     </div>
     <p class="question-body">{{ detail.question.body }}</p>
-    <div v-if="detail.question.scope === 'private' && isAuthor()" class="row">
-      <button v-if="detail.question.status === 'assigned' && detail.answers.some(a => a.status === 'published')" class="primary" @click="closeQuestion">
-        结单并提交脱敏公开
-      </button>
-      <button v-if="['closed', 'public_rejected'].includes(detail.question.status)" class="primary" @click="publishQuestion">
-        提交公开审核
-      </button>
-    </div>
+    <p v-if="isAuthor() && detail.question.status === 'pending_human'" class="review-notice" role="status">
+      问题已提交，正在等待运营审核。审核通过后会在公开问题池展示。
+    </p>
+    <p v-else-if="isAuthor() && detail.question.status === 'pending_machine'" class="review-notice" role="status">
+      问题正在审核中，请稍后再查看。
+    </p>
+    <p v-else-if="isAuthor() && detail.question.status === 'rejected'" class="review-notice review-notice-rejected" role="status">
+      问题未通过审核，因此不会公开展示。请检查内容后重新提问。
+    </p>
+    <p v-else-if="isAuthor() && detail.question.status === 'removed'" class="review-notice review-notice-rejected" role="status">
+      问题已被运营下架，其他用户无法查看。
+    </p>
   </div>
 
-  <div v-if="detail" class="card">
+  <div v-if="detail && detail.question.status === 'published'" class="card">
     <h3>回答（{{ detail.answers.length }}）</h3>
     <p v-if="detail.answers.length === 0" class="muted">还没有回答。</p>
     <div v-for="a in detail.answers" :key="a.id" class="answer">
@@ -123,14 +109,14 @@ onMounted(load);
     </div>
   </div>
 
-  <div v-if="detail" class="card">
+  <div v-if="detail && detail.question.status === 'published'" class="card">
     <h3>追问（{{ detail.followups.length }}）</h3>
     <p v-if="detail.followups.length === 0" class="muted">暂无追问。</p>
     <div v-for="f in detail.followups" :key="f.id" class="followup">
       <strong>{{ f.senderRole === "hr" ? "HR" : "学生" }}：</strong>{{ f.body }}
       <span v-if="f.status !== 'published'" class="tag">{{ reviewStatus[f.status] }}</span>
     </div>
-    <template v-if="me && (detail.question.scope === 'public' || detail.question.status === 'assigned')">
+    <template v-if="me?.role === 'student'">
       <div class="field" style="margin-top: 12px">
         <textarea v-model="followupBody" placeholder="继续追问…" />
       </div>
