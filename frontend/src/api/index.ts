@@ -6,6 +6,7 @@ export interface User {
   id: number;
   role: "student" | "hr" | "operator" | "admin";
   nickname: string;
+  avatarUrl?: string | null;
   school?: string | null;
   major?: string | null;
   grade?: string | null;
@@ -160,6 +161,7 @@ export interface Profile {
   id: number;
   role: string;
   nickname: string;
+  avatarUrl?: string | null;
   school?: string | null;
   major?: string | null;
   grade?: string | null;
@@ -293,8 +295,13 @@ export const api = {
     return request<Profile>("/me/profile", { method: "PATCH", body: payload });
   },
 
-  listQuestions(tag?: string, cursor?: number | null, limit = 20): Promise<PageResult<QuestionFeedItem>> {
-    const params = new URLSearchParams();
+  uploadAvatar(file: File): Promise<Profile> {
+    const form = new FormData();
+    form.append("file", file);
+    return request<Profile>("/me/avatar", { method: "POST", rawBody: form });
+  },
+
+  listQuestions(tag?: string, cursor?: number | null, limit = 20): Promise<PageResult<QuestionFeedItem>> {    const params = new URLSearchParams();
     if (tag) params.set("tag", tag);
     if (cursor != null) params.set("cursor", String(cursor));
     params.set("limit", String(limit));
