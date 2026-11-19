@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { onMounted, watch } from "vue";
+import { computed, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { dateZhCN, zhCN, type GlobalThemeOverrides } from "naive-ui";
 import { useUserStore } from "@/stores/user";
+import MessageMenu from "@/components/MessageMenu.vue";
 
 // Naive UI 主题与 Figma token 对齐，避免组件库默认蓝与设计稿脱节
 const themeOverrides: GlobalThemeOverrides = {
@@ -23,6 +24,22 @@ const router = useRouter();
 const route = useRoute();
 const userStore = useUserStore();
 const { user } = storeToRefs(userStore);
+
+// 顶栏账号：角色文案、头像兜底首字、点击进入学生主页（/me）
+const ROLE_LABEL: Record<string, string> = {
+  student: "学生",
+  hr: "HR",
+  operator: "运营",
+  admin: "管理员",
+};
+const roleLabel = computed(() => ROLE_LABEL[user.value?.role ?? "student"] ?? "学生");
+const avatarInitial = computed(() => (user.value?.nickname ?? "学").trim().slice(0, 1));
+
+function goProfile() {
+  if (user.value) {
+    router.push("/me");
+  }
+}
 
 async function refresh() {
   await userStore.fetchUserInfo();
@@ -54,8 +71,35 @@ watch(() => route.fullPath, refresh);
               </nav>
               <div class="account">
                 <template v-if="user">
-                  <span class="nickname">{{ user.nickname }}</span>
-                  <button class="link logout-link" @click="logout">退出</button>
+                  <div class="account-profile">
+                    <button
+                      class="account-trigger"
+                      type="button"
+                      :aria-label="`${user.nickname} 的主页`"
+                      @click="goProfile"
+                    >
+                      <span class="account-avatar">
+                        <img v-if="user.avatarUrl" :src="user.avatarUrl" alt="" />
+                        <template v-else>{{ avatarInitial }}</template>
+                      </span>
+                      <span class="account-name">{{ user.nickname }}</span>
+                    </button>
+                    <div class="account-pop" role="tooltip" @click="goProfile">
+                      <span class="role">{{ roleLabel }}</span>
+                      <span class="account-pop-hint">进入我的主页</span>
+                    </div>
+                  </div>
+                  <MessageMenu />
+                  <n-popconfirm
+                    positive-text="退出登录"
+                    negative-text="取消"
+                    @positive-click="logout"
+                  >
+                    <template #trigger>
+                      <button class="link logout-link" type="button">退出</button>
+                    </template>
+                    确定要退出登录吗？
+                  </n-popconfirm>
                 </template>
                 <template v-else>
                   <router-link class="account-link" to="/login">登录</router-link>

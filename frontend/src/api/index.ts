@@ -6,6 +6,7 @@ export interface User {
   id: number;
   role: "student" | "hr" | "operator" | "admin";
   nickname: string;
+  avatarUrl?: string | null;
   school?: string | null;
   major?: string | null;
   grade?: string | null;
@@ -120,6 +121,7 @@ export interface Profile {
   id: number;
   role: string;
   nickname: string;
+  avatarUrl?: string | null;
   school?: string | null;
   major?: string | null;
   grade?: string | null;
@@ -227,6 +229,12 @@ export const api = {
 
   patchProfile(payload: ProfilePatch): Promise<Profile> {
     return request<Profile>("/me/profile", { method: "PATCH", body: payload });
+  },
+
+  uploadAvatar(file: File): Promise<Profile> {
+    const form = new FormData();
+    form.append("file", file);
+    return request<Profile>("/me/avatar", { method: "POST", rawBody: form });
   },
 
   listQuestions(tag?: string, cursor?: number | null): Promise<PageResult<QuestionFeedItem>> {
