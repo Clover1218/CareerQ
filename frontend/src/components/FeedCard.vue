@@ -20,7 +20,11 @@ const props = defineProps<{
   status?: string;
   /** 我的问答列表：作者视角，隐藏编辑器并将提问时间常驻 */
   ownerMode?: boolean;
+  /** 我的问答列表：是否显示「撤回」操作 */
+  withdrawable?: boolean;
 }>();
+
+const emit = defineEmits<{ withdraw: [] }>();
 
 const route = useRoute();
 const router = useRouter();
@@ -81,10 +85,11 @@ const STATUS_META: Record<string, { text: string; color: string }> = {
   open: { text: "待认领", color: "var(--color-text-muted)" },
   assigned: { text: "进行中", color: "var(--color-brand)" },
   closed: { text: "已结单", color: "var(--color-text-muted)" },
+  removed: { text: "已撤回", color: "var(--color-text-muted)" },
 };
 
 const statusMeta = computed(() => {
-  if (!props.status || props.status === "removed") return null;
+  if (!props.status) return null;
   return STATUS_META[props.status] ?? { text: props.status, color: "var(--color-text-muted)" };
 });
 
@@ -402,6 +407,14 @@ onBeforeUnmount(() => {
         <div class="flex items-center gap-4" :class="ownerMode ? 'justify-between' : 'justify-end'">
           <span v-if="ownerMode" class="text-14 text-muted">提问于 {{ formatTime(item.createdAt) }}</span>
           <div class="flex items-center gap-4">
+            <button
+              v-if="ownerMode && withdrawable"
+              class="feed-action"
+              aria-label="撤回提问"
+              @click="emit('withdraw')"
+            >
+              <span>撤回</span>
+            </button>
             <button class="feed-action" aria-label="回答" @click="toggleThread">
               <FeedIcon name="comment" />
               <span>{{ threadOpen ? "收起回答" : replyLabel }}</span>

@@ -314,6 +314,10 @@ export const api = {
     return request<Question>(`/questions/${questionId}/publish`, { method: "POST" });
   },
 
+  withdrawQuestion(questionId: number): Promise<Question> {
+    return request<Question>(`/questions/${questionId}/withdraw`, { method: "POST" });
+  },
+
   posts(): Promise<PublicPost[]> {
     return request<PublicPost[]>("/posts");
   },

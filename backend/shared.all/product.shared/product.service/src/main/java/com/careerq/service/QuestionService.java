@@ -36,6 +36,9 @@ public interface QuestionService {
 
     QuestionView claim(AuthUser hr, Long id);
 
+    /** 提问者撤回自己的问题（仅未产生回答且未结单时可用）。 */
+    QuestionView withdraw(AuthUser author, Long id);
+
     QuestionView close(AuthUser author, Long id);
 
     QuestionView publish(AuthUser author, Long id);

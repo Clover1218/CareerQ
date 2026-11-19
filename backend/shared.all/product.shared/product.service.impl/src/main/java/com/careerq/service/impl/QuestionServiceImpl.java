@@ -435,6 +435,28 @@ public class QuestionServiceImpl implements QuestionService {
     public QuestionView claim(AuthUser hr, Long id) {
         throw new BusinessException(ErrorCode.INVALID_PARAM, "私密问答已明确不做");
     }
+    @Override
+    @Transactional
+    public QuestionView withdraw(AuthUser author, Long id) {
+        QuestionDO question = questionDao.findByIdForUpdate(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
+        if (!author.getId().equals(question.getAuthorId())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "只有提问者可以撤回问题");
+        }
+        String status = question.getStatus();
+        if ("removed".equals(status)) {
+            throw new BusinessException(ErrorCode.CONFLICT, "问题已撤回");
+        }
+        if (!Set.of("pending_machine", "pending_human", "published").contains(status)) {
+            throw new BusinessException(ErrorCode.CONFLICT, "当前状态不可撤回");
+        }
+        if (answerDao.countByQuestionId(id) > 0) {
+            throw new BusinessException(ErrorCode.CONFLICT, "问题已有回答，不能撤回");
+        }
+        questionDao.updateStatus(id, "removed");
+        question.setStatus("removed");
+        return toView(question, false);
+    }
 
     @Override
     @Transactional

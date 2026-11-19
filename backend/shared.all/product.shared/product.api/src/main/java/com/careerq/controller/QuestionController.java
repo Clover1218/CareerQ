@@ -70,6 +70,11 @@ public class QuestionController {
         return ApiResponse.ok(questionService.thread(AuthUsers.optional(authentication), id));
     }
 
+    @PostMapping("/{id}/withdraw")
+    public ApiResponse<QuestionView> withdraw(Authentication authentication, @PathVariable Long id) {
+        return ApiResponse.ok(questionService.withdraw(AuthUsers.require(authentication), id));
+    }
+
     @PostMapping("/{id}/close")
     public ApiResponse<QuestionView> close(Authentication authentication, @PathVariable Long id) {
         return ApiResponse.ok(questionService.close(AuthUsers.require(authentication), id));
