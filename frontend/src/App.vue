@@ -90,7 +90,16 @@ watch(() => route.fullPath, refresh);
                     </div>
                   </div>
                   <MessageMenu />
-                  <button class="link logout-link" @click="logout">退出</button>
+                  <n-popconfirm
+                    positive-text="退出登录"
+                    negative-text="取消"
+                    @positive-click="logout"
+                  >
+                    <template #trigger>
+                      <button class="link logout-link" type="button">退出</button>
+                    </template>
+                    确定要退出登录吗？
+                  </n-popconfirm>
                 </template>
                 <template v-else>
                   <router-link class="account-link" to="/login">登录</router-link>
