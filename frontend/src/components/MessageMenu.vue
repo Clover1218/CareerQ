@@ -71,6 +71,16 @@ function open(category: MessageCategory) {
   align-items: center;
 }
 
+/* 透明桥接区：填满「消息」与面板之间的 8px 间隙，鼠标移入面板时不会误触离开 */
+.msg-menu::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 10px;
+}
+
 .msg-trigger {
   display: inline-flex;
   align-items: center;
@@ -124,10 +134,11 @@ function open(category: MessageCategory) {
   opacity: 0;
   visibility: hidden;
   transform: translateY(-4px);
+  /* 收起时延迟 200ms，给鼠标留出移动到面板的时间 */
   transition:
-    opacity 0.15s ease,
-    transform 0.15s ease,
-    visibility 0.15s ease;
+    opacity 0.15s ease 0.2s,
+    transform 0.15s ease 0.2s,
+    visibility 0.15s ease 0.2s;
   pointer-events: none;
 }
 
@@ -137,6 +148,8 @@ function open(category: MessageCategory) {
   visibility: visible;
   transform: translateY(0);
   pointer-events: auto;
+  /* 展开时立即响应，不加延迟 */
+  transition-delay: 0s;
 }
 
 .msg-item {
