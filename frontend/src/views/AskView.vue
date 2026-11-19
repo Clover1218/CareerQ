@@ -2,11 +2,12 @@
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { api } from "../api";
+import TagPicker from "../components/TagPicker.vue";
 
 const router = useRouter();
 const title = ref("");
 const body = ref("");
-const tags = ref("");
+const tags = ref<string[]>([]);
 const scope = ref<"public" | "private">("public");
 const error = ref("");
 const loading = ref(false);
@@ -22,10 +23,7 @@ async function submit() {
     const created = await api.createQuestion({
       title: title.value.trim(),
       body: body.value.trim(),
-      tags: tags.value
-        .split(/[,，\s]+/)
-        .map((t) => t.trim())
-        .filter(Boolean),
+      tags: tags.value,
       scope: scope.value,
     });
     router.push(`/questions/${created.id}`);
@@ -49,8 +47,8 @@ async function submit() {
       <textarea v-model="body" maxlength="5000" placeholder="补充背景、你已尝试的方法、希望得到什么建议" />
     </div>
     <div class="field">
-      <label>标签（用逗号分隔）</label>
-      <input v-model="tags" placeholder="实习, 面试准备" />
+      <label>文章标签（最多 5 个）</label>
+      <TagPicker v-model="tags" :max="5" />
     </div>
     <div class="field">
       <label>可见性</label>

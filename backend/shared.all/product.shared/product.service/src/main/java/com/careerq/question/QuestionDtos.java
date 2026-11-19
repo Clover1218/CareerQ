@@ -72,6 +72,23 @@ public final class QuestionDtos {
     public record FeedPage(List<QuestionFeedItem> items, String nextCursor) {
     }
 
+    public enum FeedSort {
+        RECOMMEND,
+        LATEST,
+        HOT
+    }
+
+    /** 公开列表筛选条件；period 保留原始枚举值，便于游标指纹在翻页时保持稳定。 */
+    public record FeedQuery(
+            String q,
+            List<String> tags,
+            boolean matchAll,
+            String period,
+            LocalDateTime from,
+            LocalDateTime to,
+            FeedSort sort) {
+    }
+
     /** 当前查看者对问题/回答的互动状态。 */
     public record ViewerState(boolean liked, boolean usefuled, boolean favorited, boolean disliked) {
     }

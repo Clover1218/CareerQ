@@ -58,7 +58,35 @@
                                                                                                    }
                                                                                    }
                                                                        }
-                                                     }
+                                                     },
+                                             "patch":  {
+                                                           "tags":  [
+                                                                        "profile-controller"
+                                                                    ],
+                                                           "operationId":  "patch",
+                                                           "requestBody":  {
+                                                                               "content":  {
+                                                                                               "application/json":  {
+                                                                                                                        "schema":  {
+                                                                                                                                       "$ref":  "#/components/schemas/PatchRequest"
+                                                                                                                                   }
+                                                                                                                    }
+                                                                                           },
+                                                                               "required":  true
+                                                                           },
+                                                           "responses":  {
+                                                                             "200":  {
+                                                                                         "description":  "OK",
+                                                                                         "content":  {
+                                                                                                         "*/*":  {
+                                                                                                                     "schema":  {
+                                                                                                                                    "$ref":  "#/components/schemas/ApiResponseProfileView"
+                                                                                                                                }
+                                                                                                                 }
+                                                                                                     }
+                                                                                     }
+                                                                         }
+                                                       }
                                          },
                   "/api/v1/reports":  {
                                           "post":  {
@@ -95,7 +123,7 @@
                                                         "tags":  [
                                                                      "question-controller"
                                                                  ],
-                                                        "operationId":  "list",
+                                                        "operationId":  "list_1",
                                                         "parameters":  [
                                                                            {
                                                                                "name":  "tag",
@@ -203,7 +231,7 @@
                                                                        "tags":  [
                                                                                     "followup-controller"
                                                                                 ],
-                                                                       "operationId":  "list_1",
+                                                                       "operationId":  "list_2",
                                                                        "parameters":  [
                                                                                           {
                                                                                               "name":  "id",
@@ -340,6 +368,44 @@
                                                                                     }
                                                                   }
                                                      },
+                  "/api/v1/me/avatar":  {
+                                            "post":  {
+                                                         "tags":  [
+                                                                      "avatar-controller"
+                                                                  ],
+                                                         "operationId":  "upload",
+                                                         "requestBody":  {
+                                                                             "content":  {
+                                                                                             "application/json":  {
+                                                                                                                      "schema":  {
+                                                                                                                                     "required":  [
+                                                                                                                                                      "file"
+                                                                                                                                                  ],
+                                                                                                                                     "type":  "object",
+                                                                                                                                     "properties":  {
+                                                                                                                                                        "file":  {
+                                                                                                                                                                     "type":  "string",
+                                                                                                                                                                     "format":  "binary"
+                                                                                                                                                                 }
+                                                                                                                                                    }
+                                                                                                                                 }
+                                                                                                                  }
+                                                                                         }
+                                                                         },
+                                                         "responses":  {
+                                                                           "200":  {
+                                                                                       "description":  "OK",
+                                                                                       "content":  {
+                                                                                                       "*/*":  {
+                                                                                                                   "schema":  {
+                                                                                                                                  "$ref":  "#/components/schemas/ApiResponseProfileView"
+                                                                                                                              }
+                                                                                                               }
+                                                                                                   }
+                                                                                   }
+                                                                       }
+                                                     }
+                                        },
                   "/api/v1/interactions":  {
                                                "post":  {
                                                             "tags":  [
@@ -677,6 +743,74 @@
                                                                                     }
                                                                   }
                                                      },
+                  "/api/v1/tags":  {
+                                       "get":  {
+                                                   "tags":  [
+                                                                "tag-controller"
+                                                            ],
+                                                   "operationId":  "list",
+                                                   "parameters":  [
+                                                                      {
+                                                                          "name":  "category",
+                                                                          "in":  "query",
+                                                                          "required":  false,
+                                                                          "schema":  {
+                                                                                         "type":  "string"
+                                                                                     }
+                                                                      },
+                                                                      {
+                                                                          "name":  "keyword",
+                                                                          "in":  "query",
+                                                                          "required":  false,
+                                                                          "schema":  {
+                                                                                         "type":  "string"
+                                                                                     }
+                                                                      },
+                                                                      {
+                                                                          "name":  "limit",
+                                                                          "in":  "query",
+                                                                          "required":  false,
+                                                                          "schema":  {
+                                                                                         "type":  "integer",
+                                                                                         "format":  "int32",
+                                                                                         "default":  50
+                                                                                     }
+                                                                      }
+                                                                  ],
+                                                   "responses":  {
+                                                                     "200":  {
+                                                                                 "description":  "OK",
+                                                                                 "content":  {
+                                                                                                 "*/*":  {
+                                                                                                             "schema":  {
+                                                                                                                            "$ref":  "#/components/schemas/ApiResponseListTagView"
+                                                                                                                        }
+                                                                                                         }
+                                                                                             }
+                                                                             }
+                                                                 }
+                                               }
+                                   },
+                  "/api/v1/tags/categories":  {
+                                                  "get":  {
+                                                              "tags":  [
+                                                                           "tag-controller"
+                                                                       ],
+                                                              "operationId":  "categories",
+                                                              "responses":  {
+                                                                                "200":  {
+                                                                                            "description":  "OK",
+                                                                                            "content":  {
+                                                                                                            "*/*":  {
+                                                                                                                        "schema":  {
+                                                                                                                                       "$ref":  "#/components/schemas/ApiResponseListTagCategoryView"
+                                                                                                                                   }
+                                                                                                                    }
+                                                                                                        }
+                                                                                        }
+                                                                            }
+                                                          }
+                                              },
                   "/api/v1/system/health":  {
                                                 "get":  {
                                                             "tags":  [
@@ -790,12 +924,61 @@
                                                                                    }
                                                                  }
                                                      },
+                  "/api/v1/questions/mine":  {
+                                                 "get":  {
+                                                             "tags":  [
+                                                                          "question-controller"
+                                                                      ],
+                                                             "operationId":  "mine",
+                                                             "parameters":  [
+                                                                                {
+                                                                                    "name":  "scope",
+                                                                                    "in":  "query",
+                                                                                    "required":  false,
+                                                                                    "schema":  {
+                                                                                                   "type":  "string"
+                                                                                               }
+                                                                                },
+                                                                                {
+                                                                                    "name":  "cursor",
+                                                                                    "in":  "query",
+                                                                                    "required":  false,
+                                                                                    "schema":  {
+                                                                                                   "type":  "integer",
+                                                                                                   "format":  "int64"
+                                                                                               }
+                                                                                },
+                                                                                {
+                                                                                    "name":  "limit",
+                                                                                    "in":  "query",
+                                                                                    "required":  false,
+                                                                                    "schema":  {
+                                                                                                   "type":  "integer",
+                                                                                                   "format":  "int32",
+                                                                                                   "default":  20
+                                                                                               }
+                                                                                }
+                                                                            ],
+                                                             "responses":  {
+                                                                               "200":  {
+                                                                                           "description":  "OK",
+                                                                                           "content":  {
+                                                                                                           "*/*":  {
+                                                                                                                       "schema":  {
+                                                                                                                                      "$ref":  "#/components/schemas/ApiResponsePageResultQuestionView"
+                                                                                                                                  }
+                                                                                                                   }
+                                                                                                       }
+                                                                                       }
+                                                                           }
+                                                         }
+                                             },
                   "/api/v1/posts":  {
                                         "get":  {
                                                     "tags":  [
                                                                  "public-post-controller"
                                                              ],
-                                                    "operationId":  "list_2",
+                                                    "operationId":  "list_3",
                                                     "responses":  {
                                                                       "200":  {
                                                                                   "description":  "OK",
@@ -830,12 +1013,81 @@
                                                                }
                                              }
                                  },
+                  "/api/v1/me/stats":  {
+                                           "get":  {
+                                                       "tags":  [
+                                                                    "profile-controller"
+                                                                ],
+                                                       "operationId":  "stats",
+                                                       "responses":  {
+                                                                         "200":  {
+                                                                                     "description":  "OK",
+                                                                                     "content":  {
+                                                                                                     "*/*":  {
+                                                                                                                 "schema":  {
+                                                                                                                                "$ref":  "#/components/schemas/ApiResponseStats"
+                                                                                                                            }
+                                                                                                             }
+                                                                                                 }
+                                                                                 }
+                                                                     }
+                                                   }
+                                       },
+                  "/api/v1/me/questions":  {
+                                               "get":  {
+                                                           "tags":  [
+                                                                        "profile-controller"
+                                                                    ],
+                                                           "operationId":  "questions",
+                                                           "parameters":  [
+                                                                              {
+                                                                                  "name":  "scope",
+                                                                                  "in":  "query",
+                                                                                  "required":  false,
+                                                                                  "schema":  {
+                                                                                                 "type":  "string"
+                                                                                             }
+                                                                              },
+                                                                              {
+                                                                                  "name":  "cursor",
+                                                                                  "in":  "query",
+                                                                                  "required":  false,
+                                                                                  "schema":  {
+                                                                                                 "type":  "integer",
+                                                                                                 "format":  "int64"
+                                                                                             }
+                                                                              },
+                                                                              {
+                                                                                  "name":  "limit",
+                                                                                  "in":  "query",
+                                                                                  "required":  false,
+                                                                                  "schema":  {
+                                                                                                 "type":  "integer",
+                                                                                                 "format":  "int32",
+                                                                                                 "default":  20
+                                                                                             }
+                                                                              }
+                                                                          ],
+                                                           "responses":  {
+                                                                             "200":  {
+                                                                                         "description":  "OK",
+                                                                                         "content":  {
+                                                                                                         "*/*":  {
+                                                                                                                     "schema":  {
+                                                                                                                                    "$ref":  "#/components/schemas/ApiResponsePageResultQuestionView"
+                                                                                                                                }
+                                                                                                                 }
+                                                                                                     }
+                                                                                     }
+                                                                         }
+                                                       }
+                                           },
                   "/api/v1/me/favorites":  {
                                                "get":  {
                                                            "tags":  [
                                                                         "favorite-controller"
                                                                     ],
-                                                           "operationId":  "list_3",
+                                                           "operationId":  "list_4",
                                                            "parameters":  [
                                                                               {
                                                                                   "name":  "targetType",
@@ -961,6 +1213,154 @@
                                                                             }
                                                           }
                                               },
+                  "/api/v1/hr/answered-questions":  {
+                                                        "get":  {
+                                                                    "tags":  [
+                                                                                 "hr-controller"
+                                                                             ],
+                                                                    "operationId":  "answeredQuestions",
+                                                                    "parameters":  [
+                                                                                       {
+                                                                                           "name":  "cursor",
+                                                                                           "in":  "query",
+                                                                                           "required":  false,
+                                                                                           "schema":  {
+                                                                                                          "type":  "integer",
+                                                                                                          "format":  "int64"
+                                                                                                      }
+                                                                                       },
+                                                                                       {
+                                                                                           "name":  "limit",
+                                                                                           "in":  "query",
+                                                                                           "required":  false,
+                                                                                           "schema":  {
+                                                                                                          "type":  "integer",
+                                                                                                          "format":  "int32",
+                                                                                                          "default":  20
+                                                                                                      }
+                                                                                       }
+                                                                                   ],
+                                                                    "responses":  {
+                                                                                      "200":  {
+                                                                                                  "description":  "OK",
+                                                                                                  "content":  {
+                                                                                                                  "*/*":  {
+                                                                                                                              "schema":  {
+                                                                                                                                             "$ref":  "#/components/schemas/ApiResponsePageResultHrAnsweredQuestionView"
+                                                                                                                                         }
+                                                                                                                          }
+                                                                                                              }
+                                                                                              }
+                                                                                  }
+                                                                }
+                                                    },
+                  "/api/v1/feed/questions":  {
+                                                 "get":  {
+                                                             "tags":  [
+                                                                          "feed-controller"
+                                                                      ],
+                                                             "operationId":  "questions_1",
+                                                             "parameters":  [
+                                                                                {
+                                                                                    "name":  "q",
+                                                                                    "in":  "query",
+                                                                                    "required":  false,
+                                                                                    "schema":  {
+                                                                                                   "type":  "string"
+                                                                                               }
+                                                                                },
+                                                                                {
+                                                                                    "name":  "tag",
+                                                                                    "in":  "query",
+                                                                                    "required":  false,
+                                                                                    "schema":  {
+                                                                                                   "type":  "string"
+                                                                                               }
+                                                                                },
+                                                                                {
+                                                                                    "name":  "tags",
+                                                                                    "in":  "query",
+                                                                                    "required":  false,
+                                                                                    "schema":  {
+                                                                                                   "type":  "array",
+                                                                                                   "items":  {
+                                                                                                                 "type":  "string"
+                                                                                                             }
+                                                                                               }
+                                                                                },
+                                                                                {
+                                                                                    "name":  "tagMode",
+                                                                                    "in":  "query",
+                                                                                    "required":  false,
+                                                                                    "schema":  {
+                                                                                                   "type":  "string"
+                                                                                               }
+                                                                                },
+                                                                                {
+                                                                                    "name":  "period",
+                                                                                    "in":  "query",
+                                                                                    "required":  false,
+                                                                                    "schema":  {
+                                                                                                   "type":  "string"
+                                                                                               }
+                                                                                },
+                                                                                {
+                                                                                    "name":  "from",
+                                                                                    "in":  "query",
+                                                                                    "required":  false,
+                                                                                    "schema":  {
+                                                                                                   "type":  "string"
+                                                                                               }
+                                                                                },
+                                                                                {
+                                                                                    "name":  "to",
+                                                                                    "in":  "query",
+                                                                                    "required":  false,
+                                                                                    "schema":  {
+                                                                                                   "type":  "string"
+                                                                                               }
+                                                                                },
+                                                                                {
+                                                                                    "name":  "sort",
+                                                                                    "in":  "query",
+                                                                                    "required":  false,
+                                                                                    "schema":  {
+                                                                                                   "type":  "string"
+                                                                                               }
+                                                                                },
+                                                                                {
+                                                                                    "name":  "cursor",
+                                                                                    "in":  "query",
+                                                                                    "required":  false,
+                                                                                    "schema":  {
+                                                                                                   "type":  "string"
+                                                                                               }
+                                                                                },
+                                                                                {
+                                                                                    "name":  "limit",
+                                                                                    "in":  "query",
+                                                                                    "required":  false,
+                                                                                    "schema":  {
+                                                                                                   "type":  "integer",
+                                                                                                   "format":  "int32",
+                                                                                                   "default":  20
+                                                                                               }
+                                                                                }
+                                                                            ],
+                                                             "responses":  {
+                                                                               "200":  {
+                                                                                           "description":  "OK",
+                                                                                           "content":  {
+                                                                                                           "*/*":  {
+                                                                                                                       "schema":  {
+                                                                                                                                      "$ref":  "#/components/schemas/ApiResponseFeedPage"
+                                                                                                                                  }
+                                                                                                                   }
+                                                                                                       }
+                                                                                       }
+                                                                           }
+                                                         }
+                                             },
                   "/api/v1/feed/highlights":  {
                                                   "get":  {
                                                               "tags":  [
@@ -981,6 +1381,37 @@
                                                                             }
                                                           }
                                               },
+                  "/api/v1/avatars/{filename}":  {
+                                                     "get":  {
+                                                                 "tags":  [
+                                                                              "avatar-controller"
+                                                                          ],
+                                                                 "operationId":  "read",
+                                                                 "parameters":  [
+                                                                                    {
+                                                                                        "name":  "filename",
+                                                                                        "in":  "path",
+                                                                                        "required":  true,
+                                                                                        "schema":  {
+                                                                                                       "type":  "string"
+                                                                                                   }
+                                                                                    }
+                                                                                ],
+                                                                 "responses":  {
+                                                                                   "200":  {
+                                                                                               "description":  "OK",
+                                                                                               "content":  {
+                                                                                                               "*/*":  {
+                                                                                                                           "schema":  {
+                                                                                                                                          "type":  "string",
+                                                                                                                                          "format":  "byte"
+                                                                                                                                      }
+                                                                                                                       }
+                                                                                                           }
+                                                                                           }
+                                                                               }
+                                                             }
+                                                 },
                   "/api/v1/auth/csrf":  {
                                             "get":  {
                                                         "tags":  [
@@ -1212,6 +1643,9 @@
                                                                               "nickname":  {
                                                                                                "type":  "string"
                                                                                            },
+                                                                              "avatarUrl":  {
+                                                                                                "type":  "string"
+                                                                                            },
                                                                               "school":  {
                                                                                              "type":  "string"
                                                                                          },
@@ -1519,21 +1953,24 @@
                                                                                                    "minLength":  0,
                                                                                                    "type":  "string"
                                                                                                },
-                                                                                  "school":  {
-                                                                                                 "maxLength":  128,
-                                                                                                 "minLength":  0,
-                                                                                                 "type":  "string"
-                                                                                             },
-                                                                                  "major":  {
-                                                                                                "maxLength":  128,
-                                                                                                "minLength":  0,
-                                                                                                "type":  "string"
-                                                                                            },
-                                                                                  "grade":  {
-                                                                                                "maxLength":  32,
-                                                                                                "minLength":  0,
-                                                                                                "type":  "string"
-                                                                                            }
+                                                                                  "company":  {
+                                                                                                  "maxLength":  128,
+                                                                                                  "minLength":  0,
+                                                                                                  "type":  "string"
+                                                                                              },
+                                                                                  "industry":  {
+                                                                                                   "maxLength":  64,
+                                                                                                   "minLength":  0,
+                                                                                                   "type":  "string"
+                                                                                               },
+                                                                                  "position":  {
+                                                                                                   "maxLength":  64,
+                                                                                                   "minLength":  0,
+                                                                                                   "type":  "string"
+                                                                                               },
+                                                                                  "role":  {
+                                                                                               "type":  "string"
+                                                                                           }
                                                                               }
                                                            },
                                        "ApiResponseLoginResult":  {
@@ -1572,6 +2009,9 @@
                                                                            "nickname":  {
                                                                                             "type":  "string"
                                                                                         },
+                                                                           "avatarUrl":  {
+                                                                                             "type":  "string"
+                                                                                         },
                                                                            "school":  {
                                                                                           "type":  "string"
                                                                                       },
@@ -1712,6 +2152,113 @@
                                                                                          }
                                                                        }
                                                     },
+                                       "PatchRequest":  {
+                                                            "type":  "object",
+                                                            "properties":  {
+                                                                               "nickname":  {
+                                                                                                "maxLength":  64,
+                                                                                                "minLength":  0,
+                                                                                                "type":  "string"
+                                                                                            },
+                                                                               "school":  {
+                                                                                              "maxLength":  128,
+                                                                                              "minLength":  0,
+                                                                                              "type":  "string"
+                                                                                          },
+                                                                               "major":  {
+                                                                                             "maxLength":  128,
+                                                                                             "minLength":  0,
+                                                                                             "type":  "string"
+                                                                                         },
+                                                                               "grade":  {
+                                                                                             "maxLength":  32,
+                                                                                             "minLength":  0,
+                                                                                             "type":  "string"
+                                                                                         },
+                                                                               "degree":  {
+                                                                                              "maxLength":  32,
+                                                                                              "minLength":  0,
+                                                                                              "type":  "string"
+                                                                                          },
+                                                                               "graduationYear":  {
+                                                                                                      "maxLength":  16,
+                                                                                                      "minLength":  0,
+                                                                                                      "type":  "string"
+                                                                                                  },
+                                                                               "experiences":  {
+                                                                                                   "type":  "array",
+                                                                                                   "items":  {
+                                                                                                                 "$ref":  "#/components/schemas/ExperienceItem"
+                                                                                                             }
+                                                                                               }
+                                                                           }
+                                                        },
+                                       "ApiResponseListTagView":  {
+                                                                      "type":  "object",
+                                                                      "properties":  {
+                                                                                         "code":  {
+                                                                                                      "type":  "integer",
+                                                                                                      "format":  "int32"
+                                                                                                  },
+                                                                                         "message":  {
+                                                                                                         "type":  "string"
+                                                                                                     },
+                                                                                         "data":  {
+                                                                                                      "type":  "array",
+                                                                                                      "items":  {
+                                                                                                                    "$ref":  "#/components/schemas/TagView"
+                                                                                                                }
+                                                                                                  }
+                                                                                     }
+                                                                  },
+                                       "TagView":  {
+                                                       "type":  "object",
+                                                       "properties":  {
+                                                                          "id":  {
+                                                                                     "type":  "integer",
+                                                                                     "format":  "int64"
+                                                                                 },
+                                                                          "name":  {
+                                                                                       "type":  "string"
+                                                                                   },
+                                                                          "slug":  {
+                                                                                       "type":  "string"
+                                                                                   },
+                                                                          "category":  {
+                                                                                           "type":  "string"
+                                                                                       }
+                                                                      }
+                                                   },
+                                       "ApiResponseListTagCategoryView":  {
+                                                                              "type":  "object",
+                                                                              "properties":  {
+                                                                                                 "code":  {
+                                                                                                              "type":  "integer",
+                                                                                                              "format":  "int32"
+                                                                                                          },
+                                                                                                 "message":  {
+                                                                                                                 "type":  "string"
+                                                                                                             },
+                                                                                                 "data":  {
+                                                                                                              "type":  "array",
+                                                                                                              "items":  {
+                                                                                                                            "$ref":  "#/components/schemas/TagCategoryView"
+                                                                                                                        }
+                                                                                                          }
+                                                                                             }
+                                                                          },
+                                       "TagCategoryView":  {
+                                                               "type":  "object",
+                                                               "properties":  {
+                                                                                  "name":  {
+                                                                                               "type":  "string"
+                                                                                           },
+                                                                                  "tagCount":  {
+                                                                                                   "type":  "integer",
+                                                                                                   "format":  "int32"
+                                                                                               }
+                                                                              }
+                                                           },
                                        "ApiResponseMapStringObject":  {
                                                                           "type":  "object",
                                                                           "properties":  {
@@ -1802,7 +2349,13 @@
                                                                                    "createdAt":  {
                                                                                                      "type":  "string",
                                                                                                      "format":  "date-time"
-                                                                                                 }
+                                                                                                 },
+                                                                                   "matchedTags":  {
+                                                                                                       "type":  "array",
+                                                                                                       "items":  {
+                                                                                                                     "type":  "string"
+                                                                                                                 }
+                                                                                                   }
                                                                                }
                                                             },
                                        "ApiResponseQuestionDetail":  {
@@ -1854,7 +2407,10 @@
                                                                                            },
                                                                               "favorited":  {
                                                                                                 "type":  "boolean"
-                                                                                            }
+                                                                                            },
+                                                                              "disliked":  {
+                                                                                               "type":  "boolean"
+                                                                                           }
                                                                           }
                                                        },
                                        "ApiResponseThreadView":  {
@@ -1980,6 +2536,36 @@
                                                                                                  }
                                                                                   }
                                                                },
+                                       "ApiResponsePageResultQuestionView":  {
+                                                                                 "type":  "object",
+                                                                                 "properties":  {
+                                                                                                    "code":  {
+                                                                                                                 "type":  "integer",
+                                                                                                                 "format":  "int32"
+                                                                                                             },
+                                                                                                    "message":  {
+                                                                                                                    "type":  "string"
+                                                                                                                },
+                                                                                                    "data":  {
+                                                                                                                 "$ref":  "#/components/schemas/PageResultQuestionView"
+                                                                                                             }
+                                                                                                }
+                                                                             },
+                                       "PageResultQuestionView":  {
+                                                                      "type":  "object",
+                                                                      "properties":  {
+                                                                                         "items":  {
+                                                                                                       "type":  "array",
+                                                                                                       "items":  {
+                                                                                                                     "$ref":  "#/components/schemas/QuestionView"
+                                                                                                                 }
+                                                                                                   },
+                                                                                         "nextCursor":  {
+                                                                                                            "type":  "integer",
+                                                                                                            "format":  "int64"
+                                                                                                        }
+                                                                                     }
+                                                                  },
                                        "ApiResponseListPostView":  {
                                                                        "type":  "object",
                                                                        "properties":  {
@@ -2048,6 +2634,42 @@
                                                                                                }
                                                                                   }
                                                                },
+                                       "ApiResponseStats":  {
+                                                                "type":  "object",
+                                                                "properties":  {
+                                                                                   "code":  {
+                                                                                                "type":  "integer",
+                                                                                                "format":  "int32"
+                                                                                            },
+                                                                                   "message":  {
+                                                                                                   "type":  "string"
+                                                                                               },
+                                                                                   "data":  {
+                                                                                                "$ref":  "#/components/schemas/Stats"
+                                                                                            }
+                                                                               }
+                                                            },
+                                       "Stats":  {
+                                                     "type":  "object",
+                                                     "properties":  {
+                                                                        "questionCount":  {
+                                                                                              "type":  "integer",
+                                                                                              "format":  "int64"
+                                                                                          },
+                                                                        "receivedAnswerCount":  {
+                                                                                                    "type":  "integer",
+                                                                                                    "format":  "int64"
+                                                                                                },
+                                                                        "authoredAnswerCount":  {
+                                                                                                    "type":  "integer",
+                                                                                                    "format":  "int64"
+                                                                                                },
+                                                                        "likeCount":  {
+                                                                                          "type":  "integer",
+                                                                                          "format":  "int64"
+                                                                                      }
+                                                                    }
+                                                 },
                                        "ApiResponsePageResultFavoriteView":  {
                                                                                  "type":  "object",
                                                                                  "properties":  {
@@ -2100,45 +2722,107 @@
                                                                                                         }
                                                                                      }
                                                                   },
-                                       "ApiResponsePageResultQuestionView":  {
-                                                                                 "type":  "object",
-                                                                                 "properties":  {
-                                                                                                    "code":  {
-                                                                                                                 "type":  "integer",
-                                                                                                                 "format":  "int32"
-                                                                                                             },
-                                                                                                    "message":  {
-                                                                                                                    "type":  "string"
-                                                                                                                },
-                                                                                                    "data":  {
-                                                                                                                 "$ref":  "#/components/schemas/PageResultQuestionView"
-                                                                                                             }
+                                       "ApiResponsePageResultHrAnsweredQuestionView":  {
+                                                                                           "type":  "object",
+                                                                                           "properties":  {
+                                                                                                              "code":  {
+                                                                                                                           "type":  "integer",
+                                                                                                                           "format":  "int32"
+                                                                                                                       },
+                                                                                                              "message":  {
+                                                                                                                              "type":  "string"
+                                                                                                                          },
+                                                                                                              "data":  {
+                                                                                                                           "$ref":  "#/components/schemas/PageResultHrAnsweredQuestionView"
+                                                                                                                       }
+                                                                                                          }
+                                                                                       },
+                                       "HrAnswerSummary":  {
+                                                               "type":  "object",
+                                                               "properties":  {
+                                                                                  "id":  {
+                                                                                             "type":  "integer",
+                                                                                             "format":  "int64"
+                                                                                         },
+                                                                                  "body":  {
+                                                                                               "type":  "string"
+                                                                                           },
+                                                                                  "lengthType":  {
+                                                                                                     "type":  "string"
+                                                                                                 },
+                                                                                  "status":  {
+                                                                                                 "type":  "string"
+                                                                                             },
+                                                                                  "createdAt":  {
+                                                                                                    "type":  "string",
+                                                                                                    "format":  "date-time"
                                                                                                 }
-                                                                             },
-                                       "PageResultQuestionView":  {
+                                                                              }
+                                                           },
+                                       "HrAnsweredQuestionView":  {
                                                                       "type":  "object",
                                                                       "properties":  {
-                                                                                         "items":  {
-                                                                                                       "type":  "array",
-                                                                                                       "items":  {
-                                                                                                                     "$ref":  "#/components/schemas/QuestionView"
-                                                                                                                 }
-                                                                                                   },
-                                                                                         "nextCursor":  {
-                                                                                                            "type":  "integer",
-                                                                                                            "format":  "int64"
-                                                                                                        }
+                                                                                         "question":  {
+                                                                                                          "$ref":  "#/components/schemas/QuestionView"
+                                                                                                      },
+                                                                                         "myAnswer":  {
+                                                                                                          "$ref":  "#/components/schemas/HrAnswerSummary"
+                                                                                                      }
                                                                                      }
                                                                   },
+                                       "PageResultHrAnsweredQuestionView":  {
+                                                                                "type":  "object",
+                                                                                "properties":  {
+                                                                                                   "items":  {
+                                                                                                                 "type":  "array",
+                                                                                                                 "items":  {
+                                                                                                                               "$ref":  "#/components/schemas/HrAnsweredQuestionView"
+                                                                                                                           }
+                                                                                                             },
+                                                                                                   "nextCursor":  {
+                                                                                                                      "type":  "integer",
+                                                                                                                      "format":  "int64"
+                                                                                                                  }
+                                                                                               }
+                                                                            },
+                                       "ApiResponseFeedPage":  {
+                                                                   "type":  "object",
+                                                                   "properties":  {
+                                                                                      "code":  {
+                                                                                                   "type":  "integer",
+                                                                                                   "format":  "int32"
+                                                                                               },
+                                                                                      "message":  {
+                                                                                                      "type":  "string"
+                                                                                                  },
+                                                                                      "data":  {
+                                                                                                   "$ref":  "#/components/schemas/FeedPage"
+                                                                                               }
+                                                                                  }
+                                                               },
+                                       "FeedPage":  {
+                                                        "type":  "object",
+                                                        "properties":  {
+                                                                           "items":  {
+                                                                                         "type":  "array",
+                                                                                         "items":  {
+                                                                                                       "$ref":  "#/components/schemas/QuestionFeedItem"
+                                                                                                   }
+                                                                                     },
+                                                                           "nextCursor":  {
+                                                                                              "type":  "string"
+                                                                                          }
+                                                                       }
+                                                    },
                                        "CsrfToken":  {
                                                          "type":  "object",
                                                          "properties":  {
-                                                                            "parameterName":  {
-                                                                                                  "type":  "string"
-                                                                                              },
                                                                             "token":  {
                                                                                           "type":  "string"
                                                                                       },
+                                                                            "parameterName":  {
+                                                                                                  "type":  "string"
+                                                                                              },
                                                                             "headerName":  {
                                                                                                "type":  "string"
                                                                                            }

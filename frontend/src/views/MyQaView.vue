@@ -46,6 +46,7 @@ function toFeedItem(question: Question): QuestionFeedItem {
     likeCount: question.likeCount,
     favoriteCount: question.favoriteCount,
     createdAt: question.createdAt,
+    matchedTags: [],
   };
 }
 

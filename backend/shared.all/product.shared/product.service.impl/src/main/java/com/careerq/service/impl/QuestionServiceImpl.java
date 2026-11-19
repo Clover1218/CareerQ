@@ -16,12 +16,15 @@ import com.careerq.dataobject.PublicPostDO;
 import com.careerq.dataobject.QuestionDO;
 import com.careerq.dataobject.QuestionTagDO;
 import com.careerq.dataobject.TagDO;
-import com.careerq.feed.FeedCursor;
+import com.careerq.feed.FeedPageCursor;
 import com.careerq.feed.FeedScorer;
+import com.careerq.feed.FeedSeekCursor;
 import com.careerq.feed.FeedTuning;
 import com.careerq.followup.FollowupDtos.FollowupView;
 import com.careerq.question.QuestionDtos.CreateRequest;
 import com.careerq.question.QuestionDtos.FeedPage;
+import com.careerq.question.QuestionDtos.FeedQuery;
+import com.careerq.question.QuestionDtos.FeedSort;
 import com.careerq.question.QuestionDtos.HrAnswerSummary;
 import com.careerq.question.QuestionDtos.HrAnsweredQuestionView;
 import com.careerq.question.QuestionDtos.QuestionContentView;
@@ -40,13 +43,16 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -60,6 +66,9 @@ public class QuestionServiceImpl implements QuestionService {
     private static final String CLOSED = "closed";
     private static final String PUBLIC_PENDING = "public_pending";
     private static final String ANONYMOUS_NICKNAME = "匿名同学";
+    private static final int MAX_KEYWORD_LENGTH = 50;
+    private static final int MAX_TAGS = 10;
+    private static final int MAX_FILTER_RANGE_DAYS = 366;
 
     private final QuestionDao questionDao;
     private final AnswerDao answerDao;
@@ -122,30 +131,229 @@ public class QuestionServiceImpl implements QuestionService {
         return new PageResult<>(items, hasNext ? rows.get(size - 1).getId() : null);
     }
 
-    /**
-     * 推荐流：固定快照上重算完整排序，再按页码切片。
-     * 亲和分来自 user_tag_affinity（已按 30 天半衰期衰减），问题侧按标签求和后压扁。
-     */
     @Override
     @Transactional(readOnly = true)
     public FeedPage feed(AuthUser viewer, String tag, String cursor, int limit) {
-        String tagFilter = tag == null || tag.isBlank() ? null : tag.trim();
+        List<String> tags = tag == null || tag.isBlank() ? List.of() : List.of(tag.trim());
+        return feed(viewer, new FeedQuery(null, tags, true, null, null, null, FeedSort.RECOMMEND), cursor, limit);
+    }
+
+    /**
+     * 统一公开列表：latest 走 (createdAt, id) seek 分页；recommend/hot 在固定快照上
+     * 重算完整排序再按页码切片。筛选条件在候选召回阶段生效。
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public FeedPage feed(AuthUser viewer, FeedQuery query, String cursor, int limit) {
+        FeedFilter filter = normalizeFilter(query);
         int size = Math.clamp(limit, 1, 50);
-        FeedCursor page = cursor == null || cursor.isBlank()
-                ? FeedCursor.first(questionDao.findMaxId(PUBLIC, PUBLISHED))
-                : FeedCursor.decode(cursor);
+        if (filter.sort() == FeedSort.LATEST) {
+            return feedLatest(viewer, filter, cursor, size);
+        }
+        return feedScored(viewer, filter, cursor, size);
+    }
+
+    private FeedPage feedLatest(AuthUser viewer, FeedFilter filter, String cursor, int size) {
+        LocalDateTime lastCreatedAt = null;
+        long lastId = 0;
+        if (cursor != null && !cursor.isBlank()) {
+            FeedSeekCursor page = FeedSeekCursor.decode(cursor);
+            requireCursor(page.sort(), page.filterHash(), filter);
+            lastCreatedAt = page.lastCreatedAt();
+            lastId = page.lastId();
+        }
+        Long viewerId = viewer == null ? null : viewer.getId();
+        List<QuestionDO> rows = questionDao.listLatest(PUBLIC, PUBLISHED, filter.keyword(), filter.tags(),
+                filter.tags().size(), filter.matchAll(), filter.from(), filter.to(),
+                lastCreatedAt, lastId, viewerId, size + 1);
+        boolean hasMore = rows.size() > size;
+        List<QuestionDO> pageRows = hasMore ? rows.subList(0, size) : rows;
+        String nextCursor = null;
+        if (hasMore) {
+            QuestionDO last = pageRows.get(pageRows.size() - 1);
+            nextCursor = new FeedSeekCursor("latest", filter.hash(), last.getCreatedAt(), last.getId()).encode();
+        }
+        return new FeedPage(toFeedItems(pageRows), nextCursor);
+    }
+
+    private FeedPage feedScored(AuthUser viewer, FeedFilter filter, String cursor, int size) {
+        String sortName = filter.sort() == FeedSort.HOT ? "hot" : "recommend";
+        FeedPageCursor page;
+        if (cursor == null || cursor.isBlank()) {
+            page = FeedPageCursor.first(sortName, filter.hash(), questionDao.findMaxId(PUBLIC, PUBLISHED));
+        } else {
+            page = FeedPageCursor.decode(cursor);
+            requireCursor(page.sort(), page.filterHash(), filter);
+        }
         if (page.page() >= FeedTuning.MAX_PAGE) {
             return new FeedPage(List.of(), null);
         }
 
         Long viewerId = viewer == null ? null : viewer.getId();
         LocalDateTime snapshotAt = page.snapshotTime();
-        List<QuestionDO> candidates = loadCandidates(page, tagFilter, viewerId, size);
+        List<QuestionDO> candidates = loadCandidates(page, filter, viewerId, size);
         if (candidates.isEmpty()) {
             return new FeedPage(List.of(), null);
         }
 
         Map<Long, List<QuestionTagDO>> tagsByQuestion = loadQuestionTags(candidates);
+        List<ScoredQuestion> ordered = filter.sort() == FeedSort.HOT
+                ? scoreHot(candidates, tagsByQuestion, snapshotAt)
+                : scoreRecommend(candidates, tagsByQuestion, viewerId, snapshotAt, page.seed(), size);
+        int start = page.page() * size;
+        if (start >= ordered.size()) {
+            return new FeedPage(List.of(), null);
+        }
+        int end = Math.min(start + size, ordered.size());
+        List<QuestionFeedItem> items = ordered.subList(start, end).stream()
+                .map(item -> toFeedItem(item.question(),
+                        item.tags().stream().map(QuestionTagDO::getName).toList(), item.matchedTags()))
+                .toList();
+        boolean hasMore = end < ordered.size() && page.page() + 1 < FeedTuning.MAX_PAGE;
+        return new FeedPage(items, hasMore ? page.next().encode() : null);
+    }
+
+    private void requireCursor(String sort, long filterHash, FeedFilter filter) {
+        String expected = filter.sort() == FeedSort.HOT ? "hot"
+                : filter.sort() == FeedSort.LATEST ? "latest" : "recommend";
+        if (!expected.equals(sort) || filterHash != filter.hash()) {
+            throw new BusinessException(ErrorCode.INVALID_PARAM, "游标与当前筛选条件不匹配");
+        }
+    }
+
+    private FeedFilter normalizeFilter(FeedQuery query) {
+        FeedSort sort = query == null || query.sort() == null ? FeedSort.RECOMMEND : query.sort();
+        String keyword = query == null ? null : trimToNull(query.q());
+        if (keyword != null && keyword.length() > MAX_KEYWORD_LENGTH) {
+            throw new BusinessException(ErrorCode.INVALID_PARAM,
+                    "搜索关键词不能超过 " + MAX_KEYWORD_LENGTH + " 字");
+        }
+        if (keyword != null) {
+            keyword = keyword.toLowerCase(Locale.ROOT);
+        }
+        List<String> tags = normalizeTags(query == null ? null : query.tags());
+        if (tags.size() > MAX_TAGS) {
+            throw new BusinessException(ErrorCode.INVALID_PARAM, "标签筛选最多支持 " + MAX_TAGS + " 个");
+        }
+        LocalDateTime from = query == null ? null : query.from();
+        LocalDateTime to = query == null ? null : query.to();
+        String period = null;
+        if (from == null && to == null) {
+            period = normalizePeriod(query == null ? null : query.period());
+            from = periodStart(period);
+        }
+        if (from != null && to != null) {
+            if (!from.isBefore(to)) {
+                throw new BusinessException(ErrorCode.INVALID_PARAM, "开始时间必须早于结束时间");
+            }
+            if (Duration.between(from, to).toDays() > MAX_FILTER_RANGE_DAYS) {
+                throw new BusinessException(ErrorCode.INVALID_PARAM,
+                        "时间范围不能超过 " + MAX_FILTER_RANGE_DAYS + " 天");
+            }
+        }
+        boolean matchAll = query == null || query.matchAll();
+        // period 用原始枚举参与指纹，避免滚动窗口每次请求算出不同的 from 导致翻页游标失效
+        long hash = Objects.hash(sort, keyword, tags, matchAll, period,
+                period == null ? from : null, period == null ? to : null);
+        return new FeedFilter(sort, keyword, tags, matchAll, from, to, hash);
+    }
+
+    private String normalizePeriod(String period) {
+        if (period == null || period.isBlank()) {
+            return null;
+        }
+        String value = period.trim().toLowerCase(Locale.ROOT);
+        return switch (value) {
+            case "all" -> null;
+            case "day", "week", "month" -> value;
+            default -> throw new BusinessException(ErrorCode.INVALID_PARAM,
+                    "period 只能是 day、week、month 或 all");
+        };
+    }
+
+    private LocalDateTime periodStart(String period) {
+        if (period == null) {
+            return null;
+        }
+        return switch (period) {
+            case "day" -> LocalDateTime.now().minusHours(24);
+            case "week" -> LocalDateTime.now().minusDays(7);
+            case "month" -> LocalDateTime.now().minusDays(30);
+            default -> null;
+        };
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private List<String> normalizeTags(List<String> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return List.of();
+        }
+        Set<String> unique = new LinkedHashSet<>();
+        for (String value : raw) {
+            if (value == null) {
+                continue;
+            }
+            for (String part : value.split(",")) {
+                String tag = part.trim();
+                if (!tag.isEmpty()) {
+                    unique.add(tag);
+                }
+            }
+        }
+        return List.copyOf(unique);
+    }
+
+    private List<QuestionDO> loadCandidates(FeedPageCursor page, FeedFilter filter, Long viewerId, int size) {
+        boolean hot = filter.sort() == FeedSort.HOT;
+        LocalDateTime since = filter.from() != null
+                ? filter.from()
+                : page.snapshotTime().minusDays(hot
+                        ? FeedTuning.HOT_CANDIDATE_WINDOW_DAYS
+                        : FeedTuning.CANDIDATE_WINDOW_DAYS);
+        int limit = hot ? FeedTuning.HOT_CANDIDATE_LIMIT : FeedTuning.CANDIDATE_LIMIT;
+        List<QuestionDO> rows = questionDao.listFilteredCandidates(PUBLIC, PUBLISHED, page.maxId(), since,
+                filter.to(), filter.keyword(), filter.tags(), filter.tags().size(), filter.matchAll(),
+                viewerId, limit);
+        if (rows.size() < size && filter.from() == null) {
+            // 时间窗口内太少时放宽到不限时间，宁可有内容也不要空 Feed
+            rows = questionDao.listFilteredCandidates(PUBLIC, PUBLISHED, page.maxId(), null,
+                    filter.to(), filter.keyword(), filter.tags(), filter.tags().size(), filter.matchAll(),
+                    viewerId, limit);
+        }
+        return rows;
+    }
+
+    private List<ScoredQuestion> scoreHot(List<QuestionDO> candidates,
+                                          Map<Long, List<QuestionTagDO>> tagsByQuestion,
+                                          LocalDateTime snapshotAt) {
+        return candidates.stream()
+                .map(question -> new ScoredQuestion(question,
+                        tagsByQuestion.getOrDefault(question.getId(), List.of()),
+                        FeedScorer.hot(question, snapshotAt), List.of(), 0))
+                .sorted(Comparator
+                        .comparingDouble(ScoredQuestion::score).reversed()
+                        .thenComparing(Comparator.comparing(
+                                (ScoredQuestion item) -> item.question().getCreatedAt()).reversed())
+                        .thenComparing(Comparator.comparingLong(
+                                (ScoredQuestion item) -> item.question().getId()).reversed()))
+                .toList();
+    }
+
+    /**
+     * 推荐排序：固定快照上重算完整排序。
+     * 亲和分来自 user_tag_affinity（已按 30 天半衰期衰减），问题侧按标签求和后压扁。
+     */
+    private List<ScoredQuestion> scoreRecommend(List<QuestionDO> candidates,
+                                                Map<Long, List<QuestionTagDO>> tagsByQuestion,
+                                                Long viewerId, LocalDateTime snapshotAt,
+                                                long seed, int size) {
         Map<Long, Double> affinity = viewerId == null
                 ? Map.of()
                 : tagAffinityService.effectiveScores(viewerId, snapshotAt);
@@ -173,37 +381,27 @@ public class QuestionServiceImpl implements QuestionService {
             positive.sort(Comparator.comparingDouble(
                     (QuestionTagDO tagRow) -> affinity.getOrDefault(tagRow.getTagId(), 0.0)).reversed());
             List<String> matchedTags = positive.stream().limit(2).map(QuestionTagDO::getName).toList();
-            double score = FeedScorer.score(question, questionAffinity, hasAffinity, page.seed(), snapshotAt);
+            double score = FeedScorer.score(question, questionAffinity, hasAffinity, seed, snapshotAt);
             scored.add(new ScoredQuestion(question, tags, score, matchedTags, minAffinity));
         }
         scored.sort(Comparator.comparingDouble(ScoredQuestion::score)
                 .thenComparingLong((ScoredQuestion item) -> item.question().getId())
                 .reversed());
 
-        List<ScoredQuestion> ordered = diversify(filterNegatives(scored, size));
-        int start = page.page() * size;
-        if (start >= ordered.size()) {
-            return new FeedPage(List.of(), null);
-        }
-        int end = Math.min(start + size, ordered.size());
-        List<QuestionFeedItem> items = ordered.subList(start, end).stream()
-                .map(item -> toFeedItem(item.question(),
-                        item.tags().stream().map(QuestionTagDO::getName).toList(), item.matchedTags()))
-                .toList();
-        boolean hasMore = end < ordered.size() && page.page() + 1 < FeedTuning.MAX_PAGE;
-        return new FeedPage(items, hasMore ? page.next().encode() : null);
+        return diversify(filterNegatives(scored, size));
     }
 
-    private List<QuestionDO> loadCandidates(FeedCursor page, String tag, Long viewerId, int size) {
-        LocalDateTime since = page.snapshotTime().minusDays(FeedTuning.CANDIDATE_WINDOW_DAYS);
-        List<QuestionDO> rows = questionDao.listFeedCandidates(PUBLIC, PUBLISHED, page.maxId(), since,
-                tag, viewerId, FeedTuning.CANDIDATE_LIMIT);
-        if (rows.size() < size) {
-            // 时间窗口内太少时放宽到不限时间，宁可有内容也不要空 Feed
-            rows = questionDao.listFeedCandidates(PUBLIC, PUBLISHED, page.maxId(), null,
-                    tag, viewerId, FeedTuning.CANDIDATE_LIMIT);
+    private List<QuestionFeedItem> toFeedItems(List<QuestionDO> rows) {
+        if (rows.isEmpty()) {
+            return List.of();
         }
-        return rows;
+        Map<Long, List<QuestionTagDO>> tagsByQuestion = loadQuestionTags(rows);
+        return rows.stream()
+                .map(question -> toFeedItem(question,
+                        tagsByQuestion.getOrDefault(question.getId(), List.of()).stream()
+                                .map(QuestionTagDO::getName).toList(),
+                        List.of()))
+                .toList();
     }
 
     private Map<Long, List<QuestionTagDO>> loadQuestionTags(List<QuestionDO> questions) {
@@ -265,6 +463,10 @@ public class QuestionServiceImpl implements QuestionService {
 
     private record ScoredQuestion(QuestionDO question, List<QuestionTagDO> tags,
                                   double score, List<String> matchedTags, double minAffinity) {
+    }
+
+    private record FeedFilter(FeedSort sort, String keyword, List<String> tags, boolean matchAll,
+                              LocalDateTime from, LocalDateTime to, long hash) {
     }
 
     @Override

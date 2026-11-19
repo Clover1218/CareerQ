@@ -25,6 +25,15 @@ public final class FeedTuning {
     public static final int CANDIDATE_WINDOW_DAYS = 60;
     public static final int MAX_PAGE = 25;
 
+    /** 热门排序：加权互动 × 7 天半衰期，「+1」基线让新问题也有机会出现。 */
+    public static final double HOT_LIKE_WEIGHT = 1.0;
+    public static final double HOT_FAVORITE_WEIGHT = 3.0;
+    public static final double HOT_USEFUL_WEIGHT = 1.5;
+    public static final double HOT_REPLY_WEIGHT = 2.0;
+    public static final double HOT_BASELINE = 1.0;
+    public static final int HOT_CANDIDATE_LIMIT = 1000;
+    public static final int HOT_CANDIDATE_WINDOW_DAYS = 180;
+
     private FeedTuning() {
     }
 

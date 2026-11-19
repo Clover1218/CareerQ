@@ -59,18 +59,36 @@ public interface QuestionDao {
     @Select("select coalesce(max(id), 0) from questions where scope = #{scope} and status = #{status}")
     long findMaxId(@Param("scope") String scope, @Param("status") String status);
 
-    /** 推荐流候选池：固定快照上界，排除当前用户已“不喜欢”的问题。 */
+    /**
+     * 推荐/热门候选池：固定快照上界，支持关键词、多标签（AND/OR）与时间范围过滤，
+     * 并排除当前用户已“不喜欢”的问题。候选按 id 倒序截断。
+     */
     @Select("""
             <script>
             select q.* from questions q
             where q.scope = #{scope} and q.status = #{status}
               and q.id &lt;= #{maxId}
             <if test="since != null">and q.created_at &gt;= #{since}</if>
-            <if test="tag != null">
-                and exists (
-                    select 1 from question_tags qt join tags t on t.id = qt.tag_id
-                    where qt.question_id = q.id and t.slug = #{tag}
-                )
+            <if test="until != null">and q.created_at &lt; #{until}</if>
+            <if test="keyword != null">
+                and (locate(#{keyword}, lower(q.title)) &gt; 0 or locate(#{keyword}, lower(q.body)) &gt; 0)
+            </if>
+            <if test="tags != null and tags.size() &gt; 0">
+                <choose>
+                    <when test="matchAll">
+                        and (select count(distinct t.id) from question_tags qt join tags t on t.id = qt.tag_id
+                             where qt.question_id = q.id and t.slug in
+                             <foreach collection="tags" item="tag" open="(" separator="," close=")">#{tag}</foreach>
+                        ) = #{tagCount}
+                    </when>
+                    <otherwise>
+                        and exists (
+                            select 1 from question_tags qt join tags t on t.id = qt.tag_id
+                            where qt.question_id = q.id and t.slug in
+                            <foreach collection="tags" item="tag" open="(" separator="," close=")">#{tag}</foreach>
+                        )
+                    </otherwise>
+                </choose>
             </if>
             <if test="excludeUserId != null">
                 and not exists (
@@ -82,10 +100,61 @@ public interface QuestionDao {
             order by q.id desc limit #{limit}
             </script>
             """)
-    List<QuestionDO> listFeedCandidates(@Param("scope") String scope, @Param("status") String status,
-                                        @Param("maxId") long maxId, @Param("since") LocalDateTime since,
-                                        @Param("tag") String tag, @Param("excludeUserId") Long excludeUserId,
-                                        @Param("limit") int limit);
+    List<QuestionDO> listFilteredCandidates(@Param("scope") String scope, @Param("status") String status,
+                                            @Param("maxId") long maxId, @Param("since") LocalDateTime since,
+                                            @Param("until") LocalDateTime until, @Param("keyword") String keyword,
+                                            @Param("tags") List<String> tags, @Param("tagCount") int tagCount,
+                                            @Param("matchAll") boolean matchAll,
+                                            @Param("excludeUserId") Long excludeUserId, @Param("limit") int limit);
+
+    /** 最新排序：按 (createdAt, id) 做 seek 分页，支持同一套关键词/标签/时间过滤。 */
+    @Select("""
+            <script>
+            select q.* from questions q
+            where q.scope = #{scope} and q.status = #{status}
+            <if test="lastCreatedAt != null">
+              and (q.created_at &lt; #{lastCreatedAt}
+                   or (q.created_at = #{lastCreatedAt} and q.id &lt; #{lastId}))
+            </if>
+            <if test="from != null">and q.created_at &gt;= #{from}</if>
+            <if test="to != null">and q.created_at &lt; #{to}</if>
+            <if test="keyword != null">
+                and (locate(#{keyword}, lower(q.title)) &gt; 0 or locate(#{keyword}, lower(q.body)) &gt; 0)
+            </if>
+            <if test="tags != null and tags.size() &gt; 0">
+                <choose>
+                    <when test="matchAll">
+                        and (select count(distinct t.id) from question_tags qt join tags t on t.id = qt.tag_id
+                             where qt.question_id = q.id and t.slug in
+                             <foreach collection="tags" item="tag" open="(" separator="," close=")">#{tag}</foreach>
+                        ) = #{tagCount}
+                    </when>
+                    <otherwise>
+                        and exists (
+                            select 1 from question_tags qt join tags t on t.id = qt.tag_id
+                            where qt.question_id = q.id and t.slug in
+                            <foreach collection="tags" item="tag" open="(" separator="," close=")">#{tag}</foreach>
+                        )
+                    </otherwise>
+                </choose>
+            </if>
+            <if test="excludeUserId != null">
+                and not exists (
+                    select 1 from interactions i
+                    where i.user_id = #{excludeUserId} and i.target_type = 'question'
+                      and i.target_id = q.id and i.type = 'dislike'
+                )
+            </if>
+            order by q.created_at desc, q.id desc
+            limit #{limit}
+            </script>
+            """)
+    List<QuestionDO> listLatest(@Param("scope") String scope, @Param("status") String status,
+                                @Param("keyword") String keyword, @Param("tags") List<String> tags,
+                                @Param("tagCount") int tagCount, @Param("matchAll") boolean matchAll,
+                                @Param("from") LocalDateTime from, @Param("to") LocalDateTime to,
+                                @Param("lastCreatedAt") LocalDateTime lastCreatedAt, @Param("lastId") long lastId,
+                                @Param("excludeUserId") Long excludeUserId, @Param("limit") int limit);
 
     @Select("""
             <script>

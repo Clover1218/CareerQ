@@ -22,6 +22,15 @@ public final class FeedScorer {
                 + exploration;
     }
 
+    public static double hot(QuestionDO question, LocalDateTime snapshotAt) {
+        double engagement = FeedTuning.HOT_BASELINE
+                + FeedTuning.HOT_LIKE_WEIGHT * question.getLikeCount()
+                + FeedTuning.HOT_FAVORITE_WEIGHT * question.getFavoriteCount()
+                + FeedTuning.HOT_USEFUL_WEIGHT * question.getUsefulCount()
+                + FeedTuning.HOT_REPLY_WEIGHT * (question.getAnswerCount() + question.getFollowupCount());
+        return engagement * recency(question, snapshotAt);
+    }
+
     public static double quality(QuestionDO question) {
         double reply = question.getAnswerCount() + question.getFollowupCount();
         double engagement = 3.0 * question.getFavoriteCount()

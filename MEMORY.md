@@ -104,6 +104,7 @@
 - 2026-11-14 M0/M1 完成：JDK 21（Temurin 21.0.13）已装且 JAVA_HOME 已设；数据库定 **MySQL 8**（dev 用 H2 MySQL 模式）；`backend/` 骨架建成，`mvn test` 通过，Flyway V1 全量表迁移成功。下一步 M2 鉴权。
 - 2026-11-15 公开问答重构：feed 摘要 → `/content` → `/thread` 三态懒加载；前端 FeedCard1/2/3 与 Figma 对齐并做响应式页头；后端 37 项测试、`pnpm build` 通过；`docs/openapi.json` 重新生成（30 个 path）。注意：当前 shell 的 `JAVA_HOME` 可能仍是 JDK 17，Maven 前需指向 JDK 21。
 - 2026-11-16 公开问答交互修订：去头像；feed 的 `excerpt` 改为完整正文（删 `truncated` 与 120 字截断），每张卡片固定「阅读全文」；全文与回答区互相独立；发送按钮随输入框焦点显隐（按钮需 `@mousedown.prevent`）。37 项测试与构建通过。
+- 2026-11-19 公开问答筛选：后端 `/api/v1/feed/questions` 支持 `q`、`tags`（多标签 AND）、`period/from/to`、`sort=recommend|latest|hot` 与不透明游标（快照+种子，筛选指纹校验）；前端新增 `FeedFilterPanel`（搜索、标签复用 TagPicker、时间预设+自定义起止、排序、换一换）并接入列表页。注意：naive-ui 日期范围面板首次点击即下发 `[start,start]`，需自维护「选择中」阶段，否则会在首击就关闭并只筛一天。详见 `2026-11-19_QORDER.md`。
 
 ## 五、项目概要（CareerQ）
 

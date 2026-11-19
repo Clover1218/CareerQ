@@ -3,6 +3,7 @@ package com.careerq.service;
 import com.careerq.common.PageResult;
 import com.careerq.question.QuestionDtos.CreateRequest;
 import com.careerq.question.QuestionDtos.FeedPage;
+import com.careerq.question.QuestionDtos.FeedQuery;
 import com.careerq.question.QuestionDtos.HrAnsweredQuestionView;
 import com.careerq.question.QuestionDtos.QuestionContentView;
 import com.careerq.question.QuestionDtos.QuestionDetail;
@@ -18,6 +19,8 @@ public interface QuestionService {
     PageResult<QuestionFeedItem> list(String tag, Long cursor, int limit);
 
     FeedPage feed(AuthUser viewer, String tag, String cursor, int limit);
+
+    FeedPage feed(AuthUser viewer, FeedQuery query, String cursor, int limit);
 
     PageResult<QuestionView> mine(AuthUser author, String scope, Long cursor, int limit);
 
