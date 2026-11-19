@@ -10,15 +10,12 @@ interface MessageCategory {
   key: string;
   label: string;
   count?: number;
-  dot?: boolean;
 }
 
 const categories = ref<MessageCategory[]>([
   { key: "reply", label: "回复我的", count: 2 },
-  { key: "mention", label: "@我的" },
   { key: "like", label: "收到的赞" },
   { key: "system", label: "系统消息" },
-  { key: "mine", label: "我的消息", dot: true },
 ]);
 
 const unreadTotal = ref(
@@ -62,7 +59,6 @@ function open(category: MessageCategory) {
       >
         <span>{{ item.label }}</span>
         <span v-if="item.count" class="msg-item-badge">{{ item.count }}</span>
-        <span v-else-if="item.dot" class="msg-dot" aria-label="有新消息" />
       </button>
     </div>
   </div>
@@ -181,12 +177,5 @@ function open(category: MessageCategory) {
   font-size: 11px;
   line-height: 1;
   font-weight: 600;
-}
-
-.msg-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #ff383c;
 }
 </style>
