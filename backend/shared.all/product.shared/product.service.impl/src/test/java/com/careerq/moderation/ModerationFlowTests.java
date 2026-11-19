@@ -161,59 +161,6 @@ class ModerationFlowTests {
                 .andExpect(jsonPath("$.data.answers.length()").value(0));
     }
 
-    @Test
-    void publicPostRequiresModerationBeforeListing() throws Exception {
-        MockHttpSession student = login("13800000306");
-        long questionId = createQuestion(student, "试用期被辞退怎么办？", "想了解试用期辞退的合法流程。", "private");
-        MockHttpSession operator = loginAs("13800000308", "operator");
-        mockMvc.perform(post("/api/v1/admin/moderation/question/{id}/decide", questionId)
-                        .session(operator).with(csrf()).contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("decision", "approve"))))
-                .andExpect(status().isOk());
-
-        MockHttpSession hr = loginAs("13800000307", "hr");
-        mockMvc.perform(post("/api/v1/hr/questions/{id}/claim", questionId).session(hr).with(csrf()))
-                .andExpect(status().isOk());
-        MvcResult answer = mockMvc.perform(post("/api/v1/questions/{id}/answers", questionId)
-                        .session(hr).with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("body", "先确认辞退理由与证据，再谈补偿。"))))
-                .andExpect(status().isOk()).andReturn();
-        long answerId = objectMapper.readTree(answer.getResponse().getContentAsString()).path("data").path("id").asLong();
-        mockMvc.perform(post("/api/v1/admin/moderation/answer/{id}/decide", answerId)
-                        .session(operator).with(csrf()).contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("decision", "approve"))))
-                .andExpect(status().isOk());
-        mockMvc.perform(post("/api/v1/questions/{id}/close", questionId).session(student).with(csrf()))
-                .andExpect(status().isOk());
-
-        // 审核前公开列表不含
-        MvcResult before = mockMvc.perform(get("/api/v1/posts")).andExpect(status().isOk()).andReturn();
-        assertFalse(objectMapper.readTree(before.getResponse().getContentAsString())
-                .path("data").toString().contains("试用期被辞退怎么办"));
-
-        MvcResult queueResult = mockMvc.perform(get("/api/v1/admin/moderation/queue").session(operator))
-                .andExpect(status().isOk()).andReturn();
-        JsonNode items = objectMapper.readTree(queueResult.getResponse().getContentAsString()).path("data");
-        long postId = -1;
-        for (JsonNode item : items) {
-            if ("public_post".equals(item.path("targetType").asText())
-                    && item.path("title").asText().contains("试用期被辞退怎么办")) {
-                postId = item.path("targetId").asLong();
-            }
-        }
-        assertTrue(postId > 0, "队列应包含待审公开帖");
-
-        mockMvc.perform(post("/api/v1/admin/moderation/public_post/{id}/decide", postId)
-                        .session(operator).with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("decision", "approve"))))
-                .andExpect(status().isOk());
-
-        MvcResult after = mockMvc.perform(get("/api/v1/posts")).andExpect(status().isOk()).andReturn();
-        assertTrue(objectMapper.readTree(after.getResponse().getContentAsString())
-                .path("data").toString().contains("试用期被辞退怎么办"));
-    }
 
     @Test
     void blockWordRejectsContent() throws Exception {

@@ -95,8 +95,7 @@ public class QuestionServiceImpl implements QuestionService {
     @Transactional
     public QuestionView create(AuthUser author, CreateRequest request) {
         String scope = normalizeScope(request.scope());
-        String moderation = PRIVATE.equals(scope) ? "pending_human"
-                : moderationService.decide(request.title() + "\n" + request.body());
+        String moderation = moderationService.decide(request.title() + "\n" + request.body());
 
         QuestionDO question = new QuestionDO();
         question.setScope(scope);
@@ -428,20 +427,13 @@ public class QuestionServiceImpl implements QuestionService {
     @Override
     @Transactional(readOnly = true)
     public PageResult<QuestionView> hrPrivatePool(Long cursor, int limit) {
-        return listPage(PRIVATE, OPEN, null, false, cursor, limit);
+        throw new BusinessException(ErrorCode.INVALID_PARAM, "私密问答已明确不做");
     }
 
     @Override
     @Transactional
     public QuestionView claim(AuthUser hr, Long id) {
-        QuestionDO question = requireOwnedPrivate(id);
-        if (!OPEN.equals(question.getStatus()) || question.getAssignedHrId() != null) {
-            throw new BusinessException(ErrorCode.CONFLICT, "该问题已被认领或不可认领");
-        }
-        question.setAssignedHrId(hr.getId());
-        question.setStatus(ASSIGNED);
-        questionDao.updatePrivateState(question);
-        return toView(question, true);
+        throw new BusinessException(ErrorCode.INVALID_PARAM, "私密问答已明确不做");
     }
 
     @Override
@@ -534,8 +526,8 @@ public class QuestionServiceImpl implements QuestionService {
             return PUBLIC;
         }
         String value = scope.trim().toLowerCase();
-        if (!PUBLIC.equals(value) && !PRIVATE.equals(value)) {
-            throw new BusinessException(ErrorCode.INVALID_PARAM, "scope 只能是 public 或 private");
+        if (!PUBLIC.equals(value)) {
+            throw new BusinessException(ErrorCode.INVALID_PARAM, "当前仅支持公开提问，私密问答已明确不做");
         }
         return value;
     }

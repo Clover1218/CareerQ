@@ -92,7 +92,7 @@ class QuestionFlowTests {
                                 "tags", tags,
                                 "scope", scope))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("private".equals(scope) ? "pending_human" : "published"))
+                .andExpect(jsonPath("$.data.status").value("published"))
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString())
                 .path("data").path("id").asLong();
@@ -155,7 +155,6 @@ class QuestionFlowTests {
         MockHttpSession student = login("13800000105");
         long older = createQuestion(student, "public");
         long newer = createQuestion(student, "public");
-        createQuestion(student, "private");
 
         mockMvc.perform(get("/api/v1/questions").param("tag", "实习").param("limit", "1"))
                 .andExpect(status().isOk())
@@ -188,16 +187,18 @@ class QuestionFlowTests {
     }
 
     @Test
-    void privateQuestionOnlyVisibleToAuthor() throws Exception {
+    void privateQuestionCreationRejected() throws Exception {
         MockHttpSession student = login("13800000104");
-        long questionId = createQuestion(student, "private");
-
-        mockMvc.perform(get("/api/v1/questions/{id}", questionId))
-                .andExpect(status().isForbidden());
-
-        mockMvc.perform(get("/api/v1/questions/{id}", questionId).session(student))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.question.scope").value("private"));
+        mockMvc.perform(post("/api/v1/questions")
+                        .session(student).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "title", "私密提问已下线",
+                                "body", "私密内容",
+                                "tags", List.of("实习"),
+                                "scope", "private"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40001));
     }
 
     @Test
@@ -205,9 +206,9 @@ class QuestionFlowTests {
         MockHttpSession student = login("13800000106");
         String longBody = "这是一段用于验证全文展示的较长问题描述，不限制字数也不应被截断。".repeat(4);
         long questionId = createQuestion(student, "public", "公开问答全文展开测试", longBody,
-                List.of("全文展开测试"));
+                List.of("作品集"));
 
-        mockMvc.perform(get("/api/v1/questions").param("tag", "全文展开测试"))
+        mockMvc.perform(get("/api/v1/questions").param("tag", "作品集"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1))
                 .andExpect(jsonPath("$.data.items[0].id").value(questionId))
@@ -239,15 +240,9 @@ class QuestionFlowTests {
                 .andExpect(jsonPath("$.data.question.favoriteCount").value(1))
                 .andExpect(jsonPath("$.data.viewer.favorited").value(true));
 
-        mockMvc.perform(get("/api/v1/questions").param("tag", "全文展开测试"))
+        mockMvc.perform(get("/api/v1/questions").param("tag", "作品集"))
                 .andExpect(jsonPath("$.data.items[0].favoriteCount").value(1));
 
-        long privateId = createQuestion(student, "private", "私密问题不可展开测试", "私密内容",
-                List.of("全文展开测试"));
-        mockMvc.perform(get("/api/v1/questions/{id}/content", privateId))
-                .andExpect(status().isNotFound());
-        mockMvc.perform(get("/api/v1/questions/{id}/thread", privateId))
-                .andExpect(status().isNotFound());
     }
 
     @Test
