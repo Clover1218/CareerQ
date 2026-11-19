@@ -58,12 +58,44 @@ export interface QuestionFeedItem {
   likeCount: number;
   favoriteCount: number;
   createdAt: string;
+  /** 推荐理由：命中的正向偏好标签；时间序列表为空数组 */
+  matchedTags: string[];
+}
+
+/** 推荐流分页：游标是不透明字符串，同一快照内翻页 */
+export interface FeedPage {
+  items: QuestionFeedItem[];
+  nextCursor: string | null;
+}
+
+export type FeedSort = "recommend" | "latest" | "hot";
+export type FeedPeriod = "all" | "day" | "week" | "month";
+
+/** 公开列表筛选条件；tags 传标签 slug，from/to 传 YYYY-MM-DD */
+export interface FeedQuery {
+  q?: string;
+  tags?: string[];
+  period?: FeedPeriod;
+  from?: string | null;
+  to?: string | null;
+  sort?: FeedSort;
+}
+
+/** 筛选面板提交的完整条件，tags 为标签名称 */
+export interface FeedFilterValue {
+  q: string;
+  tags: string[];
+  period: FeedPeriod;
+  from: string | null;
+  to: string | null;
+  sort: FeedSort;
 }
 
 export interface ViewerState {
   liked: boolean;
   usefuled: boolean;
   favorited: boolean;
+  disliked: boolean;
 }
 
 export interface QuestionContent {
@@ -160,6 +192,18 @@ export interface PublicPost {
   hrAnswer: string;
 }
 
+export interface TagCategory {
+  name: string;
+  tagCount: number;
+}
+
+export interface TagItem {
+  id: number;
+  name: string;
+  slug: string;
+  category?: string | null;
+}
+
 export interface QuestionDetail {
   question: Question;
   answers: Answer[];
@@ -235,6 +279,32 @@ export const api = {
     if (cursor) params.set("cursor", String(cursor));
     params.set("limit", "20");
     return request<PageResult<QuestionFeedItem>>(`/questions?${params.toString()}`);
+  },
+
+  feedQuestions(query: FeedQuery = {}, cursor?: string | null, limit = 20): Promise<FeedPage> {
+    const params = new URLSearchParams();
+    if (query.q) params.set("q", query.q);
+    if (query.tags?.length) params.set("tags", query.tags.join(","));
+    if (query.period && query.period !== "all") params.set("period", query.period);
+    if (query.from) params.set("from", query.from);
+    if (query.to) params.set("to", query.to);
+    if (query.sort) params.set("sort", query.sort);
+    if (cursor) params.set("cursor", cursor);
+    params.set("limit", String(limit));
+    return request<FeedPage>(`/feed/questions?${params.toString()}`);
+  },
+
+  tagCategories(): Promise<TagCategory[]> {
+    return request<TagCategory[]>("/tags/categories");
+  },
+
+  listTags(params: { category?: string; keyword?: string; limit?: number } = {}): Promise<TagItem[]> {
+    const query = new URLSearchParams();
+    if (params.category) query.set("category", params.category);
+    if (params.keyword) query.set("keyword", params.keyword);
+    if (params.limit) query.set("limit", String(params.limit));
+    const suffix = query.toString();
+    return request<TagItem[]>(suffix ? `/tags?${suffix}` : "/tags");
   },
 
   getQuestion(id: number): Promise<QuestionDetail> {

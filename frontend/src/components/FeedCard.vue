@@ -22,6 +22,8 @@ const props = defineProps<{
   ownerMode?: boolean;
 }>();
 
+const emit = defineEmits<{ (e: "dismiss", id: number): void }>();
+
 const route = useRoute();
 const router = useRouter();
 const message = useMessage();
@@ -203,6 +205,7 @@ async function loadThread() {
   }
 }
 
+// 只切换正文折叠，卡片其余结构（作者/时间/操作行）保持同一套 DOM
 async function toggleExpand() {
   if (expanded.value) {
     expanded.value = false;
@@ -222,6 +225,10 @@ async function toggleThread() {
     return;
   }
   threadOpen.value = true;
+  // 作者信息随回答区一起加载，不额外发请求；加载完成只改动底部信息行内容
+  if (!props.ownerMode) {
+    void ensureContent();
+  }
   if (!thread.value) {
     await loadThread();
   }
@@ -289,6 +296,18 @@ async function report(targetType: "question" | "answer", targetId: number) {
     message.success("举报已提交，我们会尽快处理");
   } catch (e) {
     reportError(e, "举报失败");
+  }
+}
+
+async function dislikeQuestion() {
+  menuOpen.value = null;
+  if (!requireLogin()) return;
+  try {
+    await api.interact("question", props.item.id, "dislike");
+    message.success("已减少此类内容");
+    emit("dismiss", props.item.id);
+  } catch (e) {
+    reportError(e, "操作失败");
   }
 }
 
@@ -390,110 +409,74 @@ onBeforeUnmount(() => {
         >{{ statusMeta.text }}</span>
       </div>
 
-      <!-- FeedCard1：摘要态 -->
-      <template v-if="!expanded">
-        <div class="flex flex-col gap-2.5">
-          <p class="m-0 line-clamp-4 whitespace-pre-wrap text-16 leading-6 text-ink">{{ item.excerpt }}</p>
-          <div class="flex justify-end">
-            <button class="aux-btn" @click="toggleExpand">阅读全文 ↓</button>
-          </div>
+      <p v-if="!ownerMode && item.matchedTags.length" class="m-0 text-12 text-muted">
+        因为你关注「{{ item.matchedTags.join("、") }}」
+      </p>
+
+      <div class="flex flex-col gap-2.5">
+        <p v-if="!expanded" class="m-0 line-clamp-4 whitespace-pre-wrap text-16 leading-6 text-ink">{{ item.excerpt }}</p>
+        <p v-else class="m-0 whitespace-pre-wrap text-16 leading-6 text-ink">{{ content?.question.body ?? item.excerpt }}</p>
+        <div class="flex justify-end">
+          <button class="aux-btn" @click="toggleExpand">{{ expanded ? "收起 ↑" : "阅读全文 ↓" }}</button>
+        </div>
+        <!-- TagSet：仅在阅读全文时展示 -->
+        <div v-if="expanded && item.tags.length" class="flex min-w-0 flex-nowrap items-center gap-2 overflow-hidden">
+          <span
+            v-for="tag in item.tags"
+            :key="tag"
+            class="shrink-0 whitespace-nowrap rounded-[4px] bg-[#e6f0ff] px-1 py-0.5 text-[12px] leading-[18px] text-[#3874d0]"
+          >{{ tag }}</span>
+        </div>
+      </div>
+
+      <!-- 底部信息行：折叠态只留操作按钮；展开全文后才出现作者与提问时间，行高始终 22px -->
+      <div
+        class="flex min-w-0 items-center gap-4"
+        :class="expanded || ownerMode ? 'justify-between' : 'justify-end'"
+      >
+        <div v-if="expanded || ownerMode" class="flex min-w-0 flex-1 items-center gap-2.5 text-14">
+          <span v-if="!ownerMode && authorName" class="min-w-0 truncate text-regular">{{ authorName }}</span>
+          <time class="shrink-0 whitespace-nowrap text-muted">提问于 {{ formatTime(createdAt) }}</time>
         </div>
 
-        <div class="flex items-center gap-4" :class="ownerMode ? 'justify-between' : 'justify-end'">
-          <span v-if="ownerMode" class="text-14 text-muted">提问于 {{ formatTime(item.createdAt) }}</span>
-          <div class="flex items-center gap-4">
-            <button class="feed-action" aria-label="回答" @click="toggleThread">
-              <FeedIcon name="comment" />
-              <span>{{ threadOpen ? "收起回答" : replyLabel }}</span>
+        <div class="flex shrink-0 items-center gap-4">
+          <button class="feed-action" aria-label="回答" @click="toggleThread">
+            <FeedIcon name="comment" />
+            <span>{{ threadOpen ? "收起回答" : replyLabel }}</span>
+          </button>
+          <button
+            class="feed-action"
+            :class="{ 'is-active': liked, 'is-disabled': !interactive }"
+            :disabled="!interactive"
+            aria-label="点赞"
+            @click="toggleLike"
+          >
+            <FeedIcon name="like" :filled="liked" />
+            <span>{{ counts.likeCount }}</span>
+          </button>
+          <button
+            class="feed-action"
+            :class="{ 'is-active': favorited, 'is-disabled': !interactive }"
+            :disabled="!interactive"
+            aria-label="收藏"
+            @click="toggleFavorite"
+          >
+            <FeedIcon name="star" :filled="favorited" />
+            <span>{{ counts.favoriteCount }}</span>
+          </button>
+          <div v-if="!ownerMode" class="relative flex items-center">
+            <button class="feed-action" aria-label="更多" @click.stop="toggleMenu('question')">
+              <FeedIcon name="dots" />
             </button>
-            <button
-              class="feed-action"
-              :class="{ 'is-active': liked, 'is-disabled': !interactive }"
-              :disabled="!interactive"
-              aria-label="点赞"
-              @click="toggleLike"
-            >
-              <FeedIcon name="like" :filled="liked" />
-              <span>{{ counts.likeCount }}</span>
-            </button>
-            <button
-              class="feed-action"
-              :class="{ 'is-active': favorited, 'is-disabled': !interactive }"
-              :disabled="!interactive"
-              aria-label="收藏"
-              @click="toggleFavorite"
-            >
-              <FeedIcon name="star" :filled="favorited" />
-              <span>{{ counts.favoriteCount }}</span>
-            </button>
-            <div v-if="!ownerMode" class="relative flex items-center">
-              <button class="feed-action" aria-label="更多" @click.stop="toggleMenu('question')">
-                <FeedIcon name="dots" />
-              </button>
-              <div v-if="menuOpen === 'question'" class="more-menu" @click.stop>
-                <button class="more-item" @click="report('question', item.id)">举报</button>
-              </div>
+            <div v-if="menuOpen === 'question'" class="more-menu" @click.stop>
+              <button class="more-item" @click="dislikeQuestion">不感兴趣</button>
+              <button class="more-item" @click="report('question', item.id)">举报</button>
             </div>
           </div>
         </div>
-      </template>
-
-      <!-- FeedCard2 / FeedCard3：全文态 -->
-      <template v-else>
-        <div class="flex flex-col gap-2.5">
-          <p class="m-0 whitespace-pre-wrap text-16 leading-6 text-ink">
-            {{ content?.question.body ?? item.excerpt }}
-          </p>
-          <div class="flex justify-end">
-            <button class="aux-btn" @click="toggleExpand">收起 ↑</button>
-          </div>
-        </div>
-
-        <div class="flex flex-wrap items-center justify-between gap-4">
-          <div class="flex min-w-0 items-center gap-2.5 text-14">
-            <span v-if="!ownerMode" class="truncate text-regular">{{ authorName }}</span>
-            <time class="shrink-0 text-muted">提问于 {{ formatTime(createdAt) }}</time>
-          </div>
-
-          <div class="flex shrink-0 items-center gap-4">
-            <button class="feed-action" aria-label="回答" @click="toggleThread">
-              <FeedIcon name="comment" />
-              <span>{{ threadOpen ? "收起回答" : replyLabel }}</span>
-            </button>
-            <button
-              class="feed-action"
-              :class="{ 'is-active': liked, 'is-disabled': !interactive }"
-              :disabled="!interactive"
-              aria-label="点赞"
-              @click="toggleLike"
-            >
-              <FeedIcon name="like" :filled="liked" />
-              <span>{{ counts.likeCount }}</span>
-            </button>
-            <button
-              class="feed-action"
-              :class="{ 'is-active': favorited, 'is-disabled': !interactive }"
-              :disabled="!interactive"
-              aria-label="收藏"
-              @click="toggleFavorite"
-            >
-              <FeedIcon name="star" :filled="favorited" />
-              <span>{{ counts.favoriteCount }}</span>
-            </button>
-            <div v-if="!ownerMode" class="relative flex items-center gap-1">
-              <button class="feed-action" aria-label="更多" @click.stop="toggleMenu('question')">
-                <FeedIcon name="dots" />
-              </button>
-              <div v-if="menuOpen === 'question'" class="more-menu" @click.stop>
-                <button class="more-item" @click="report('question', item.id)">举报</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </template>
+      </div>
 
       <p v-if="error" class="m-0 text-14 text-danger">{{ error }}</p>
-      <p v-else-if="loadingContent" class="m-0 text-14 text-muted">正在加载全文…</p>
     </div>
 
     <!-- 评论/回答区（Wrapper）：上移 8px 叠在问题卡下方，展开时从卡片底下抽出 -->

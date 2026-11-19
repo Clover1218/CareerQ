@@ -12,14 +12,21 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     FeedCard: typeof import('./components/FeedCard.vue')['default']
+    FeedCardSkeleton: typeof import('./components/FeedCardSkeleton.vue')['default']
+    FeedFilterPanel: typeof import('./components/FeedFilterPanel.vue')['default']
     FeedIcon: typeof import('./components/FeedIcon.vue')['default']
+    NButton: typeof import('naive-ui')['NButton']
     NConfigProvider: typeof import('naive-ui')['NConfigProvider']
+    NDatePicker: typeof import('naive-ui')['NDatePicker']
     NDialogProvider: typeof import('naive-ui')['NDialogProvider']
+    NInput: typeof import('naive-ui')['NInput']
     NLoadingBarProvider: typeof import('naive-ui')['NLoadingBarProvider']
     NMessageProvider: typeof import('naive-ui')['NMessageProvider']
     NModal: typeof import('naive-ui')['NModal']
     NNotificationProvider: typeof import('naive-ui')['NNotificationProvider']
+    NPopover: typeof import('naive-ui')['NPopover']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    TagPicker: typeof import('./components/TagPicker.vue')['default']
   }
 }
