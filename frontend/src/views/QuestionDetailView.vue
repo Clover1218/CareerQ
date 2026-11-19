@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { api, type QuestionDetail } from "../api";
 import { useUserStore } from "@/stores/user";
+import { addViewHistory } from "@/utils/history";
 
 const route = useRoute();
 const router = useRouter();
@@ -18,6 +19,8 @@ const questionId = Number(route.params.id);
 async function load() {
   try {
     detail.value = await api.getQuestion(questionId);
+    // 记录浏览历史（本地存储，后端接口暂未实现）
+    addViewHistory({ id: detail.value.question.id, title: detail.value.question.title });
   } catch (e: any) {
     error.value = e.message;
   }
