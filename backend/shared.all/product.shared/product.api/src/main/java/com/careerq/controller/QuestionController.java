@@ -73,6 +73,11 @@ public class QuestionController {
         return ApiResponse.ok(questionService.thread(AuthUsers.optional(authentication), id));
     }
 
+    @PostMapping("/{id}/withdraw")
+    public ApiResponse<QuestionView> withdraw(Authentication authentication, @PathVariable Long id) {
+        return ApiResponse.ok(questionService.withdraw(AuthUsers.require(authentication), id));
+    }
+
     @PostMapping("/{id}/close")
     @Operation(summary = "已下线", description = "为兼容旧客户端保留；私密问答已下线，此接口始终返回 40001。")
     public ApiResponse<QuestionView> close(Authentication authentication, @PathVariable Long id) {

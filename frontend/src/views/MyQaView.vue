@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref } from "vue";
 import { storeToRefs } from "pinia";
-import { useMessage } from "naive-ui";
+import { useDialog, useMessage } from "naive-ui";
 import { api, type MeStats, type Profile, type Question, type QuestionFeedItem } from "@/api";
 import { useUserStore } from "@/stores/user";
 import { clearViewHistory, getViewHistory, type ViewHistoryEntry } from "@/utils/history";
@@ -11,6 +11,7 @@ import FeedIcon from "@/components/FeedIcon.vue";
 const userStore = useUserStore();
 const { user } = storeToRefs(userStore);
 const message = useMessage();
+const dialog = useDialog();
 
 const profile = ref<Profile | null>(null);
 const stats = ref<MeStats>({
@@ -171,6 +172,32 @@ async function loadStats() {
   } catch (e) {
     error.value = errorText(e, "统计加载失败");
   }
+}
+
+function canWithdraw(question: Question): boolean {
+  return (
+    (question.answerCount ?? 0) === 0 &&
+    ["pending_machine", "pending_human", "published"].includes(question.status)
+  );
+}
+
+function confirmWithdraw(question: Question) {
+  dialog.warning({
+    title: "撤回提问",
+    content: "撤回后该问题将从公开问答中移除，且无法恢复。确定要撤回吗？",
+    positiveText: "确定撤回",
+    negativeText: "取消",
+    onPositiveClick: async () => {
+      try {
+        await api.withdrawQuestion(question.id);
+        message.success("已撤回");
+        await loadQuestions(true);
+        await loadStats();
+      } catch (e) {
+        message.error(errorText(e, "撤回失败"));
+      }
+    },
+  });
 }
 
 async function loadQuestions(reset = false) {
@@ -345,7 +372,9 @@ onMounted(() => {
             :key="entry.question.id"
             :item="entry.item"
             :status="entry.question.status"
+            :withdrawable="canWithdraw(entry.question)"
             owner-mode
+            @withdraw="confirmWithdraw(entry.question)"
           />
 
           <p v-if="!loading && feedEntries.length === 0" class="m-0 py-16 text-center text-14 text-muted">

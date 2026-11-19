@@ -394,6 +394,9 @@ export const api = {
     });
   },
 
+  withdrawQuestion(questionId: number): Promise<Question> {
+    return request<Question>(`/questions/${questionId}/withdraw`, { method: "POST" });
+  },
   posts(): Promise<PublicPost[]> {
     return request<PublicPost[]>("/posts");
   },
