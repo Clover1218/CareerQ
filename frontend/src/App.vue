@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { dateZhCN, zhCN, type GlobalThemeOverrides } from "naive-ui";
@@ -50,6 +50,41 @@ async function logout() {
   router.push("/login");
 }
 
+// 退出登录：全屏居中的确认弹窗
+const showLogoutConfirm = ref(false);
+
+function confirmLogout() {
+  showLogoutConfirm.value = true;
+}
+
+function closeLogoutConfirm() {
+  showLogoutConfirm.value = false;
+}
+
+async function doLogout() {
+  showLogoutConfirm.value = false;
+  await logout();
+}
+
+function onKeydown(event: KeyboardEvent) {
+  if (event.key === "Escape" && showLogoutConfirm.value) {
+    closeLogoutConfirm();
+  }
+}
+
+watch(showLogoutConfirm, (open) => {
+  document.body.style.overflow = open ? "hidden" : "";
+});
+
+onMounted(() => {
+  window.addEventListener("keydown", onKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("keydown", onKeydown);
+  document.body.style.overflow = "";
+});
+
 onMounted(refresh);
 watch(() => route.fullPath, refresh);
 </script>
@@ -90,16 +125,7 @@ watch(() => route.fullPath, refresh);
                     </div>
                   </div>
                   <MessageMenu />
-                  <n-popconfirm
-                    positive-text="退出登录"
-                    negative-text="取消"
-                    @positive-click="logout"
-                  >
-                    <template #trigger>
-                      <button class="link logout-link" type="button">退出</button>
-                    </template>
-                    确定要退出登录吗？
-                  </n-popconfirm>
+                  <button class="link logout-link" type="button" @click="confirmLogout">退出</button>
                 </template>
                 <template v-else>
                   <router-link class="account-link" to="/login">登录</router-link>
@@ -117,6 +143,35 @@ watch(() => route.fullPath, refresh);
                 </keep-alive>
               </router-view>
             </main>
+
+            <!-- 退出登录确认：全屏遮罩 + 居中大字号弹窗 -->
+            <Teleport to="body">
+              <Transition name="confirm-fade">
+                <div
+                  v-if="showLogoutConfirm"
+                  class="confirm-mask"
+                  @click.self="closeLogoutConfirm"
+                >
+                  <div
+                    class="confirm-dialog"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="logout-confirm-title"
+                  >
+                    <h2 id="logout-confirm-title" class="confirm-title">确定要退出登录吗？</h2>
+                    <p class="confirm-hint">退出后需要重新登录，才能继续查看我的问答和消息。</p>
+                    <div class="confirm-actions">
+                      <button class="confirm-btn confirm-btn--ghost" type="button" @click="closeLogoutConfirm">
+                        取消
+                      </button>
+                      <button class="confirm-btn confirm-btn--primary" type="button" @click="doLogout">
+                        退出登录
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </Transition>
+            </Teleport>
           </n-loading-bar-provider>
         </n-notification-provider>
       </n-dialog-provider>
