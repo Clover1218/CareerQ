@@ -6,10 +6,8 @@ import com.careerq.common.ErrorCode;
 import com.careerq.common.PageResult;
 import com.careerq.common.UserBrief;
 import com.careerq.dao.AnswerDao;
-import com.careerq.dao.InteractionDao;
 import com.careerq.dao.QuestionDao;
 import com.careerq.dao.TagDao;
-import com.careerq.dao.UserDao;
 import com.careerq.dataobject.AnswerDO;
 import com.careerq.dataobject.QuestionDO;
 import com.careerq.dataobject.QuestionTagDO;
@@ -38,6 +36,7 @@ import com.careerq.service.FollowupService;
 import com.careerq.service.ModerationService;
 import com.careerq.service.QuestionService;
 import com.careerq.service.TagAffinityService;
+import com.careerq.service.impl.ContentReadSupport.InteractionStates;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,27 +70,24 @@ public class QuestionServiceImpl implements QuestionService {
     private final QuestionDao questionDao;
     private final AnswerDao answerDao;
     private final TagDao tagDao;
-    private final UserDao userDao;
+    private final ContentReadSupport contentReadSupport;
     private final ModerationService moderationService;
     private final FollowupService followupService;
-    private final InteractionDao interactionDao;
     private final TagAffinityService tagAffinityService;
 
     public QuestionServiceImpl(QuestionDao questionDao,
                                AnswerDao answerDao,
                                TagDao tagDao,
-                               UserDao userDao,
+                               ContentReadSupport contentReadSupport,
                                ModerationService moderationService,
                                FollowupService followupService,
-                               InteractionDao interactionDao,
                                TagAffinityService tagAffinityService) {
         this.questionDao = questionDao;
         this.answerDao = answerDao;
         this.tagDao = tagDao;
-        this.userDao = userDao;
+        this.contentReadSupport = contentReadSupport;
         this.moderationService = moderationService;
         this.followupService = followupService;
-        this.interactionDao = interactionDao;
         this.tagAffinityService = tagAffinityService;
     }
 
@@ -122,7 +118,7 @@ public class QuestionServiceImpl implements QuestionService {
         int size = Math.clamp(limit, 1, 50);
         List<QuestionDO> rows = questionDao.list(PUBLIC, PUBLISHED, cursor, tagFilter, false, size + 1);
         boolean hasNext = rows.size() > size;
-        List<QuestionFeedItem> items = rows.stream().limit(size).map(this::toFeedItem).toList();
+        List<QuestionFeedItem> items = toFeedItems(rows.subList(0, Math.min(size, rows.size())));
         return new PageResult<>(items, hasNext ? rows.get(size - 1).getId() : null);
     }
 
@@ -400,6 +396,9 @@ public class QuestionServiceImpl implements QuestionService {
     }
 
     private Map<Long, List<QuestionTagDO>> loadQuestionTags(List<QuestionDO> questions) {
+        if (questions.isEmpty()) {
+            return Map.of();
+        }
         List<Long> ids = questions.stream().map(QuestionDO::getId).toList();
         Map<Long, List<QuestionTagDO>> result = new LinkedHashMap<>();
         for (QuestionTagDO row : tagDao.findTagsByQuestionIds(ids)) {
@@ -472,7 +471,7 @@ public class QuestionServiceImpl implements QuestionService {
         List<QuestionDO> rows = questionDao.listByAuthor(author.getId(), scopeFilter, cursor, size + 1);
         boolean hasMore = rows.size() > size;
         List<QuestionDO> page = hasMore ? rows.subList(0, size) : rows;
-        List<QuestionView> items = page.stream().map(question -> toView(question, false)).toList();
+        List<QuestionView> items = toViews(page, false);
         Long nextCursor = hasMore ? page.get(page.size() - 1).getId() : null;
         return new PageResult<>(items, nextCursor);
     }
@@ -504,8 +503,7 @@ public class QuestionServiceImpl implements QuestionService {
         }
 
         Long viewerId = current == null ? null : current.getId();
-        List<AnswerView> answers = answerDao.findVisible(question.getId(), viewerId)
-                .stream().map(answer -> toAnswerView(answer, viewerId)).toList();
+        List<AnswerView> answers = toAnswerViews(answerDao.findVisible(question.getId(), viewerId), viewerId);
         List<FollowupView> followups = followupService.list(current, question.getId());
         return new QuestionDetail(toView(question, maskAuthor), answers, followups,
                 viewerState(current, question.getId()));
@@ -525,21 +523,19 @@ public class QuestionServiceImpl implements QuestionService {
         Long viewerId = current == null ? null : current.getId();
         List<ThreadItemView> items = new ArrayList<>();
 
-        for (AnswerDO answer : answerDao.findVisible(question.getId(), viewerId)) {
-            boolean liked = viewerId != null
-                    && interactionDao.exists(viewerId, "answer", answer.getId(), "like");
+        for (AnswerView answer : toAnswerViews(answerDao.findVisible(question.getId(), viewerId), viewerId)) {
             items.add(new ThreadItemView(
-                    (answer.getFollowupId() == null ? "answer-" : "followup-answer-") + answer.getId(),
-                    answer.getFollowupId() == null ? "hr_answer" : "followup_answer",
-                    answer.getId(),
-                    answer.getFollowupId(),
-                    answer.getBody(),
-                    authorOf(answer.getAuthorId()),
+                    (answer.followupId() == null ? "answer-" : "followup-answer-") + answer.id(),
+                    answer.followupId() == null ? "hr_answer" : "followup_answer",
+                    answer.id(),
+                    answer.followupId(),
+                    answer.body(),
+                    answer.author(),
                     true,
-                    answer.getStatus(),
-                    answer.getLikeCount(),
-                    liked,
-                    answer.getCreatedAt()));
+                    answer.status(),
+                    answer.likeCount(),
+                    answer.liked(),
+                    answer.createdAt()));
         }
 
         for (FollowupView followup : followupService.list(current, question.getId())) {
@@ -582,12 +578,12 @@ public class QuestionServiceImpl implements QuestionService {
         if (current == null) {
             return new ViewerState(false, false, false, false);
         }
-        Long viewerId = current.getId();
+        InteractionStates states = contentReadSupport.interactions(current.getId(), "question", List.of(questionId));
         return new ViewerState(
-                interactionDao.exists(viewerId, "question", questionId, "like"),
-                interactionDao.exists(viewerId, "question", questionId, "useful"),
-                interactionDao.exists(viewerId, "question", questionId, "favorite"),
-                interactionDao.exists(viewerId, "question", questionId, "dislike"));
+                states.has(questionId, "like"),
+                states.has(questionId, "useful"),
+                states.has(questionId, "favorite"),
+                states.has(questionId, "dislike"));
     }
 
     @Override
@@ -624,13 +620,15 @@ public class QuestionServiceImpl implements QuestionService {
                 : answerDao.findLatestByAuthorAndQuestionIds(hr.getId(), questionIds).stream()
                         .collect(java.util.stream.Collectors.toMap(AnswerDO::getQuestionId, answer -> answer));
 
+        Map<Long, QuestionView> questionViews = toViews(page, false).stream()
+                .collect(java.util.stream.Collectors.toMap(QuestionView::id, view -> view));
         List<HrAnsweredQuestionView> items = page.stream()
                 .map(question -> {
                     AnswerDO answer = latestAnswers.get(question.getId());
                     if (answer == null) {
                         return null;
                     }
-                    return new HrAnsweredQuestionView(toView(question, false),
+                    return new HrAnsweredQuestionView(questionViews.get(question.getId()),
                             new HrAnswerSummary(answer.getId(), answer.getFollowupId(), answer.getBody(), answer.getLengthType(),
                                     answer.getStatus(), answer.getCreatedAt()));
                 })
@@ -646,8 +644,7 @@ public class QuestionServiceImpl implements QuestionService {
         List<QuestionDO> rows = questionDao.list(scope, status, cursor, tag, unanswered, size + 1);
         boolean hasNext = rows.size() > size;
         boolean maskAuthor = PRIVATE.equals(scope);
-        List<QuestionView> items = rows.stream()
-                .limit(size).map(question -> toView(question, maskAuthor)).toList();
+        List<QuestionView> items = toViews(rows.subList(0, Math.min(size, rows.size())), maskAuthor);
         return new PageResult<>(items, hasNext ? rows.get(size - 1).getId() : null);
     }
 
@@ -690,10 +687,6 @@ public class QuestionServiceImpl implements QuestionService {
         }
     }
 
-    private QuestionFeedItem toFeedItem(QuestionDO question) {
-        return toFeedItem(question, tagDao.findNamesByQuestionId(question.getId()), List.of());
-    }
-
     private QuestionFeedItem toFeedItem(QuestionDO question, List<String> tags, List<String> matchedTags) {
         int answerCount = question.getAnswerCount();
         int followupCount = question.getFollowupCount();
@@ -712,14 +705,32 @@ public class QuestionServiceImpl implements QuestionService {
     }
 
     private QuestionView toView(QuestionDO question, boolean maskAuthor) {
+        return toViews(List.of(question), maskAuthor).getFirst();
+    }
+
+    private List<String> tagNames(Map<Long, List<QuestionTagDO>> tags, Long questionId) {
+        return tags.getOrDefault(questionId, List.of()).stream().map(QuestionTagDO::getName).toList();
+    }
+
+    private List<QuestionView> toViews(List<QuestionDO> questions, boolean maskAuthor) {
+        Map<Long, List<QuestionTagDO>> tags = loadQuestionTags(questions);
+        Map<Long, UserBrief> authors = maskAuthor ? Map.of()
+                : contentReadSupport.authors(questions.stream().map(QuestionDO::getAuthorId).toList());
+        return questions.stream()
+                .map(question -> toView(question, maskAuthor, tagNames(tags, question.getId()), authors)).toList();
+    }
+
+    private QuestionView toView(QuestionDO question, boolean maskAuthor, List<String> tags,
+                                Map<Long, UserBrief> authors) {
         return new QuestionView(
                 question.getId(),
                 question.getScope(),
                 question.getStatus(),
                 question.getTitle(),
                 question.getBody(),
-                tagDao.findNamesByQuestionId(question.getId()),
-                maskAuthor ? new UserBrief(question.getAuthorId(), ANONYMOUS_NICKNAME) : authorOf(question.getAuthorId()),
+                tags,
+                maskAuthor ? new UserBrief(question.getAuthorId(), ANONYMOUS_NICKNAME)
+                        : contentReadSupport.author(authors, question.getAuthorId()),
                 question.getCreatedAt(),
                 question.getAnswerCount(),
                 question.getFollowupCount(),
@@ -729,11 +740,14 @@ public class QuestionServiceImpl implements QuestionService {
                 question.getFirstAnswerAt());
     }
 
-    private AnswerView toAnswerView(AnswerDO answer, Long viewerId) {
-        boolean liked = viewerId != null
-                && interactionDao.exists(viewerId, "answer", answer.getId(), "like");
-        boolean usefuled = viewerId != null
-                && interactionDao.exists(viewerId, "answer", answer.getId(), "useful");
+    private List<AnswerView> toAnswerViews(List<AnswerDO> answers, Long viewerId) {
+        Map<Long, UserBrief> authors = contentReadSupport.authors(answers.stream().map(AnswerDO::getAuthorId).toList());
+        InteractionStates states = contentReadSupport.interactions(viewerId, "answer",
+                answers.stream().map(AnswerDO::getId).toList());
+        return answers.stream().map(answer -> toAnswerView(answer, authors, states)).toList();
+    }
+
+    private AnswerView toAnswerView(AnswerDO answer, Map<Long, UserBrief> authors, InteractionStates states) {
         return new AnswerView(
                 answer.getId(),
                 answer.getQuestionId(),
@@ -741,17 +755,11 @@ public class QuestionServiceImpl implements QuestionService {
                 answer.getBody(),
                 answer.getLengthType(),
                 answer.getStatus(),
-                authorOf(answer.getAuthorId()),
+                contentReadSupport.author(authors, answer.getAuthorId()),
                 answer.getLikeCount(),
                 answer.getUsefulCount(),
-                liked,
-                usefuled,
+                states.has(answer.getId(), "like"),
+                states.has(answer.getId(), "useful"),
                 answer.getCreatedAt());
-    }
-
-    private UserBrief authorOf(Long userId) {
-        return userDao.findById(userId)
-                .map(user -> new UserBrief(user.getId(), user.getNickname()))
-                .orElse(new UserBrief(userId, "用户"));
     }
 }

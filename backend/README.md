@@ -19,8 +19,6 @@ backend/（聚合 pom）
 - Service 使用 Spring 的 `@Transactional` 管理业务事务。MyBatis 使用 Spring Boot 提供的数据源，本地为 H2 MySQL 兼容模式，生产为 MySQL 8。
 - Flyway 管理数据库表结构。问题与标签的关系通过原有的 `question_tags` 表读写。
 
-## 构建命令
-
 职问桥项目的后端服务。接口契约见 [`../docs/接口契约-职问桥.md`](../docs/接口契约-职问桥.md)，方案见 [`../docs/技术方案-职问桥.md`](../docs/技术方案-职问桥.md)。
 
 ## 环境要求
@@ -37,6 +35,10 @@ backend/（聚合 pom）
 mvn -f backend/pom.xml install -DskipTests
 mvn -f backend/pom.xml -pl shared.all/product.shared/product.service.impl spring-boot:run
 ```
+
+Windows 本地演示也可在打包成功后执行 `powershell -NoProfile -File scripts/run-local-backend.ps1`。
+该脚本把完整程序包复制到独立运行目录，避免后续构建覆盖运行中的 JAR；使用 `dev,demo` 和本地 H2 文件库，重启后保留开发数据。
+运行包和数据库保存在被 Git 忽略的 `data/local-runtime/`。此方式的 H2 控制台 URL 为 `jdbc:h2:file:./data/local-runtime/database/careerq;MODE=MySQL;DATABASE_TO_LOWER=TRUE`，用户 `sa`，密码留空。
 
 启动后：
 
@@ -144,22 +146,38 @@ OpenAPI 契约：[`../docs/openapi.json`](../docs/openapi.json)（可用 `script
 
 生产环境在接入真实短信前，发送验证码、登录和注册返回 `50301`。
 
-## 目录结构
+## 包与依赖边界
 
 ```text
-backend/
-├── pom.xml
-└── src/
-    ├── main/java/com/careerq/
-    │   ├── CareerQApplication.java
-    │   ├── common/      # 统一响应、错误码、异常处理
-    │   ├── config/      # 安全（会话 Cookie + CSRF）、OpenAPI
-    │   └── system/      # 健康检查
-    ├── main/resources/
-    │   ├── application.yml
-    │   └── db/migration/ # Flyway 脚本
-    └── test/java/com/careerq/
+product.api ────────────> product.service
+product.service.impl ──> product.api + product.service
+
+product.service/src/main/java/com/careerq/
+├── service/                     # Service 接口
+├── common/、security/           # 公共响应与登录主体
+└── auth/、question/、…          # DTO
+
+product.api/src/main/java/com/careerq/
+├── controller/                  # Spring MVC Controller
+├── common/                      # API 异常处理
+└── param/                       # 请求参数
+
+product.service.impl/src/
+├── main/java/com/careerq/
+│   ├── CareerQApplication.java  # 应用入口、Mapper 扫描
+│   ├── service/impl/            # 服务实现与内部读取辅助类
+│   ├── dao/、dataobject/        # MyBatis Mapper 与 DO
+│   └── config/、bootstrap/、feed/
+├── main/resources/
+│   ├── application.yml
+│   └── db/migration/            # Flyway 迁移
+└── test/java/com/careerq/        # 业务与查询次数回归测试
 ```
+
+- Controller 通过 Service 接口访问业务；DTO 不依赖 DAO、DO 或实现模块。
+- 列表展示所需的作者、标签、互动状态批量读取。作者查询仅选择 `id`、`nickname`；不读取手机号等完整账号字段。
+- `ContentReadSupport` 仅在单次调用中汇总展示数据，不保存跨请求缓存；作者和互动查询每批最多 500 个去重 ID，空集合不发起批量 SQL。
+- `ContentReadPerformanceTests` 对实际执行的数据库 SELECT 计数，覆盖分页、内容可见性、互动隔离和超过 500 条的批次边界。
 
 ## 当前进度
 

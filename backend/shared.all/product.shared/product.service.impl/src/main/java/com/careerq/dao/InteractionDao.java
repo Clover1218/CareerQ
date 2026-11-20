@@ -44,6 +44,24 @@ public interface InteractionDao {
                    @Param("type") String type);
 
     @Select("""
+            <script>
+            select target_id, type from interactions
+            where user_id = #{userId} and target_type = #{targetType}
+            and
+            <choose>
+                <when test="targetIds != null and !targetIds.isEmpty()">
+                    target_id in
+                    <foreach collection="targetIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+                </when>
+                <otherwise>1 = 0</otherwise>
+            </choose>
+            </script>
+            """)
+    List<InteractionDO> findByUserAndTargets(@Param("userId") Long userId,
+                                            @Param("targetType") String targetType,
+                                            @Param("targetIds") List<Long> targetIds);
+
+    @Select("""
             select count(*) from interactions i
             where i.type = 'like' and (
                 (i.target_type = 'question' and exists (

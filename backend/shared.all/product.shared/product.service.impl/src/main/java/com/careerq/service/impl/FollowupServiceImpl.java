@@ -5,7 +5,6 @@ import com.careerq.common.ErrorCode;
 import com.careerq.common.UserBrief;
 import com.careerq.dao.FollowupDao;
 import com.careerq.dao.QuestionDao;
-import com.careerq.dao.UserDao;
 import com.careerq.dataobject.FollowupDO;
 import com.careerq.dataobject.QuestionDO;
 import com.careerq.followup.FollowupDtos.CreateRequest;
@@ -16,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -27,12 +27,12 @@ public class FollowupServiceImpl implements FollowupService {
 
     private final FollowupDao followupDao;
     private final QuestionDao questionDao;
-    private final UserDao userDao;
+    private final ContentReadSupport contentReadSupport;
 
-    public FollowupServiceImpl(FollowupDao followupDao, QuestionDao questionDao, UserDao userDao) {
+    public FollowupServiceImpl(FollowupDao followupDao, QuestionDao questionDao, ContentReadSupport contentReadSupport) {
         this.followupDao = followupDao;
         this.questionDao = questionDao;
-        this.userDao = userDao;
+        this.contentReadSupport = contentReadSupport;
     }
 
 
@@ -58,7 +58,7 @@ public class FollowupServiceImpl implements FollowupService {
         followup.setStatus(PUBLISHED);
         followupDao.insert(followup);
         questionDao.incrementFollowup(questionId);
-        return toView(followup);
+        return toView(followup, contentReadSupport.authors(List.of(followup.getSenderId())));
     }
 
     @Override
@@ -73,8 +73,9 @@ public class FollowupServiceImpl implements FollowupService {
             requireVisible(current, question);
         }
         Long senderId = "private".equals(question.getScope()) ? current.getId() : null;
-        return followupDao.findVisible(questionId, senderId)
-                .stream().map(this::toView).toList();
+        List<FollowupDO> rows = followupDao.findVisible(questionId, senderId);
+        Map<Long, UserBrief> authors = contentReadSupport.authors(rows.stream().map(FollowupDO::getSenderId).toList());
+        return rows.stream().map(row -> toView(row, authors)).toList();
     }
 
     private void requireVisible(AuthUser current, QuestionDO question) {
@@ -96,10 +97,8 @@ public class FollowupServiceImpl implements FollowupService {
         }
     }
 
-    private FollowupView toView(FollowupDO followup) {
-        UserBrief author = userDao.findById(followup.getSenderId())
-                .map(user -> new UserBrief(user.getId(), user.getNickname()))
-                .orElse(new UserBrief(followup.getSenderId(), "用户"));
+    private FollowupView toView(FollowupDO followup, Map<Long, UserBrief> authors) {
+        UserBrief author = contentReadSupport.author(authors, followup.getSenderId());
         return new FollowupView(
                 followup.getId(),
                 followup.getQuestionId(),

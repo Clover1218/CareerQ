@@ -1,10 +1,10 @@
 package com.careerq.service.impl;
 
-import com.careerq.dao.InteractionDao;
 import com.careerq.dao.PublicPostDao;
 import com.careerq.dataobject.PublicPostDO;
 import com.careerq.security.AuthUser;
 import com.careerq.service.PublicPostService;
+import com.careerq.service.impl.ContentReadSupport.InteractionStates;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,31 +14,35 @@ import java.util.List;
 public class PublicPostServiceImpl implements PublicPostService {
 
     private final PublicPostDao publicPostDao;
-    private final InteractionDao interactionDao;
+    private final ContentReadSupport contentReadSupport;
 
-    public PublicPostServiceImpl(PublicPostDao publicPostDao, InteractionDao interactionDao) {
+    public PublicPostServiceImpl(PublicPostDao publicPostDao, ContentReadSupport contentReadSupport) {
         this.publicPostDao = publicPostDao;
-        this.interactionDao = interactionDao;
+        this.contentReadSupport = contentReadSupport;
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<PostView> list(AuthUser viewer) {
-        return publicPostDao.findPublished(null).stream().map(post -> toView(post, viewer)).toList();
+        return toViews(publicPostDao.findPublished(null), viewer);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<PostView> highlights(AuthUser viewer) {
-        return publicPostDao.findPublished(10).stream().map(post -> toView(post, viewer)).toList();
+        return toViews(publicPostDao.findPublished(10), viewer);
     }
 
-    private PostView toView(PublicPostDO post, AuthUser viewer) {
+    private List<PostView> toViews(List<PublicPostDO> posts, AuthUser viewer) {
         Long viewerId = viewer == null ? null : viewer.getId();
-        boolean liked = viewerId != null && interactionDao.exists(viewerId, "post", post.getId(), "like");
-        boolean favorited = viewerId != null && interactionDao.exists(viewerId, "post", post.getId(), "favorite");
+        InteractionStates states = contentReadSupport.interactions(viewerId, "post",
+                posts.stream().map(PublicPostDO::getId).toList());
+        return posts.stream().map(post -> toView(post, states)).toList();
+    }
+
+    private PostView toView(PublicPostDO post, InteractionStates states) {
         return new PostView(post.getId(), post.getOriginalQuestionId(), post.getTitle(),
                 post.getQuestionBody(), post.getHrAnswer(), post.isAnonymized(), post.getPublishedAt(),
-                liked, favorited);
+                states.has(post.getId(), "like"), states.has(post.getId(), "favorite"));
     }
 }

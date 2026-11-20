@@ -4,6 +4,7 @@
  */
 
 const BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
+const DEFAULT_TIMEOUT_MS = 15_000;
 
 /** 后端统一响应结构：{ code, message, data } */
 export interface ApiEnvelope<T> {
@@ -32,9 +33,41 @@ export function resetCsrfToken(): void {
   csrfToken = null;
 }
 
-async function fetchCsrfToken(): Promise<string> {
-  const res = await fetch(`${BASE}/auth/csrf`, { credentials: "include" });
-  const body = (await res.json().catch(() => null)) as ApiEnvelope<{ token: string }> | null;
+/** 超时覆盖响应正文读取；写请求超时不自动重试，避免重复提交。 */
+async function fetchEnvelope<T>(url: string, options: RequestInit, timeoutMs: number) {
+  const controller = new AbortController();
+  const signal = options.signal;
+  const abort = () => controller.abort(signal?.reason);
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  signal?.addEventListener("abort", abort, { once: true });
+  if (signal?.aborted) abort();
+
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    const envelope = res.status === 204 ? null : await res.json().catch((error: unknown) => {
+      if (controller.signal.aborted) throw error;
+      return null;
+    }) as ApiEnvelope<T> | null;
+    return { res, envelope };
+  } catch (error) {
+    if (timedOut) {
+      throw new ApiError("请求超时，请稍后重试。提交结果可在“我的问答”中确认。", -1, 408);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", abort);
+  }
+}
+
+async function fetchCsrfToken(timeoutMs: number, signal?: AbortSignal | null): Promise<string> {
+  const { res, envelope: body } = await fetchEnvelope<{ token: string }>(
+    `${BASE}/auth/csrf`, { credentials: "include", signal }, timeoutMs,
+  );
 
   if (!res.ok || !body || body.code !== 0) {
     throw new ApiError(body?.message ?? `获取 CSRF Token 失败（HTTP ${res.status}）`, body?.code ?? -1, res.status);
@@ -50,15 +83,20 @@ export interface RequestOptions extends Omit<RequestInit, "body"> {
   rawBody?: BodyInit;
   /** 跳过 CSRF 头，仅用于确实不需要校验的场景 */
   skipCsrf?: boolean;
+  /** 单次网络请求超时，包含获取 CSRF 令牌及读取响应正文；默认 15 秒 */
+  timeoutMs?: number;
 }
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method: rawMethod = "GET", body, rawBody, skipCsrf = false, headers: rawHeaders, ...rest } = options;
+  const {
+    method: rawMethod = "GET", body, rawBody, skipCsrf = false, headers: rawHeaders,
+    timeoutMs = DEFAULT_TIMEOUT_MS, ...rest
+  } = options;
   const method = rawMethod.toUpperCase();
   const needsCsrf = !skipCsrf && method !== "GET" && method !== "HEAD";
   const payload = rawBody ?? (body === undefined ? undefined : JSON.stringify(body));
 
-  const send = async (): Promise<Response> => {
+  const send = async () => {
     const headers = new Headers(rawHeaders);
     headers.set("Accept", "application/json");
     if (rawBody === undefined) {
@@ -66,24 +104,24 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     }
     // 写请求携带 CSRF Token；首次调用时懒加载并缓存
     if (needsCsrf) {
-      headers.set("X-XSRF-TOKEN", csrfToken ?? (await fetchCsrfToken()));
+      headers.set("X-XSRF-TOKEN", csrfToken ?? (await fetchCsrfToken(timeoutMs, rest.signal)));
     }
-    return fetch(`${BASE}${path}`, {
+    return fetchEnvelope<T>(`${BASE}${path}`, {
       ...rest,
       method,
       headers,
       credentials: "include",
       body: payload,
-    });
+    }, timeoutMs);
   };
 
-  let res = await send();
+  let { res, envelope } = await send();
 
   // token 只缓存在内存，多标签页登录、会话轮换或后端重启后可能与 Cookie 失配；
   // 403 时重新拉一次 token 再试。CSRF 校验在业务执行前完成，重试不会重复写入
   if (res.status === 403 && needsCsrf) {
     resetCsrfToken();
-    res = await send();
+    ({ res, envelope } = await send());
   }
 
   // 会话过期：丢掉缓存，下一次写请求会重新获取
@@ -94,8 +132,6 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   if (res.status === 204) {
     return undefined as T;
   }
-
-  const envelope = (await res.json().catch(() => null)) as ApiEnvelope<T> | null;
 
   if (!res.ok || !envelope || envelope.code !== 0) {
     throw new ApiError(envelope?.message ?? `HTTP ${res.status}`, envelope?.code ?? -1, res.status);

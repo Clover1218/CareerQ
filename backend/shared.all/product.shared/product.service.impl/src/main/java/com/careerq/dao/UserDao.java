@@ -1,5 +1,6 @@
 package com.careerq.dao;
 
+import com.careerq.common.UserBrief;
 import com.careerq.dataobject.UserDO;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Options;
@@ -7,6 +8,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface UserDao {
@@ -25,6 +27,21 @@ public interface UserDao {
 
     @Select("select * from users where id = #{id}")
     Optional<UserDO> findById(Long id);
+
+    @Select("""
+            <script>
+            select id, nickname from users
+            where
+            <choose>
+                <when test="ids != null and !ids.isEmpty()">
+                    id in
+                    <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+                </when>
+                <otherwise>1 = 0</otherwise>
+            </choose>
+            </script>
+            """)
+    List<UserBrief> findBriefsByIds(@Param("ids") List<Long> ids);
 
     @Select("select * from users where phone_hash = #{phoneHash}")
     Optional<UserDO> findByPhoneHash(String phoneHash);
