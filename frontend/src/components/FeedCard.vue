@@ -24,7 +24,10 @@ const props = defineProps<{
   withdrawable?: boolean;
 }>();
 
-const emit = defineEmits<{ (e: "dismiss", id: number): void; withdraw: [] }>();
+const emit = defineEmits<{
+  dismiss: [id: number];
+  withdraw: [];
+}>();
 const route = useRoute();
 const router = useRouter();
 const message = useMessage();
