@@ -21,7 +21,7 @@ export const router = createRouter({
     { path: "/login", component: LoginView },
     { path: "/register", component: RegisterView },
     // 需要登录：学生问答 / 提问 / HR 工作台
-    { path: "/me", name: "my-qa", component: MyQaView, meta: { requiresAuth: true } },
+    { path: "/me", name: "my-qa", component: MyQaView, meta: { requiresAuth: true, role: "student" } },
     { path: "/ask", component: AskView, meta: { requiresAuth: true, role: "student" } },
     { path: "/hr", name: "hr-workbench", component: HrWorkspaceView, meta: { requiresAuth: true, role: "hr" } },
     { path: "/:pathMatch(.*)*", redirect: "/" },

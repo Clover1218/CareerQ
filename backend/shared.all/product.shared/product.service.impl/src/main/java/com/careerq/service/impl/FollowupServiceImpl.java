@@ -3,6 +3,7 @@ package com.careerq.service.impl;
 import com.careerq.common.BusinessException;
 import com.careerq.common.ErrorCode;
 import com.careerq.common.UserBrief;
+import com.careerq.dao.AnswerDao;
 import com.careerq.dao.FollowupDao;
 import com.careerq.dao.QuestionDao;
 import com.careerq.dao.UserDao;
@@ -28,11 +29,13 @@ public class FollowupServiceImpl implements FollowupService {
     private final FollowupDao followupDao;
     private final QuestionDao questionDao;
     private final UserDao userDao;
+    private final AnswerDao answerDao;
 
-    public FollowupServiceImpl(FollowupDao followupDao, QuestionDao questionDao, UserDao userDao) {
+    public FollowupServiceImpl(FollowupDao followupDao, QuestionDao questionDao, UserDao userDao, AnswerDao answerDao) {
         this.followupDao = followupDao;
         this.questionDao = questionDao;
         this.userDao = userDao;
+        this.answerDao = answerDao;
     }
 
 
@@ -75,6 +78,37 @@ public class FollowupServiceImpl implements FollowupService {
         Long senderId = "private".equals(question.getScope()) ? current.getId() : null;
         return followupDao.findVisible(questionId, senderId)
                 .stream().map(this::toView).toList();
+    }
+
+    @Override
+    @Transactional
+    public FollowupView withdraw(AuthUser sender, Long questionId, Long followupId) {
+        questionDao.findByIdForUpdate(questionId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
+        FollowupDO followup = followupDao.findByIdForUpdate(followupId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "追问不存在"));
+        if (!questionId.equals(followup.getQuestionId())) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "追问不存在");
+        }
+        if (!sender.getId().equals(followup.getSenderId())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "只能撤销自己的追问");
+        }
+        if ("removed".equals(followup.getStatus())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "追问已撤销");
+        }
+        if (!Set.of("published", "pending_human", "pending_machine").contains(followup.getStatus())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "当前状态不可撤销");
+        }
+        if (answerDao.countByFollowupId(followupId) > 0) {
+            throw new BusinessException(ErrorCode.CONFLICT, "追问已有 HR 回复，不能撤销");
+        }
+        boolean published = PUBLISHED.equals(followup.getStatus());
+        followupDao.updateStatus(followupId, "removed");
+        if (published) {
+            questionDao.decrementFollowup(followup.getQuestionId());
+        }
+        followup.setStatus("removed");
+        return toView(followup);
     }
 
     private void requireVisible(AuthUser current, QuestionDO question) {

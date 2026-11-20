@@ -1,4 +1,4 @@
-﻿{
+{
     "openapi":  "3.0.1",
     "info":  {
                  "title":  "职问桥 API",
@@ -12,6 +12,108 @@
                     }
                 ],
     "paths":  {
+        "/api/v1/questions/{id}/withdraw": {
+            "post": {
+                "tags": [
+                    "question-controller"
+                ],
+                "operationId": "withdraw",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseQuestionView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/questions/{id}/followups/{followupId}/withdraw": {
+            "post": {
+                "tags": [
+                    "followup-controller"
+                ],
+                "operationId": "withdraw_1",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    },
+                    {
+                        "name": "followupId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseFollowupView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/answers/{id}/withdraw": {
+            "post": {
+                "tags": [
+                    "answer-controller"
+                ],
+                "operationId": "withdraw_2",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAnswerView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
                   "/api/v1/me/profile":  {
                                              "get":  {
                                                          "tags":  [

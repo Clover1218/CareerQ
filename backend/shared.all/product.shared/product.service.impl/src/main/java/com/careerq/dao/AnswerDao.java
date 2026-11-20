@@ -24,6 +24,12 @@ public interface AnswerDao {
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(AnswerDO answer);
 
+    @Select("select count(*) from answers where question_id = #{questionId}")
+    long countByQuestionId(@Param("questionId") Long questionId);
+
+    @Select("select count(*) from answers where followup_id = #{followupId}")
+    long countByFollowupId(@Param("followupId") Long followupId);
+
     @Select("select * from answers where id = #{id}")
     Optional<AnswerDO> findById(Long id);
 

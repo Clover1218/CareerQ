@@ -38,4 +38,6 @@ public interface QuestionService {
 
     PageResult<HrAnsweredQuestionView> hrAnsweredQuestions(AuthUser hr, Long cursor, int limit);
 
+    /** 学生撤回自己的无回答问题。 */
+    QuestionView withdraw(AuthUser author, Long id);
 }

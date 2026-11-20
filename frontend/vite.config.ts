@@ -37,6 +37,11 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // Windows 下文件监听事件偶发丢失，开启轮询保证改动后 HMR 生效
+    watch: {
+      usePolling: true,
+      interval: 300,
+    },
     proxy: {
       "/api": {
         target: apiProxyTarget,
