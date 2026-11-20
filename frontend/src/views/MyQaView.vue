@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref } from "vue";
+import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
+import { useRoute } from "vue-router";
 import { useDialog, useMessage } from "naive-ui";
 import { api, type MeStats, type Profile, type Question, type QuestionFeedItem } from "@/api";
 import { useUserStore } from "@/stores/user";
-import { clearViewHistory, getViewHistory, type ViewHistoryEntry } from "@/utils/history";
+import { clearViewHistory, getViewHistory, removeViewHistoryEntry, type ViewHistoryEntry } from "@/utils/history";
 import FeedCard from "@/components/FeedCard.vue";
 import FeedIcon from "@/components/FeedIcon.vue";
 
 const userStore = useUserStore();
 const { user } = storeToRefs(userStore);
+const route = useRoute();
 const message = useMessage();
 const dialog = useDialog();
 
@@ -51,6 +53,11 @@ function switchTab(tab: MyQaTab) {
 function clearHistory() {
   clearViewHistory();
   historyEntries.value = [];
+}
+
+function deleteHistory(id: number) {
+  removeViewHistoryEntry(id);
+  historyEntries.value = getViewHistory();
 }
 
 function formatVisitedAt(iso: string): string {
@@ -274,10 +281,25 @@ async function saveProfile() {
 }
 
 onMounted(() => {
+  // 从个人信息弹窗点「历史浏览」会带 ?tab=history，进来直接切到历史标签
+  if (route.query.tab === "history") {
+    activeTab.value = "history";
+    historyEntries.value = getViewHistory();
+  }
   void loadProfile();
   void loadStats();
   void loadQuestions(true);
 });
+
+watch(
+  () => route.query.tab,
+  (tab) => {
+    if (tab === "history") {
+      activeTab.value = "history";
+      historyEntries.value = getViewHistory();
+    }
+  },
+);
 </script>
 
 <template>
@@ -409,7 +431,32 @@ onMounted(() => {
               >
                 {{ entry.title }}
               </router-link>
-              <span class="shrink-0 text-12 text-muted">{{ formatVisitedAt(entry.visitedAt) }}</span>
+              <div class="flex shrink-0 items-center gap-2">
+                <span class="text-12 text-muted">{{ formatVisitedAt(entry.visitedAt) }}</span>
+                <button
+                  class="history-delete"
+                  type="button"
+                  aria-label="删除这条浏览记录"
+                  @click="deleteHistory(entry.id)"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M3 6h18" />
+                    <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                    <path d="M10 11v6" />
+                    <path d="M14 11v6" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <div class="mt-2 text-center">
               <button class="aux-btn" type="button" @click="clearHistory">清空浏览记录</button>
@@ -418,7 +465,7 @@ onMounted(() => {
         </template>
       </div>
 
-      <aside class="order-first lg:order-none">
+      <aside class="profile-aside order-first lg:order-none">
         <section class="rounded-card border border-line bg-surface p-4">
           <div class="flex items-center justify-between">
             <h2 class="m-0 text-16 font-semibold text-ink">个人资料</h2>

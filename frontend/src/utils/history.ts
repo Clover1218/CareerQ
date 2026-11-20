@@ -48,6 +48,16 @@ export function addViewHistory(entry: { id: number; title: string }): void {
   }
 }
 
+/** 删除单条浏览记录 */
+export function removeViewHistoryEntry(id: number): void {
+  try {
+    const rest = getViewHistory().filter((item) => item.id !== id);
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(rest));
+  } catch {
+    // ignore
+  }
+}
+
 export function clearViewHistory(): void {
   try {
     window.localStorage.removeItem(STORAGE_KEY);

@@ -5,6 +5,7 @@ import { storeToRefs } from "pinia";
 import { dateZhCN, zhCN, type GlobalThemeOverrides } from "naive-ui";
 import { useUserStore } from "@/stores/user";
 import MessageMenu from "@/components/MessageMenu.vue";
+import ProfileDrawer from "@/components/ProfileDrawer.vue";
 
 // Naive UI 主题与 Figma token 对齐，避免组件库默认蓝与设计稿脱节
 const themeOverrides: GlobalThemeOverrides = {
@@ -34,6 +35,12 @@ const ROLE_LABEL: Record<string, string> = {
 };
 const roleLabel = computed(() => ROLE_LABEL[user.value?.role ?? "student"] ?? "学生");
 const avatarInitial = computed(() => (user.value?.nickname ?? "学").trim().slice(0, 1));
+// 悬停头像时展示的简要资料（学校 · 专业 · 年级）
+const profileSummary = computed(() =>
+  [user.value?.school, user.value?.major, user.value?.grade]
+    .filter((value): value is string => !!value && value.trim().length > 0)
+    .join(" · "),
+);
 
 function goProfile() {
   if (user.value) {
@@ -52,6 +59,21 @@ async function logout() {
 
 // 退出登录：全屏居中的确认弹窗
 const showLogoutConfirm = ref(false);
+// 个人信息抽屉：点击顶栏头像打开
+const showProfileDrawer = ref(false);
+
+function openProfileDrawer() {
+  showProfileDrawer.value = true;
+}
+
+function closeProfileDrawer() {
+  showProfileDrawer.value = false;
+}
+
+function logoutFromDrawer() {
+  showProfileDrawer.value = false;
+  confirmLogout();
+}
 
 function confirmLogout() {
   showLogoutConfirm.value = true;
@@ -110,8 +132,8 @@ watch(() => route.fullPath, refresh);
                     <button
                       class="account-trigger"
                       type="button"
-                      :aria-label="`${user.nickname} 的主页`"
-                      @click="goProfile"
+                      :aria-label="`${user.nickname} 的个人信息`"
+                      @click="openProfileDrawer"
                     >
                       <span class="account-avatar">
                         <img v-if="user.avatarUrl" :src="user.avatarUrl" alt="" />
@@ -119,9 +141,11 @@ watch(() => route.fullPath, refresh);
                       </span>
                       <span class="account-name">{{ user.nickname }}</span>
                     </button>
-                    <div class="account-pop" role="tooltip" @click="goProfile">
+                    <div class="account-pop" role="tooltip" @click="openProfileDrawer">
                       <span class="role">{{ roleLabel }}</span>
-                      <span class="account-pop-hint">进入我的主页</span>
+                      <p v-if="profileSummary" class="account-pop-meta">{{ profileSummary }}</p>
+                      <p v-else class="account-pop-meta account-pop-meta--muted">资料待完善</p>
+                      <span class="account-pop-hint">点击查看完整资料</span>
                     </div>
                   </div>
                   <MessageMenu />
@@ -172,6 +196,13 @@ watch(() => route.fullPath, refresh);
                 </div>
               </Transition>
             </Teleport>
+
+            <ProfileDrawer
+              :show="showProfileDrawer"
+              :user="user"
+              @close="closeProfileDrawer"
+              @logout="logoutFromDrawer"
+            />
           </n-loading-bar-provider>
         </n-notification-provider>
       </n-dialog-provider>

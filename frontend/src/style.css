@@ -869,3 +869,48 @@ textarea {
 .confirm-fade-leave-to {
   opacity: 0;
 }
+/* 「我的问答」右侧个人资料栏：随页面滚动固定在右侧 */
+.profile-aside {
+  position: sticky;
+  top: 73px;
+  align-self: start;
+}
+
+@media (max-width: 1023px) {
+  .profile-aside {
+    position: static;
+  }
+}
+
+/* 顶栏头像悬停浮层里的资料摘要 */
+.account-pop-meta {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--color-text-regular);
+}
+
+.account-pop-meta--muted {
+  color: var(--color-text-muted);
+}
+/* 历史浏览：单条记录删除图标 */
+.history-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.history-delete:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-danger);
+}

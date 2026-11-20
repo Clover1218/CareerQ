@@ -96,6 +96,29 @@ public class AnswerServiceImpl implements AnswerService {
         return toView(answer);
     }
 
+    @Override
+    @Transactional
+    public AnswerView withdraw(AuthUser author, Long answerId) {
+        AnswerDO answer = answerDao.findByIdForUpdate(answerId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "回答不存在"));
+        if (!author.getId().equals(answer.getAuthorId())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "只能撤销自己的回答");
+        }
+        if ("removed".equals(answer.getStatus())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "回答已撤销");
+        }
+        if (!java.util.Set.of("published", "pending_human", "pending_machine").contains(answer.getStatus())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "当前状态不可撤销");
+        }
+        boolean published = PUBLISHED.equals(answer.getStatus());
+        answerDao.updateStatus(answerId, "removed");
+        if (published) {
+            questionDao.decrementAnswer(answer.getQuestionId());
+        }
+        answer.setStatus("removed");
+        return toView(answer);
+    }
+
     private AnswerView toView(AnswerDO answer) {
         return new AnswerView(
                 answer.getId(),
