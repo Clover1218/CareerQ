@@ -24,6 +24,8 @@ public class QuestionDO {
 
     private int answerCount;
 
+    private Boolean hasPendingAnswer;
+
     private int followupCount;
 
     private int usefulCount;
@@ -98,6 +100,14 @@ public class QuestionDO {
 
     public int getAnswerCount() {
         return answerCount;
+    }
+
+    public Boolean getHasPendingAnswer() {
+        return hasPendingAnswer;
+    }
+
+    public void setHasPendingAnswer(Boolean hasPendingAnswer) {
+        this.hasPendingAnswer = hasPendingAnswer;
     }
 
     public int getFollowupCount() {

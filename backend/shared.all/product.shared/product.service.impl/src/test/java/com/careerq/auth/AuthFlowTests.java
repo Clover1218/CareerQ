@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -122,6 +123,26 @@ class AuthFlowTests {
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "phone", "13800000620", "code", "123456"))))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void loginAllowsVitePreviewOrigin() throws Exception {
+        String phone = "13800000622";
+        String origin = "http://127.0.0.1:5176";
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "phone", phone, "code", "123456"))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .header("Origin", origin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "phone", phone, "code", "123456"))))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", origin))
+                .andExpect(jsonPath("$.data.user.role").value("student"));
     }
 
     @Test

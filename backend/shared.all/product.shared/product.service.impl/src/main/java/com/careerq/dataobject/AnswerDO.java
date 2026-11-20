@@ -8,6 +8,8 @@ public class AnswerDO {
 
     private Long questionId;
 
+    private Long followupId;
+
     private Long authorId;
 
     private String body;
@@ -32,8 +34,16 @@ public class AnswerDO {
         return questionId;
     }
 
+    public Long getFollowupId() {
+        return followupId;
+    }
+
     public void setQuestionId(Long questionId) {
         this.questionId = questionId;
+    }
+
+    public void setFollowupId(Long followupId) {
+        this.followupId = followupId;
     }
 
     public Long getAuthorId() {

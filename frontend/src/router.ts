@@ -6,10 +6,13 @@ import QuestionListView from "./views/QuestionListView.vue";
 import QuestionDetailView from "./views/QuestionDetailView.vue";
 import AskView from "./views/AskView.vue";
 import MyQaView from "./views/MyQaView.vue";
-import PrivatePoolView from "./views/PrivatePoolView.vue";
+import HrWorkspaceView from "./views/HrWorkspaceView.vue";
 
 export const router = createRouter({
   history: createWebHistory("/careerq/"),
+  scrollBehavior(_to, _from, savedPosition) {
+    return savedPosition ?? { top: 0 };
+  },
   routes: [
     // 公开页面：未注册也能浏览
     { path: "/", component: QuestionListView },
@@ -17,10 +20,10 @@ export const router = createRouter({
     // 未注册可进入登录/注册
     { path: "/login", component: LoginView },
     { path: "/register", component: RegisterView },
-    // 需要登录：我的问答 / 发帖 / 私密工单
+    // 需要登录：学生问答 / 提问 / HR 工作台
     { path: "/me", name: "my-qa", component: MyQaView, meta: { requiresAuth: true } },
     { path: "/ask", component: AskView, meta: { requiresAuth: true, role: "student" } },
-    { path: "/hr/private-pool", component: PrivatePoolView, meta: { requiresAuth: true, role: "hr" } },
+    { path: "/hr", name: "hr-workbench", component: HrWorkspaceView, meta: { requiresAuth: true, role: "hr" } },
     { path: "/:pathMatch(.*)*", redirect: "/" },
   ],
 });

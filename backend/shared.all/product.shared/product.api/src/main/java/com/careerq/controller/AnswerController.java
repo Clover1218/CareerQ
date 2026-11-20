@@ -32,4 +32,14 @@ public class AnswerController {
                                           @Valid @RequestBody CreateRequest request) {
         return ApiResponse.ok(answerService.create(AuthUsers.require(authentication), id, request));
     }
+
+    @PostMapping("/questions/{id}/followups/{followupId}/answers")
+    @PreAuthorize("hasRole('HR')")
+    public ApiResponse<AnswerView> replyToFollowup(Authentication authentication,
+                                                   @PathVariable Long id,
+                                                   @PathVariable Long followupId,
+                                                   @Valid @RequestBody CreateRequest request) {
+        return ApiResponse.ok(answerService.replyToFollowup(
+                AuthUsers.require(authentication), id, followupId, request));
+    }
 }

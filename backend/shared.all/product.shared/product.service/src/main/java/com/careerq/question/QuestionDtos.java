@@ -44,6 +44,7 @@ public final class QuestionDtos {
 
     public record HrAnswerSummary(
             Long id,
+            Long followupId,
             String body,
             String lengthType,
             String status,
@@ -51,6 +52,9 @@ public final class QuestionDtos {
     }
 
     public record HrAnsweredQuestionView(QuestionView question, HrAnswerSummary myAnswer) {
+    }
+
+    public record HrAnsweredPublicQuestionView(QuestionView question, boolean hasPendingAnswer) {
     }
 
     /** 公开 feed 摘要：不含作者；正文不做字数截断，由前端按行折叠。 */
@@ -101,11 +105,12 @@ public final class QuestionDtos {
     public record QuestionContentView(QuestionView question, ViewerState viewer) {
     }
 
-    /** HR 正式回答与 FollowUp 平铺后的单条内容。 */
+    /** HR 主回答、HR 追问回复与学生 FollowUp 合并后的单条时间线内容。 */
     public record ThreadItemView(
             String key,
             String kind,
             Long id,
+            Long followupId,
             String body,
             UserBrief author,
             boolean hr,

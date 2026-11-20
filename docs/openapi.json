@@ -7,7 +7,7 @@
              },
     "servers":  [
                     {
-                        "url":  "http://localhost:18081",
+                        "url":  "http://localhost:18181",
                         "description":  "Generated server url"
                     }
                 ],
@@ -200,6 +200,8 @@
                                                                       "tags":  [
                                                                                    "question-controller"
                                                                                ],
+                                                                      "summary":  "已下线",
+                                                                      "description":  "为兼容旧客户端保留；私密问答已下线，此接口始终返回 40001。",
                                                                       "operationId":  "publish",
                                                                       "parameters":  [
                                                                                          {
@@ -296,11 +298,63 @@
                                                                                       }
                                                                     }
                                                        },
+                  "/api/v1/questions/{id}/followups/{followupId}/answers":  {
+                                                                                "post":  {
+                                                                                             "tags":  [
+                                                                                                          "answer-controller"
+                                                                                                      ],
+                                                                                             "operationId":  "replyToFollowup",
+                                                                                             "parameters":  [
+                                                                                                                {
+                                                                                                                    "name":  "id",
+                                                                                                                    "in":  "path",
+                                                                                                                    "required":  true,
+                                                                                                                    "schema":  {
+                                                                                                                                   "type":  "integer",
+                                                                                                                                   "format":  "int64"
+                                                                                                                               }
+                                                                                                                },
+                                                                                                                {
+                                                                                                                    "name":  "followupId",
+                                                                                                                    "in":  "path",
+                                                                                                                    "required":  true,
+                                                                                                                    "schema":  {
+                                                                                                                                   "type":  "integer",
+                                                                                                                                   "format":  "int64"
+                                                                                                                               }
+                                                                                                                }
+                                                                                                            ],
+                                                                                             "requestBody":  {
+                                                                                                                 "content":  {
+                                                                                                                                 "application/json":  {
+                                                                                                                                                          "schema":  {
+                                                                                                                                                                         "$ref":  "#/components/schemas/CreateRequest"
+                                                                                                                                                                     }
+                                                                                                                                                      }
+                                                                                                                             },
+                                                                                                                 "required":  true
+                                                                                                             },
+                                                                                             "responses":  {
+                                                                                                               "200":  {
+                                                                                                                           "description":  "OK",
+                                                                                                                           "content":  {
+                                                                                                                                           "*/*":  {
+                                                                                                                                                       "schema":  {
+                                                                                                                                                                      "$ref":  "#/components/schemas/ApiResponseAnswerView"
+                                                                                                                                                                  }
+                                                                                                                                                   }
+                                                                                                                                       }
+                                                                                                                       }
+                                                                                                           }
+                                                                                         }
+                                                                            },
                   "/api/v1/questions/{id}/close":  {
                                                        "post":  {
                                                                     "tags":  [
                                                                                  "question-controller"
                                                                              ],
+                                                                    "summary":  "已下线",
+                                                                    "description":  "为兼容旧客户端保留；私密问答已下线，此接口始终返回 40001。",
                                                                     "operationId":  "close",
                                                                     "parameters":  [
                                                                                        {
@@ -469,6 +523,8 @@
                                                                        "tags":  [
                                                                                     "hr-controller"
                                                                                 ],
+                                                                       "summary":  "已下线",
+                                                                       "description":  "为兼容旧客户端保留；私密问答已下线，此接口始终返回 40001。",
                                                                        "operationId":  "claim",
                                                                        "parameters":  [
                                                                                           {
@@ -1177,6 +1233,8 @@
                                                               "tags":  [
                                                                            "hr-controller"
                                                                        ],
+                                                              "summary":  "已下线",
+                                                              "description":  "为兼容旧客户端保留；私密问答已下线，此接口始终返回 40001。",
                                                               "operationId":  "privatePool",
                                                               "parameters":  [
                                                                                  {
@@ -1254,6 +1312,47 @@
                                                                                   }
                                                                 }
                                                     },
+                  "/api/v1/hr/answered-public-questions":  {
+                                                               "get":  {
+                                                                           "tags":  [
+                                                                                        "hr-controller"
+                                                                                    ],
+                                                                           "operationId":  "answeredPublicQuestions",
+                                                                           "parameters":  [
+                                                                                              {
+                                                                                                  "name":  "cursor",
+                                                                                                  "in":  "query",
+                                                                                                  "required":  false,
+                                                                                                  "schema":  {
+                                                                                                                 "type":  "integer",
+                                                                                                                 "format":  "int64"
+                                                                                                             }
+                                                                                              },
+                                                                                              {
+                                                                                                  "name":  "limit",
+                                                                                                  "in":  "query",
+                                                                                                  "required":  false,
+                                                                                                  "schema":  {
+                                                                                                                 "type":  "integer",
+                                                                                                                 "format":  "int32",
+                                                                                                                 "default":  20
+                                                                                                             }
+                                                                                              }
+                                                                                          ],
+                                                                           "responses":  {
+                                                                                             "200":  {
+                                                                                                         "description":  "OK",
+                                                                                                         "content":  {
+                                                                                                                         "*/*":  {
+                                                                                                                                     "schema":  {
+                                                                                                                                                    "$ref":  "#/components/schemas/ApiResponsePageResultHrAnsweredPublicQuestionView"
+                                                                                                                                                }
+                                                                                                                                 }
+                                                                                                                     }
+                                                                                                     }
+                                                                                         }
+                                                                       }
+                                                           },
                   "/api/v1/feed/questions":  {
                                                  "get":  {
                                                              "tags":  [
@@ -1854,6 +1953,10 @@
                                                                                                 "type":  "integer",
                                                                                                 "format":  "int64"
                                                                                             },
+                                                                             "followupId":  {
+                                                                                                "type":  "integer",
+                                                                                                "format":  "int64"
+                                                                                            },
                                                                              "body":  {
                                                                                           "type":  "string"
                                                                                       },
@@ -2441,6 +2544,10 @@
                                                                                             "type":  "integer",
                                                                                             "format":  "int64"
                                                                                         },
+                                                                                 "followupId":  {
+                                                                                                    "type":  "integer",
+                                                                                                    "format":  "int64"
+                                                                                                },
                                                                                  "body":  {
                                                                                               "type":  "string"
                                                                                           },
@@ -2744,6 +2851,10 @@
                                                                                              "type":  "integer",
                                                                                              "format":  "int64"
                                                                                          },
+                                                                                  "followupId":  {
+                                                                                                     "type":  "integer",
+                                                                                                     "format":  "int64"
+                                                                                                 },
                                                                                   "body":  {
                                                                                                "type":  "string"
                                                                                            },
@@ -2785,6 +2896,47 @@
                                                                                                                   }
                                                                                                }
                                                                             },
+                                       "ApiResponsePageResultHrAnsweredPublicQuestionView":  {
+                                                                                                 "type":  "object",
+                                                                                                 "properties":  {
+                                                                                                                    "code":  {
+                                                                                                                                 "type":  "integer",
+                                                                                                                                 "format":  "int32"
+                                                                                                                             },
+                                                                                                                    "message":  {
+                                                                                                                                    "type":  "string"
+                                                                                                                                },
+                                                                                                                    "data":  {
+                                                                                                                                 "$ref":  "#/components/schemas/PageResultHrAnsweredPublicQuestionView"
+                                                                                                                             }
+                                                                                                                }
+                                                                                             },
+                                       "HrAnsweredPublicQuestionView":  {
+                                                                            "type":  "object",
+                                                                            "properties":  {
+                                                                                               "question":  {
+                                                                                                                "$ref":  "#/components/schemas/QuestionView"
+                                                                                                            },
+                                                                                               "hasPendingAnswer":  {
+                                                                                                                        "type":  "boolean"
+                                                                                                                    }
+                                                                                           }
+                                                                        },
+                                       "PageResultHrAnsweredPublicQuestionView":  {
+                                                                                      "type":  "object",
+                                                                                      "properties":  {
+                                                                                                         "items":  {
+                                                                                                                       "type":  "array",
+                                                                                                                       "items":  {
+                                                                                                                                     "$ref":  "#/components/schemas/HrAnsweredPublicQuestionView"
+                                                                                                                                 }
+                                                                                                                   },
+                                                                                                         "nextCursor":  {
+                                                                                                                            "type":  "integer",
+                                                                                                                            "format":  "int64"
+                                                                                                                        }
+                                                                                                     }
+                                                                                  },
                                        "ApiResponseFeedPage":  {
                                                                    "type":  "object",
                                                                    "properties":  {

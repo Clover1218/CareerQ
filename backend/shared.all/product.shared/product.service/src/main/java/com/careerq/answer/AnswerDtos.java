@@ -21,6 +21,7 @@ public final class AnswerDtos {
     public record AnswerView(
             Long id,
             Long questionId,
+            Long followupId,
             String body,
             String lengthType,
             String status,
