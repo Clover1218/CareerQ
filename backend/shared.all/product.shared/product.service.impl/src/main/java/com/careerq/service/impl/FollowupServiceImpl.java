@@ -16,15 +16,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 @Service
 public class FollowupServiceImpl implements FollowupService {
 
     private static final String PUBLISHED = "published";
-    private static final Set<String> HR_VISIBLE_STATES =
-            Set.of("assigned", "closed", "public_pending", "public_archived", "public_rejected");
 
     private final FollowupDao followupDao;
     private final QuestionDao questionDao;
@@ -46,7 +43,7 @@ public class FollowupServiceImpl implements FollowupService {
         QuestionDO question = questionDao.findByIdForUpdate(questionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
         if (!"public".equals(question.getScope())) {
-            throw new BusinessException(ErrorCode.INVALID_PARAM, "私密问答已明确不做");
+            throw new BusinessException(ErrorCode.INVALID_PARAM, "当前问题不可追问");
         }
         requireVisible(sender, question);
 
@@ -73,7 +70,7 @@ public class FollowupServiceImpl implements FollowupService {
         if (!ownPublicQuestion) {
             requireVisible(current, question);
         }
-        Long senderId = "private".equals(question.getScope()) ? current.getId() : null;
+        Long senderId = current == null ? null : current.getId();
         List<FollowupDO> rows = followupDao.findVisible(questionId, senderId);
         return rows.stream().map(this::toView).toList();
     }
@@ -102,21 +99,8 @@ public class FollowupServiceImpl implements FollowupService {
     }
 
     private void requireVisible(AuthUser current, QuestionDO question) {
-        if ("public".equals(question.getScope())) {
-            if (!PUBLISHED.equals(question.getStatus())) {
-                throw new BusinessException(ErrorCode.NOT_FOUND, "问题不存在");
-            }
-            return;
-        }
-        if (current == null) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "无权访问该私密问题");
-        }
-        boolean isAuthor = current.getId().equals(question.getAuthorId());
-        boolean isAssignedHr = current.getId().equals(question.getAssignedHrId())
-                && HR_VISIBLE_STATES.contains(question.getStatus());
-        boolean isOperator = "operator".equals(current.getRole()) || "admin".equals(current.getRole());
-        if (!isAuthor && !isAssignedHr && !isOperator) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "无权访问该私密问题");
+        if (!"public".equals(question.getScope()) || !PUBLISHED.equals(question.getStatus())) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "问题不存在");
         }
     }
 

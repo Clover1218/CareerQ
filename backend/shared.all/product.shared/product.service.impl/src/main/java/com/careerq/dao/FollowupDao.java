@@ -23,16 +23,16 @@ public interface FollowupDao {
     int insert(FollowupDO followup);
 
     @Select("""
-            select * from followups where question_id = #{questionId}
+            select * from followups where scope = 'public' and question_id = #{questionId}
             and (status = 'published' or sender_id = #{senderId} and status in ('pending_human', 'rejected'))
             order by id
             """)
     List<FollowupDO> findVisible(@Param("questionId") Long questionId, @Param("senderId") Long senderId);
 
-    @Select("select * from followups where status = 'pending_human' order by id")
+    @Select("select * from followups where scope = 'public' and status = 'pending_human' order by id")
     List<FollowupDO> findPending();
 
-    @Select("select * from followups where id = #{id} for update")
+    @Select("select * from followups where id = #{id} and scope = 'public' for update")
     Optional<FollowupDO> findByIdForUpdate(Long id);
 
     @Update("update followups set status = #{status} where id = #{id}")

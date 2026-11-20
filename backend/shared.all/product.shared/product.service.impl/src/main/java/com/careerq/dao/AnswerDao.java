@@ -27,19 +27,19 @@ public interface AnswerDao {
     @Select("select count(*) from answers where question_id = #{questionId}")
     long countByQuestionId(@Param("questionId") Long questionId);
 
-    @Select("select * from answers where id = #{id}")
+    @Select("select a.* from answers a where a.id = #{id} and exists (select 1 from questions q where q.id = a.question_id and q.scope = 'public')")
     Optional<AnswerDO> findById(Long id);
 
-    @Select("select * from answers where id = #{id} for update")
+    @Select("select a.* from answers a where a.id = #{id} and exists (select 1 from questions q where q.id = a.question_id and q.scope = 'public') for update")
     Optional<AnswerDO> findByIdForUpdate(Long id);
 
-    @Select("select * from answers where status = #{status} order by id")
+    @Select("select a.* from answers a where a.status = #{status} and exists (select 1 from questions q where q.id = a.question_id and q.scope = 'public') order by a.id")
     List<AnswerDO> findByStatusOrderByIdAsc(String status);
 
-    @Select("select count(*) from answers where status = #{status}")
+    @Select("select count(*) from answers a where a.status = #{status} and exists (select 1 from questions q where q.id = a.question_id and q.scope = 'public')")
     long countByStatus(String status);
 
-    @Select("select count(*) from answers where author_id = #{authorId} and status = 'published'")
+    @Select("select count(*) from answers a where a.author_id = #{authorId} and a.status = 'published' and exists (select 1 from questions q where q.id = a.question_id and q.scope = 'public')")
     long countPublishedByAuthor(Long authorId);
 
     @Select("""

@@ -47,10 +47,11 @@ public interface InteractionDao {
             select count(*) from interactions i
             where i.type = 'like' and (
                 (i.target_type = 'question' and exists (
-                    select 1 from questions q where q.id = i.target_id and q.author_id = #{authorId}
+                    select 1 from questions q where q.id = i.target_id and q.scope = 'public' and q.author_id = #{authorId}
                 )) or
                 (i.target_type = 'answer' and exists (
-                    select 1 from answers a where a.id = i.target_id and a.author_id = #{authorId}
+                    select 1 from answers a join questions q on q.id = a.question_id
+                    where a.id = i.target_id and q.scope = 'public' and a.author_id = #{authorId}
                 ))
             )
             """)
@@ -59,7 +60,7 @@ public interface InteractionDao {
     @Select("""
             <script>
             select * from interactions
-            where user_id = #{userId} and type = #{type}
+            where user_id = #{userId} and type = #{type} and target_type in ('question', 'answer')
             <if test="targetType != null"> and target_type = #{targetType}</if>
             <if test="cursor != null"> and id &lt; #{cursor}</if>
             order by id desc limit #{limit}

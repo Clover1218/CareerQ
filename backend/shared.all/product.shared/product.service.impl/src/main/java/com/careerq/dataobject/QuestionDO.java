@@ -16,10 +16,6 @@ public class QuestionDO {
 
     private String status;
 
-    private Long assignedHrId;
-
-    private LocalDateTime closedAt;
-
     private LocalDateTime firstAnswerAt;
 
     private int answerCount;
@@ -82,17 +78,8 @@ public class QuestionDO {
         this.status = status;
     }
 
-    public Long getAssignedHrId() {
-        return assignedHrId;
-    }
 
-    public void setAssignedHrId(Long assignedHrId) {
-        this.assignedHrId = assignedHrId;
-    }
 
-    public void setClosedAt(LocalDateTime closedAt) {
-        this.closedAt = closedAt;
-    }
 
     public LocalDateTime getFirstAnswerAt() {
         return firstAnswerAt;

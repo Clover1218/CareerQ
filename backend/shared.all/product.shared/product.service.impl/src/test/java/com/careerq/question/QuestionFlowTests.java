@@ -193,8 +193,8 @@ class QuestionFlowTests {
                         .session(student).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "title", "私密提问已下线",
-                                "body", "私密内容",
+                                "title", "不支持的可见范围",
+                                "body", "无效范围内容",
                                 "tags", List.of("实习"),
                                 "scope", "private"))))
                 .andExpect(status().isBadRequest())

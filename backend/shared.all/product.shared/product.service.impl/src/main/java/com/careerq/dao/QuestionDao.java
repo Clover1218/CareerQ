@@ -15,26 +15,26 @@ public interface QuestionDao {
 
     @Insert("""
             insert into questions (
-                scope, author_id, title, body, status, assigned_hr_id, closed_at, first_answer_at,
+                scope, author_id, title, body, status, first_answer_at,
                 answer_count, useful_count, created_at, updated_at
             ) values (
-                #{scope}, #{authorId}, #{title}, #{body}, #{status}, #{assignedHrId}, #{closedAt},
+                #{scope}, #{authorId}, #{title}, #{body}, #{status},
                 #{firstAnswerAt}, #{answerCount}, #{usefulCount}, #{createdAt}, #{updatedAt}
             )
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(QuestionDO question);
 
-    @Select("select * from questions where id = #{id}")
+    @Select("select * from questions where id = #{id} and scope = 'public'")
     Optional<QuestionDO> findById(Long id);
 
-    @Select("select * from questions where id = #{id} for update")
+    @Select("select * from questions where id = #{id} and scope = 'public' for update")
     Optional<QuestionDO> findByIdForUpdate(Long id);
 
-    @Select("select * from questions where status = #{status} order by id")
+    @Select("select * from questions where scope = 'public' and status = #{status} order by id")
     List<QuestionDO> findByStatusOrderByIdAsc(String status);
 
-    @Select("select count(*) from questions where status = #{status}")
+    @Select("select count(*) from questions where scope = 'public' and status = #{status}")
     long countByStatus(String status);
 
     @Select("""
@@ -164,7 +164,7 @@ public interface QuestionDao {
 
     @Select("""
             <script>
-            select * from questions where author_id = #{authorId}
+            select * from questions where scope = 'public' and author_id = #{authorId}
             <if test="scope != null">and scope = #{scope}</if>
             <if test="cursor != null">and id &lt; #{cursor}</if>
             order by id desc limit #{limit}
@@ -173,10 +173,10 @@ public interface QuestionDao {
     List<QuestionDO> listByAuthor(@Param("authorId") Long authorId, @Param("scope") String scope,
                                   @Param("cursor") Long cursor, @Param("limit") int limit);
 
-    @Select("select count(*) from questions where author_id = #{authorId}")
+    @Select("select count(*) from questions where scope = 'public' and author_id = #{authorId}")
     long countByAuthor(Long authorId);
 
-    @Select("select coalesce(sum(answer_count), 0) from questions where author_id = #{authorId}")
+    @Select("select coalesce(sum(answer_count), 0) from questions where scope = 'public' and author_id = #{authorId}")
     long countReceivedAnswers(Long authorId);
 
     @Select("""

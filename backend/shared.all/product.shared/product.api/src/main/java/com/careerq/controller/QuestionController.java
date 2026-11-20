@@ -22,9 +22,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import com.careerq.common.BusinessException;
-import com.careerq.common.ErrorCode;
-import io.swagger.v3.oas.annotations.Operation;
 
 @RestController
 @RequestMapping("/api/v1/questions")
@@ -78,17 +75,4 @@ public class QuestionController {
         return ApiResponse.ok(questionService.withdraw(AuthUsers.require(authentication), id));
     }
 
-    @PostMapping("/{id}/close")
-    @Operation(summary = "已下线", description = "为兼容旧客户端保留；私密问答已下线，此接口始终返回 40001。")
-    public ApiResponse<QuestionView> close(Authentication authentication, @PathVariable Long id) {
-        AuthUsers.require(authentication);
-        throw new BusinessException(ErrorCode.INVALID_PARAM, "私密问答已明确不做");
-    }
-
-    @PostMapping("/{id}/publish")
-    @Operation(summary = "已下线", description = "为兼容旧客户端保留；私密问答已下线，此接口始终返回 40001。")
-    public ApiResponse<QuestionView> publish(Authentication authentication, @PathVariable Long id) {
-        AuthUsers.require(authentication);
-        throw new BusinessException(ErrorCode.INVALID_PARAM, "私密问答已明确不做");
-    }
 }

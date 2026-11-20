@@ -60,7 +60,7 @@ public class AnswerServiceImpl implements AnswerService {
         QuestionDO question = questionDao.findByIdForUpdate(questionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
         if (!"public".equals(question.getScope())) {
-            throw new BusinessException(ErrorCode.INVALID_PARAM, "私密问答已明确不做");
+            throw new BusinessException(ErrorCode.INVALID_PARAM, "当前问题不可回答");
         }
         if (followupId != null) {
             if (!PUBLISHED.equals(question.getStatus())) {

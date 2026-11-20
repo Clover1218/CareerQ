@@ -130,7 +130,7 @@ class InteractionFlowTests {
     }
 
     @Test
-    void postOnlySupportsLikeAndFavorite() throws Exception {
+    void retiredPostTargetIsRejected() throws Exception {
         MockHttpSession session = register("13800000504");
         long questionId = createQuestion(session);
         mockMvc.perform(post("/api/v1/interactions").with(csrf())

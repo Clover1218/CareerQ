@@ -5,21 +5,18 @@ import com.careerq.common.ErrorCode;
 import com.careerq.dao.AnswerDao;
 import com.careerq.dao.FollowupDao;
 import com.careerq.dao.ModerationWordDao;
-import com.careerq.dao.PublicPostDao;
 import com.careerq.dao.QuestionDao;
 import com.careerq.dao.ReportDao;
 import com.careerq.dao.UserDao;
 import com.careerq.dataobject.AnswerDO;
 import com.careerq.dataobject.FollowupDO;
 import com.careerq.dataobject.ModerationWordDO;
-import com.careerq.dataobject.PublicPostDO;
 import com.careerq.dataobject.QuestionDO;
 import com.careerq.dataobject.ReportDO;
 import com.careerq.dataobject.UserDO;
 import com.careerq.security.AuthUser;
 import com.careerq.service.AdminService;
 import com.careerq.service.AdminService.DecideRequest;
-import com.careerq.service.AdminService.PublicCopy;
 import com.careerq.service.AdminService.HandleReportRequest;
 import com.careerq.service.AdminService.QueueItem;
 import com.careerq.service.AdminService.ReportView;
@@ -46,7 +43,6 @@ public class AdminServiceImpl implements AdminService {
     private final QuestionDao questionDao;
     private final AnswerDao answerDao;
     private final FollowupDao followupDao;
-    private final PublicPostDao publicPostDao;
     private final ReportDao reportDao;
     private final ModerationWordDao wordDao;
     private final ModerationService moderationService;
@@ -55,7 +51,6 @@ public class AdminServiceImpl implements AdminService {
     public AdminServiceImpl(QuestionDao questionDao,
                             AnswerDao answerDao,
                             FollowupDao followupDao,
-                            PublicPostDao publicPostDao,
                             ReportDao reportDao,
                             ModerationWordDao wordDao,
                             ModerationService moderationService,
@@ -63,7 +58,6 @@ public class AdminServiceImpl implements AdminService {
         this.questionDao = questionDao;
         this.answerDao = answerDao;
         this.followupDao = followupDao;
-        this.publicPostDao = publicPostDao;
         this.reportDao = reportDao;
         this.wordDao = wordDao;
         this.moderationService = moderationService;
@@ -78,34 +72,31 @@ public class AdminServiceImpl implements AdminService {
         for (QuestionDO question : questionDao.findByStatusOrderByIdAsc(PENDING_HUMAN)) {
             items.add(new QueueItem("question", question.getId(), question.getTitle(),
                     snippet(question.getBody()), question.getStatus(), question.getCreatedAt(),
-                    question.getBody(), null,
+                    question.getBody(),
                     question.getId(), question.getTitle(),
                     question.getAuthorId(), nicknameOf(question.getAuthorId())));
         }
         for (AnswerDO answer : answerDao.findByStatusOrderByIdAsc(PENDING_HUMAN)) {
             QuestionDO question = questionDao.findById(answer.getQuestionId()).orElse(null);
+            if (question == null) continue;
             items.add(new QueueItem("answer", answer.getId(),
                     question == null ? null : question.getTitle(),
                     snippet(answer.getBody()), answer.getStatus(), answer.getCreatedAt(),
-                    answer.getBody(), null,
+                    answer.getBody(),
                     answer.getQuestionId(), question == null ? null : question.getTitle(),
                     answer.getAuthorId(), nicknameOf(answer.getAuthorId())));
         }
         for (FollowupDO followup : followupDao.findPending()) {
             QuestionDO question = questionDao.findById(followup.getQuestionId()).orElse(null);
+            if (question == null) continue;
             items.add(new QueueItem("followup", followup.getId(),
                     question == null ? null : question.getTitle(),
                     snippet(followup.getBody()), followup.getStatus(), followup.getCreatedAt(),
-                    followup.getBody(), null,
+                    followup.getBody(),
                     followup.getQuestionId(), question == null ? null : question.getTitle(),
                     followup.getSenderId(), nicknameOf(followup.getSenderId())));
         }
-        for (PublicPostDO post : publicPostDao.findByStatusOrderByIdAsc(PENDING_HUMAN)) {
-            items.add(new QueueItem("public_post", post.getId(), post.getTitle(),
-                    snippet(post.getQuestionBody()), post.getStatus(), post.getCreatedAt(),
-                    post.getQuestionBody(), post.getHrAnswer(),
-                    post.getOriginalQuestionId(), post.getTitle(), null, null));
-        }
+
         items.sort(Comparator.comparing(QueueItem::createdAt));
         return items;
     }
@@ -123,16 +114,13 @@ public class AdminServiceImpl implements AdminService {
             default -> "removed";
         };
         boolean approved = "published".equals(status);
-        if (request.publicCopy() != null && !(approved && "public_post".equals(targetType))) {
-            throw new BusinessException(ErrorCode.INVALID_PARAM, "仅批准公开稿时可提交脱敏内容");
-        }
+
         switch (targetType) {
             case "question" -> {
                 QuestionDO question = questionDao.findByIdForUpdate(targetId)
                         .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
                 requirePending(question.getStatus(), status);
-                String nextStatus = approved && "private".equals(question.getScope()) ? "open" : status;
-                questionDao.updateStatus(targetId, nextStatus);
+                questionDao.updateStatus(targetId, status);
             }
             case "answer" -> {
                 AnswerDO answer = answerDao.findByIdForUpdate(targetId)
@@ -149,29 +137,12 @@ public class AdminServiceImpl implements AdminService {
                 requirePending(followup.getStatus(), status);
                 followupDao.updateStatus(targetId, status);
             }
-            case "public_post" -> decidePublicPost(targetId, status, request.publicCopy());
             default -> throw new BusinessException(ErrorCode.INVALID_PARAM, "targetType 不合法");
         }
         moderationService.recordHuman(targetType, targetId, normalized, operator.getId(), request.note());
     }
 
-    private void decidePublicPost(Long id, String status, PublicCopy copy) {
-        PublicPostDO post = publicPostDao.findById(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "公开帖不存在"));
-        QuestionDO question = post.getOriginalQuestionId() == null ? null
-                : questionDao.findByIdForUpdate(post.getOriginalQuestionId()).orElse(null);
-        PublicPostDO locked = publicPostDao.findByIdForUpdate(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "公开帖不存在"));
-        requirePending(locked.getStatus(), status);
-        boolean approved = "published".equals(status);
-        if (copy != null) {
-            publicPostDao.updateCopy(id, copy.title().trim(), copy.questionBody().trim(), copy.hrAnswer().trim());
-        }
-        publicPostDao.updateStatus(id, status, approved ? LocalDateTime.now() : null);
-        if (question != null && "private".equals(question.getScope()) && "public_pending".equals(question.getStatus())) {
-            questionDao.updateStatus(question.getId(), approved ? "public_archived" : "public_rejected");
-        }
-    }
+
 
     private void requirePending(String current, String next) {
         if (!"removed".equals(next) && !PENDING_HUMAN.equals(current)) {
@@ -183,7 +154,8 @@ public class AdminServiceImpl implements AdminService {
     @Transactional(readOnly = true)
     public List<ReportView> reports(String status) {
         return reportDao.findByStatusOrderByIdAsc(status == null || status.isBlank() ? "pending" : status)
-                .stream().map(this::toReportView).toList();
+                .stream().filter(report -> Set.of("question", "answer").contains(report.getTargetType()))
+                .map(this::toReportView).toList();
     }
 
     @Override
@@ -199,7 +171,7 @@ public class AdminServiceImpl implements AdminService {
             throw new BusinessException(ErrorCode.INVALID_PARAM, "decision 只能是 dismiss/remove");
         }
         if ("remove".equals(normalized)) {
-            updateTargetStatus(report.getTargetType(), report.getTargetId(), "removed", null);
+            updateTargetStatus(report.getTargetType(), report.getTargetId(), "removed");
         }
         report.setStatus("dismiss".equals(normalized) ? "dismissed" : "resolved");
         report.setHandledBy(operator.getId());
@@ -207,11 +179,10 @@ public class AdminServiceImpl implements AdminService {
         reportDao.updateResolution(report);
     }
 
-    private int updateTargetStatus(String targetType, Long targetId, String status, LocalDateTime publishedAt) {
+    private int updateTargetStatus(String targetType, Long targetId, String status) {
         return switch (targetType) {
             case "question" -> questionDao.updateStatus(targetId, status);
             case "answer" -> answerDao.updateStatus(targetId, status);
-            case "public_post" -> publicPostDao.updateStatus(targetId, status, publishedAt);
             default -> throw new BusinessException(ErrorCode.INVALID_PARAM, "targetType 不合法");
         };
     }
@@ -240,8 +211,6 @@ public class AdminServiceImpl implements AdminService {
         result.put("questionsPublished", questionDao.countByStatus("published"));
         result.put("answersPendingHuman", answerDao.countByStatus(PENDING_HUMAN));
         result.put("answersPublished", answerDao.countByStatus("published"));
-        result.put("publicPostsPendingHuman", publicPostDao.countByStatus(PENDING_HUMAN));
-        result.put("publicPostsPublished", publicPostDao.countByStatus("published"));
         result.put("reportsPending", reportDao.countByStatus("pending"));
         return result;
     }
@@ -265,13 +234,7 @@ public class AdminServiceImpl implements AdminService {
                             .map(QuestionDO::getTitle).orElse(null);
                 }
             }
-            case "public_post" -> {
-                PublicPostDO post = publicPostDao.findById(report.getTargetId()).orElse(null);
-                if (post != null) {
-                    targetTitle = post.getTitle();
-                    targetExcerpt = snippet(post.getQuestionBody());
-                }
-            }
+
             default -> {
             }
         }

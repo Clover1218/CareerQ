@@ -36,6 +36,7 @@ public interface TagAffinityDao {
             select qt.tag_id, i.type, i.created_at
             from interactions i
             join question_tags qt on qt.question_id = i.target_id
+            join questions q on q.id = i.target_id and q.scope = 'public'
             where i.user_id = #{userId}
               and i.target_type = 'question'
               and i.type in ('like', 'useful', 'favorite', 'dislike')
