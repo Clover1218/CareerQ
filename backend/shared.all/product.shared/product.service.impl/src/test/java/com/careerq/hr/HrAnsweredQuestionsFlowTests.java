@@ -54,11 +54,15 @@ class HrAnsweredQuestionsFlowTests {
         return (MockHttpSession) result.getRequest().getSession(false);
     }
 
-    private MockHttpSession loginAsHr(String phone) throws Exception {
-        MockHttpSession session = login(phone);
-        long userId = objectMapper.readTree(mockMvc.perform(get("/api/v1/me").session(session))
+    private long currentUserId(MockHttpSession session) throws Exception {
+        return objectMapper.readTree(mockMvc.perform(get("/api/v1/me").session(session))
                         .andExpect(status().isOk()).andReturn().getResponse().getContentAsString())
                 .path("data").path("id").asLong();
+    }
+
+    private MockHttpSession loginAsHr(String phone) throws Exception {
+        MockHttpSession session = login(phone);
+        long userId = currentUserId(session);
         UserDO user = userDao.findById(userId).orElseThrow();
         user.setRole("hr");
         userDao.updateRole(user);
@@ -94,9 +98,10 @@ class HrAnsweredQuestionsFlowTests {
         long anotherHrQuestion = createQuestion(student, "另一位 HR 回答的问题");
 
         MockHttpSession hr = loginAsHr("13800000882");
+        long hrId = currentUserId(hr);
         mockMvc.perform(post("/api/v1/questions/{id}/followups", olderQuestion).session(hr).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("body", "HR 不应提交追问"))))
+                        .content(objectMapper.writeValueAsString(Map.of("hrId", hrId, "body", "HR 不应提交追问"))))
                 .andExpect(status().isForbidden());
         answer(hr, olderQuestion, "这是 HR 对较早问题的回答。");
         answer(hr, newerQuestion, "这是 HR 对较新问题的回答。");
@@ -127,7 +132,8 @@ class HrAnsweredQuestionsFlowTests {
 
         mockMvc.perform(post("/api/v1/questions/{id}/followups", olderQuestion).session(student).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("body", "能否再举一个例子？"))))
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "hrId", hrId, "body", "能否再举一个例子？"))))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/v1/hr/answered-questions").session(hr).param("limit", "1"))
@@ -178,12 +184,14 @@ class HrAnsweredQuestionsFlowTests {
         long questionId = createQuestion(student, "HR 可回复指定追问的问题");
         long otherQuestionId = createQuestion(student, "不能跨问题回复的追问");
         MockHttpSession hr = loginAsHr("13800000887");
+        long hrId = currentUserId(hr);
         answer(hr, questionId, "这是对主问题的回答。");
 
         MvcResult followupResult = mockMvc.perform(post("/api/v1/questions/{id}/followups", questionId)
                         .session(student).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("body", "可以再解释一下第二点吗？"))))
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "hrId", hrId, "body", "可以再解释一下第二点吗？"))))
                 .andExpect(status().isOk())
                 .andReturn();
         long followupId = objectMapper.readTree(followupResult.getResponse().getContentAsString())
@@ -199,6 +207,13 @@ class HrAnsweredQuestionsFlowTests {
                         .session(hr).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("body", "不能跨问题回复"))))
+                .andExpect(status().isNotFound());
+
+        MockHttpSession otherHr = loginAsHr("13800000888");
+        mockMvc.perform(post("/api/v1/questions/{id}/followups/{followupId}/answers", questionId, followupId)
+                        .session(otherHr).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("body", "其他 HR 不能回复这条追问"))))
                 .andExpect(status().isNotFound());
 
         mockMvc.perform(post("/api/v1/questions/{id}/followups/{followupId}/answers", questionId, followupId)

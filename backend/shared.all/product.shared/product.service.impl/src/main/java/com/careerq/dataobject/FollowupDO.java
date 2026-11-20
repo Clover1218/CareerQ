@@ -11,6 +11,9 @@ public class FollowupDO {
 
     private Long questionId;
 
+    /** 追问目标 HR：会话线程按 (questionId, hrId) 划分。 */
+    private Long hrId;
+
     private Long senderId;
 
     private String senderRole;
@@ -37,6 +40,14 @@ public class FollowupDO {
 
     public void setQuestionId(Long questionId) {
         this.questionId = questionId;
+    }
+
+    public Long getHrId() {
+        return hrId;
+    }
+
+    public void setHrId(Long hrId) {
+        this.hrId = hrId;
     }
 
     public void setSenderId(Long senderId) {

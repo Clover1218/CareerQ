@@ -25,6 +25,15 @@ const hrFollowups = computed(() => detail.value?.followups.filter(
   (followup) => followup.senderRole === "student" && followup.status === "published",
 ) ?? []);
 const mainAnswers = computed(() => detail.value?.answers.filter((answer) => answer.followupId == null) ?? []);
+// 追问必须指定一位已回答主问题的 HR
+const hrTargets = computed(() => {
+  const targets = new Map<number, string>();
+  for (const answer of mainAnswers.value) {
+    if (answer.status === "published") targets.set(answer.author.id, answer.author.nickname);
+  }
+  return [...targets].map(([id, nickname]) => ({ id, nickname }));
+});
+const selectedHrId = ref<number | null>(null);
 
 function followupOptionLabel(body: string) {
   const characters = Array.from(body.trim());
@@ -72,6 +81,9 @@ async function load() {
     if (!hrFollowups.value.some((followup) => followup.id === selectedFollowupId.value)) {
       selectedFollowupId.value = hrFollowups.value.at(-1)?.id ?? null;
     }
+    if (!hrTargets.value.some((target) => target.id === selectedHrId.value)) {
+      selectedHrId.value = hrTargets.value.at(-1)?.id ?? null;
+    }
   } catch (e: any) {
     error.value = e.message;
   }
@@ -111,8 +123,12 @@ async function submitAnswer() {
 
 async function submitFollowup() {
   if (!followupBody.value.trim()) return;
+  if (selectedHrId.value == null) {
+    error.value = "请先选择要追问的 HR。";
+    return;
+  }
   try {
-    await api.followup(questionId, followupBody.value.trim());
+    await api.followup(questionId, followupBody.value.trim(), selectedHrId.value);
     followupBody.value = "";
     await load();
   } catch (e: any) {
@@ -203,12 +219,24 @@ onMounted(load);
         </button>
       </div>
     </div>
-    <template v-if="me?.role === 'student' && detail.question.scope === 'public'">
-      <div class="field" style="margin-top: 12px">
+    <template v-if="me?.role === 'student' && detail.question.scope === 'public' && hrTargets.length > 0">
+      <label class="field" style="margin-top: 12px">
+        <span>选择要追问的 HR</span>
+        <select v-model="selectedHrId" aria-label="选择要追问的 HR">
+          <option v-for="target in hrTargets" :key="target.id" :value="target.id">{{ target.nickname }}</option>
+        </select>
+      </label>
+      <div class="field">
         <textarea v-model="followupBody" placeholder="继续追问…" />
       </div>
-      <button class="primary" @click="submitFollowup">发送追问</button>
+      <button class="primary" :disabled="selectedHrId == null" @click="submitFollowup">发送追问</button>
     </template>
+    <p
+      v-else-if="me?.role === 'student' && detail.question.scope === 'public'"
+      class="muted"
+    >
+      还没有 HR 回答，暂时无法追问。
+    </p>
     <p v-else-if="!me && detail.question.scope === 'public'" class="muted">
       <router-link :to="{ path: '/login', query: { redirect: $route.fullPath } }">登录</router-link>
       或 <router-link to="/register">注册</router-link> 后可追问

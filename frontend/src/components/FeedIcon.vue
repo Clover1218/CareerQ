@@ -14,7 +14,8 @@ withDefaults(
       | "search"
       | "filter"
       | "plus"
-      | "refresh";
+      | "refresh"
+      | "chevron";
     filled?: boolean;
     size?: number;
   }>(),
@@ -208,6 +209,21 @@ withDefaults(
     aria-hidden="true"
   >
     <path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 4v5h5M4 13a8.1 8.1 0 0 0 15.5 2M20 20v-5h-5" />
+  </svg>
+
+  <svg
+    v-else-if="name === 'chevron'"
+    :width="size"
+    :height="size"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="m6 9 6 6 6-6" />
   </svg>
 
   <svg v-else :width="size" :height="size" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

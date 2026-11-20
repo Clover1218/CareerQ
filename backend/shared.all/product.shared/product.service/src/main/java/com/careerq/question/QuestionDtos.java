@@ -111,6 +111,8 @@ public final class QuestionDtos {
             String kind,
             Long id,
             Long followupId,
+            /** 追问的目标 HR；回答类消息为空，前端按它归属线程。 */
+            Long hrId,
             String body,
             UserBrief author,
             boolean hr,

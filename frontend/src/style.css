@@ -401,11 +401,69 @@ textarea {
 }
 
 /* ---------------- 公开问答 Feed ---------------- */
-.hr-tag {
-  color: #7c6bd6;
+/* 参与回答的 HR：无底色无边框，展开/收起两种状态间距一致 */
+.hr-row {
+  display: flex;
+  width: fit-content;
+  min-width: 218px;
+  max-width: 100%;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--color-text-regular);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  text-align: left;
+}
+
+/* HR 名字完整展示，不截断；空间不够时优先压缩公司/职位标签 */
+.hr-name {
+  flex: none;
+  white-space: nowrap;
+}
+
+.hr-chips {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.hr-row:hover {
+  background: none;
+}
+
+/* 公司/职位标签：Figma Tag 12/18 */
+.hr-chip {
+  flex-shrink: 0;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: #e6f0ff;
+  color: #3874d0;
   font-size: 12px;
   line-height: 18px;
-  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* 展开态末尾的收起入口：Figma Frame 38，14/22、Text/Muted */
+.hr-collapse {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.hr-collapse:hover {
+  background: none;
+  color: var(--color-text-regular);
 }
 
 /* 图标操作按钮：覆盖全局 button 的边框/底色，保持 Figma 的纯文字样式 */

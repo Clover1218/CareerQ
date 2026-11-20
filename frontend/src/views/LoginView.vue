@@ -44,7 +44,7 @@ async function login() {
 <template>
   <div class="card" style="max-width: 420px; margin: 40px auto">
     <h2>登录职问桥</h2>
-    <p class="muted">dev 环境验证码固定为 123456；演示账号 13800000001（学生）/ 13800000002（HR）/ 13800000003（运营）</p>
+    <p class="muted">dev 环境验证码固定为 123456；演示账号 13800000001（学生）/ 13800000003（运营）/ HR：13800000002 陈静怡、13800000004 王浩然、13800000005 李梦琪、13800000006 张帆</p>
 
     <div class="field">
       <label>手机号</label>

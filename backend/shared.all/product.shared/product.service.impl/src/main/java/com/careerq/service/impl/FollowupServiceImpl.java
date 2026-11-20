@@ -3,6 +3,7 @@ package com.careerq.service.impl;
 import com.careerq.common.BusinessException;
 import com.careerq.common.ErrorCode;
 import com.careerq.common.UserBrief;
+import com.careerq.dao.AnswerDao;
 import com.careerq.dao.FollowupDao;
 import com.careerq.dao.QuestionDao;
 import com.careerq.dao.UserDao;
@@ -28,11 +29,14 @@ public class FollowupServiceImpl implements FollowupService {
     private final FollowupDao followupDao;
     private final QuestionDao questionDao;
     private final UserDao userDao;
+    private final AnswerDao answerDao;
 
-    public FollowupServiceImpl(FollowupDao followupDao, QuestionDao questionDao, UserDao userDao) {
+    public FollowupServiceImpl(FollowupDao followupDao, QuestionDao questionDao, UserDao userDao,
+                               AnswerDao answerDao) {
         this.followupDao = followupDao;
         this.questionDao = questionDao;
         this.userDao = userDao;
+        this.answerDao = answerDao;
     }
 
 
@@ -48,9 +52,17 @@ public class FollowupServiceImpl implements FollowupService {
             throw new BusinessException(ErrorCode.INVALID_PARAM, "私密问答已明确不做");
         }
         requireVisible(sender, question);
+        if (!sender.getId().equals(question.getAuthorId())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "只有题主可以追问");
+        }
+        if (request.hrId() == null
+                || !answerDao.hasPublishedRootAnswer(questionId, request.hrId())) {
+            throw new BusinessException(ErrorCode.INVALID_PARAM, "只能追问已回答该问题的 HR");
+        }
 
         FollowupDO followup = new FollowupDO();
         followup.setQuestionId(questionId);
+        followup.setHrId(request.hrId());
         followup.setSenderId(sender.getId());
         followup.setSenderRole(sender.getRole());
         followup.setBody(request.body());
@@ -103,6 +115,7 @@ public class FollowupServiceImpl implements FollowupService {
         return new FollowupView(
                 followup.getId(),
                 followup.getQuestionId(),
+                followup.getHrId(),
                 followup.getSenderRole(),
                 followup.getBody(),
                 followup.getStatus(),

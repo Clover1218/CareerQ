@@ -71,6 +71,15 @@ public interface AnswerDao {
     @Select("select exists (select 1 from answers where question_id = #{questionId} and status = 'pending_human')")
     boolean hasPending(Long questionId);
 
+    @Select("""
+            select exists (
+                select 1 from answers
+                where question_id = #{questionId} and author_id = #{authorId}
+                  and followup_id is null and status = 'published'
+            )
+            """)
+    boolean hasPublishedRootAnswer(@Param("questionId") Long questionId, @Param("authorId") Long authorId);
+
     @Update("update answers set status = #{status}, updated_at = current_timestamp where id = #{id}")
     int updateStatus(@Param("id") Long id, @Param("status") String status);
 

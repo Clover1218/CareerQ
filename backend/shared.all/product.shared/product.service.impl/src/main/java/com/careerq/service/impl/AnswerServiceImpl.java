@@ -7,10 +7,12 @@ import com.careerq.common.ErrorCode;
 import com.careerq.common.UserBrief;
 import com.careerq.dao.AnswerDao;
 import com.careerq.dao.FollowupDao;
+import com.careerq.dao.HrProfileDao;
 import com.careerq.dao.QuestionDao;
 import com.careerq.dao.UserDao;
 import com.careerq.dataobject.AnswerDO;
 import com.careerq.dataobject.FollowupDO;
+import com.careerq.dataobject.HrProfileDO;
 import com.careerq.dataobject.QuestionDO;
 import com.careerq.security.AuthUser;
 import com.careerq.service.AnswerService;
@@ -28,17 +30,20 @@ public class AnswerServiceImpl implements AnswerService {
     private final QuestionDao questionDao;
     private final UserDao userDao;
     private final ModerationService moderationService;
+    private final HrProfileDao hrProfileDao;
 
     public AnswerServiceImpl(AnswerDao answerDao,
                              FollowupDao followupDao,
                              QuestionDao questionDao,
                              UserDao userDao,
-                             ModerationService moderationService) {
+                             ModerationService moderationService,
+                             HrProfileDao hrProfileDao) {
         this.answerDao = answerDao;
         this.followupDao = followupDao;
         this.questionDao = questionDao;
         this.userDao = userDao;
         this.moderationService = moderationService;
+        this.hrProfileDao = hrProfileDao;
     }
 
     @Override
@@ -74,6 +79,9 @@ public class AnswerServiceImpl implements AnswerService {
                     || !PUBLISHED.equals(followup.getStatus())) {
                 throw new BusinessException(ErrorCode.NOT_FOUND, "追问不存在或不可回复");
             }
+            if (!hr.getId().equals(followup.getHrId())) {
+                throw new BusinessException(ErrorCode.NOT_FOUND, "只能回复发给自己线程的追问");
+            }
         } else if (!PUBLISHED.equals(question.getStatus())) {
             throw new BusinessException(ErrorCode.CONFLICT, "问题当前不可回答");
         }
@@ -104,14 +112,26 @@ public class AnswerServiceImpl implements AnswerService {
                 answer.getBody(),
                 answer.getLengthType(),
                 answer.getStatus(),
-                userDao.findById(answer.getAuthorId())
-                        .map(user -> new UserBrief(user.getId(), user.getNickname()))
-                        .orElse(new UserBrief(answer.getAuthorId(), "HR")),
+                authorOf(answer.getAuthorId()),
                 answer.getLikeCount(),
                 answer.getUsefulCount(),
                 false,
                 false,
                 answer.getCreatedAt());
+    }
+
+    private UserBrief authorOf(Long userId) {
+        return userDao.findById(userId)
+                .map(user -> {
+                    if (!"hr".equals(user.getRole())) {
+                        return new UserBrief(user.getId(), user.getNickname());
+                    }
+                    HrProfileDO profile = hrProfileDao.findByUserId(user.getId()).orElse(null);
+                    return new UserBrief(user.getId(), user.getNickname(),
+                            profile == null ? null : profile.getCompanyDisplay(),
+                            profile == null ? null : profile.getPosition());
+                })
+                .orElse(new UserBrief(userId, "HR"));
     }
 
     private String normalizeLengthType(String lengthType) {

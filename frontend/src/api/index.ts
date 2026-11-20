@@ -14,6 +14,8 @@ export interface User {
 export interface UserBrief {
   id: number;
   nickname: string;
+  company?: string | null;
+  position?: string | null;
 }
 
 export interface Question {
@@ -114,6 +116,8 @@ export interface ThreadItem {
   kind: "hr_answer" | "followup_answer" | "followup";
   id: number;
   followupId?: number | null;
+  /** 追问的目标 HR；回答类消息为空 */
+  hrId?: number | null;
   body: string;
   author: UserBrief;
   hr: boolean;
@@ -185,6 +189,7 @@ export interface MeStats {
 export interface Followup {
   id: number;
   questionId: number;
+  hrId?: number | null;
   senderRole: string;
   body: string;
   status: string;
@@ -362,8 +367,8 @@ export const api = {
     });
   },
 
-  followup(questionId: number, body: string): Promise<Followup> {
-    return request<Followup>(`/questions/${questionId}/followups`, { method: "POST", body: { body } });
+  followup(questionId: number, body: string, hrId: number): Promise<Followup> {
+    return request<Followup>(`/questions/${questionId}/followups`, { method: "POST", body: { body, hrId } });
   },
 
   interact(targetType: string, targetId: number, type: string): Promise<void> {
