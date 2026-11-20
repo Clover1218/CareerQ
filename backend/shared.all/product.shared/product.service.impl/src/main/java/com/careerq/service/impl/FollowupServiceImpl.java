@@ -5,6 +5,7 @@ import com.careerq.common.ErrorCode;
 import com.careerq.common.UserBrief;
 import com.careerq.dao.FollowupDao;
 import com.careerq.dao.QuestionDao;
+import com.careerq.dao.UserDao;
 import com.careerq.dataobject.FollowupDO;
 import com.careerq.dataobject.QuestionDO;
 import com.careerq.followup.FollowupDtos.CreateRequest;
@@ -74,8 +75,7 @@ public class FollowupServiceImpl implements FollowupService {
         }
         Long senderId = "private".equals(question.getScope()) ? current.getId() : null;
         List<FollowupDO> rows = followupDao.findVisible(questionId, senderId);
-        Map<Long, UserBrief> authors = contentReadSupport.authors(rows.stream().map(FollowupDO::getSenderId).toList());
-        return rows.stream().map(row -> toView(row, authors)).toList();
+        return rows.stream().map(this::toView).toList();
     }
 
     @Override
@@ -98,7 +98,7 @@ public class FollowupServiceImpl implements FollowupService {
             questionDao.decrementFollowup(followup.getQuestionId());
         }
         followup.setStatus("removed");
-        return toView(followup, contentReadSupport.authors(List.of(followup.getSenderId())));
+        return toView(followup);
     }
 
     private void requireVisible(AuthUser current, QuestionDO question) {
@@ -120,8 +120,10 @@ public class FollowupServiceImpl implements FollowupService {
         }
     }
 
-    private FollowupView toView(FollowupDO followup, Map<Long, UserBrief> authors) {
-        UserBrief author = contentReadSupport.author(authors, followup.getSenderId());
+    private FollowupView toView(FollowupDO followup) {
+        UserBrief author = userDao.findById(followup.getSenderId())
+                .map(user -> new UserBrief(user.getId(), user.getNickname()))
+                .orElse(new UserBrief(followup.getSenderId(), "用户"));
         return new FollowupView(
                 followup.getId(),
                 followup.getQuestionId(),
