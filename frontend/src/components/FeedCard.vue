@@ -152,15 +152,9 @@ const conversations = computed<Conversation[]>(() => {
 
 const STATUS_META: Record<string, { text: string; color: string }> = {
   published: { text: "已发表", color: "#34C759" },
-  public_archived: { text: "已发表", color: "#34C759" },
   pending_machine: { text: "待审核", color: "#FF383C" },
   pending_human: { text: "待审核", color: "#FF383C" },
-  public_pending: { text: "待审核", color: "#FF383C" },
   rejected: { text: "未通过", color: "var(--color-danger)" },
-  public_rejected: { text: "未通过", color: "var(--color-danger)" },
-  open: { text: "待认领", color: "var(--color-text-muted)" },
-  assigned: { text: "进行中", color: "var(--color-brand)" },
-  closed: { text: "已结单", color: "var(--color-text-muted)" },
   removed: { text: "已撤回", color: "var(--color-text-muted)" },
 };
 
@@ -173,7 +167,7 @@ const statusMeta = computed(() => {
 const interactive = computed(
   () =>
     !props.ownerMode ||
-    !["pending_machine", "pending_human", "public_pending", "rejected", "removed"].includes(props.status ?? ""),
+    !["pending_machine", "pending_human", "rejected", "removed"].includes(props.status ?? ""),
 );
 
 function formatTime(value: string): string {
@@ -198,7 +192,7 @@ async function ensureContent() {
   error.value = "";
   try {
     if (props.ownerMode) {
-      // 作者视角走 detail：审核中/私密问题也能拿到正文与回答
+      // 作者视角走 detail，允许查看自己审核中的问题正文与回答。
       const data = await api.getQuestion(props.item.id);
       detail.value = data;
       content.value = { question: data.question, viewer: data.viewer };

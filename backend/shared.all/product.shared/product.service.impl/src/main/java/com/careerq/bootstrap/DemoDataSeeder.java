@@ -6,8 +6,6 @@ import com.careerq.dataobject.FollowupDO;
 import com.careerq.dao.FollowupDao;
 import com.careerq.dao.HrProfileDao;
 import com.careerq.dataobject.HrProfileDO;
-import com.careerq.dataobject.PublicPostDO;
-import com.careerq.dao.PublicPostDao;
 import com.careerq.dataobject.QuestionDO;
 import com.careerq.dao.QuestionDao;
 import com.careerq.dataobject.TagDO;
@@ -50,7 +48,6 @@ public class DemoDataSeeder implements CommandLineRunner {
     private final AnswerDao answerDao;
     private final FollowupDao followupDao;
     private final TagDao tagDao;
-    private final PublicPostDao publicPostDao;
     private final HrProfileDao hrProfileDao;
 
     public DemoDataSeeder(UserDao userDao,
@@ -58,14 +55,12 @@ public class DemoDataSeeder implements CommandLineRunner {
                           AnswerDao answerDao,
                           FollowupDao followupDao,
                           TagDao tagDao,
-                          PublicPostDao publicPostDao,
                           HrProfileDao hrProfileDao) {
         this.userDao = userDao;
         this.questionDao = questionDao;
         this.answerDao = answerDao;
         this.followupDao = followupDao;
         this.tagDao = tagDao;
-        this.publicPostDao = publicPostDao;
         this.hrProfileDao = hrProfileDao;
     }
 
@@ -432,16 +427,6 @@ public class DemoDataSeeder implements CommandLineRunner {
                 风险不能完全消除，但可以提前量化。
                 """, 2);
 
-        // 一条已审核公开的私密沉淀
-        PublicPostDO post = new PublicPostDO();
-        post.setOriginalQuestionId(q2.getId());
-        post.setTitle("没有实习经历，简历怎么写才不空？");
-        post.setQuestionBody("大二还没有实习，简历应该怎么突出自己？");
-        post.setHrAnswer("突出课程项目、竞赛、社团与技能证书，用结果量化产出。");
-        post.setAnonymized(true);
-        post.setStatus("published");
-        post.setPublishedAt(LocalDateTime.now());
-        publicPostDao.insert(post);
 
         log.info("""
                 [demo] 演示数据已写入：

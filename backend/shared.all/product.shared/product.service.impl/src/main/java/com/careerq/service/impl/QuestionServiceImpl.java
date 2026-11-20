@@ -60,12 +60,7 @@ import java.util.Set;
 public class QuestionServiceImpl implements QuestionService {
 
     private static final String PUBLIC = "public";
-    private static final String PRIVATE = "private";
     private static final String PUBLISHED = "published";
-    private static final String ASSIGNED = "assigned";
-    private static final String CLOSED = "closed";
-    private static final String PUBLIC_PENDING = "public_pending";
-    private static final String ANONYMOUS_NICKNAME = "匿名同学";
     private static final int MAX_KEYWORD_LENGTH = 50;
     private static final int MAX_TAGS = 10;
     private static final int MAX_FILTER_RANGE_DAYS = 366;
@@ -117,7 +112,7 @@ public class QuestionServiceImpl implements QuestionService {
         if (!"published".equals(moderation)) {
             moderationService.recordMachine("question", question.getId(), moderation);
         }
-        return toView(question, false);
+        return toView(question);
     }
 
     @Override
@@ -477,7 +472,7 @@ public class QuestionServiceImpl implements QuestionService {
         List<QuestionDO> rows = questionDao.listByAuthor(author.getId(), scopeFilter, cursor, size + 1);
         boolean hasMore = rows.size() > size;
         List<QuestionDO> page = hasMore ? rows.subList(0, size) : rows;
-        List<QuestionView> items = page.stream().map(question -> toView(question, false)).toList();
+        List<QuestionView> items = page.stream().map(question -> toView(question)).toList();
         Long nextCursor = hasMore ? page.get(page.size() - 1).getId() : null;
         return new PageResult<>(items, nextCursor);
     }
@@ -487,21 +482,7 @@ public class QuestionServiceImpl implements QuestionService {
         QuestionDO question = questionDao.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
 
-        boolean maskAuthor = false;
-        if (PRIVATE.equals(question.getScope())) {
-            boolean isAuthor = current != null && current.getId().equals(question.getAuthorId());
-            boolean isAssignedHr = current != null && current.getId().equals(question.getAssignedHrId());
-            boolean isOperator = current != null
-                    && ("operator".equals(current.getRole()) || "admin".equals(current.getRole()));
-            boolean assignedAndVisible = isAssignedHr
-                    && Set.of(ASSIGNED, CLOSED, PUBLIC_PENDING, "public_archived", "public_rejected")
-                    .contains(question.getStatus());
-            if (!isAuthor && !assignedAndVisible && !isOperator) {
-                throw new BusinessException(ErrorCode.FORBIDDEN, "无权查看该私密问题");
-            }
-            maskAuthor = !isAuthor;
-        } else if (!PUBLISHED.equals(question.getStatus())) {
-            // 作者需要在自己的提问列表里看到审核中/未通过的公开问题
+        if (!PUBLISHED.equals(question.getStatus())) {
             boolean isAuthor = current != null && current.getId().equals(question.getAuthorId());
             if (!isAuthor) {
                 throw new BusinessException(ErrorCode.NOT_FOUND, "问题不存在");
@@ -512,7 +493,7 @@ public class QuestionServiceImpl implements QuestionService {
         List<AnswerView> answers = answerDao.findVisible(question.getId(), viewerId)
                 .stream().map(answer -> toAnswerView(answer, viewerId)).toList();
         List<FollowupView> followups = followupService.list(current, question.getId());
-        return new QuestionDetail(toView(question, maskAuthor), answers, followups,
+        return new QuestionDetail(toView(question), answers, followups,
                 viewerState(current, question.getId()));
     }
 
@@ -520,7 +501,7 @@ public class QuestionServiceImpl implements QuestionService {
     @Transactional(readOnly = true)
     public QuestionContentView content(AuthUser current, Long id) {
         QuestionDO question = requirePublishedPublic(id);
-        return new QuestionContentView(toView(question, false), viewerState(current, question.getId()));
+        return new QuestionContentView(toView(question), viewerState(current, question.getId()));
     }
 
     @Override
@@ -612,7 +593,7 @@ public class QuestionServiceImpl implements QuestionService {
         List<HrAnsweredPublicQuestionView> items = rows.stream()
                 .limit(size)
                 .map(question -> new HrAnsweredPublicQuestionView(
-                        toView(question, false), Boolean.TRUE.equals(question.getHasPendingAnswer())))
+                        toView(question), Boolean.TRUE.equals(question.getHasPendingAnswer())))
                 .toList();
         Long nextCursor = hasMore ? rows.get(size - 1).getId() : null;
         return new PageResult<>(items, nextCursor);
@@ -637,7 +618,7 @@ public class QuestionServiceImpl implements QuestionService {
                     if (answer == null) {
                         return null;
                     }
-                    return new HrAnsweredQuestionView(toView(question, false),
+                    return new HrAnsweredQuestionView(toView(question),
                             new HrAnswerSummary(answer.getId(), answer.getFollowupId(), answer.getBody(), answer.getLengthType(),
                                     answer.getStatus(), answer.getCreatedAt()));
                 })
@@ -667,16 +648,15 @@ public class QuestionServiceImpl implements QuestionService {
         }
         questionDao.updateStatus(id, "removed");
         question.setStatus("removed");
-        return toView(question, false);
+        return toView(question);
     }
     private PageResult<QuestionView> listPage(String scope, String status, String tag,
                                               boolean unanswered, Long cursor, int limit) {
         int size = Math.clamp(limit, 1, 50);
         List<QuestionDO> rows = questionDao.list(scope, status, cursor, tag, unanswered, size + 1);
         boolean hasNext = rows.size() > size;
-        boolean maskAuthor = PRIVATE.equals(scope);
         List<QuestionView> items = rows.stream()
-                .limit(size).map(question -> toView(question, maskAuthor)).toList();
+                .limit(size).map(question -> toView(question)).toList();
         return new PageResult<>(items, hasNext ? rows.get(size - 1).getId() : null);
     }
 
@@ -686,7 +666,7 @@ public class QuestionServiceImpl implements QuestionService {
         }
         String value = scope.trim().toLowerCase();
         if (!PUBLIC.equals(value)) {
-            throw new BusinessException(ErrorCode.INVALID_PARAM, "当前仅支持公开提问，私密问答已明确不做");
+            throw new BusinessException(ErrorCode.INVALID_PARAM, "scope 仅支持 public");
         }
         return value;
     }
@@ -740,7 +720,7 @@ public class QuestionServiceImpl implements QuestionService {
                 matchedTags);
     }
 
-    private QuestionView toView(QuestionDO question, boolean maskAuthor) {
+    private QuestionView toView(QuestionDO question) {
         return new QuestionView(
                 question.getId(),
                 question.getScope(),
@@ -748,7 +728,7 @@ public class QuestionServiceImpl implements QuestionService {
                 question.getTitle(),
                 question.getBody(),
                 tagDao.findNamesByQuestionId(question.getId()),
-                maskAuthor ? new UserBrief(question.getAuthorId(), ANONYMOUS_NICKNAME) : authorOf(question.getAuthorId()),
+                authorOf(question.getAuthorId()),
                 question.getCreatedAt(),
                 question.getAnswerCount(),
                 question.getFollowupCount(),

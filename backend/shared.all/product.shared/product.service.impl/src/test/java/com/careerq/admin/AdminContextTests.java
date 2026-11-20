@@ -84,7 +84,7 @@ class AdminContextTests {
     @Test
     void queueCarriesQuestionAndAuthorContext() throws Exception {
         MockHttpSession student = register("13800000701", "队列学生");
-        long questionId = createQuestion(student, "私密待审问题上下文");
+        long questionId = createQuestion(student, "公开待审问题上下文");
 
         MockHttpSession operator = loginAs("13800000702", "operator");
         MvcResult queueResult = mockMvc.perform(get("/api/v1/admin/moderation/queue").session(operator))
@@ -100,9 +100,9 @@ class AdminContextTests {
                 break;
             }
         }
-        assertNotNull(matched, "待审队列应包含该私密问题");
+        assertNotNull(matched, "待审队列应包含该待审问题");
         assertEquals(questionId, matched.path("questionId").asLong());
-        assertEquals("私密待审问题上下文", matched.path("questionTitle").asText());
+        assertEquals("公开待审问题上下文", matched.path("questionTitle").asText());
         assertEquals("队列学生", matched.path("authorNickname").asText());
         assertFalse(matched.path("body").asText().isBlank(), "队列应包含正文供审核");
     }

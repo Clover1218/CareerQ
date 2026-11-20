@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from "vue";
-import { api, type FeedFilterValue, type PublicPost, type QuestionFeedItem } from "../api";
+import { api, type FeedFilterValue, type QuestionFeedItem } from "../api";
 import FeedCard from "@/components/FeedCard.vue";
 import FeedCardSkeleton from "@/components/FeedCardSkeleton.vue";
 import FeedFilterPanel from "@/components/FeedFilterPanel.vue";
@@ -9,8 +9,6 @@ const items = ref<QuestionFeedItem[]>([]);
 const cursor = ref<string | null>(null);
 const loading = ref(false);
 const error = ref("");
-const publicPosts = ref<PublicPost[]>([]);
-const postsError = ref("");
 const dismissed = ref<{ item: QuestionFeedItem; index: number } | null>(null);
 const undoing = ref(false);
 const filters = ref<FeedFilterValue>({
@@ -140,14 +138,6 @@ async function undoDismiss() {
   }
 }
 
-async function loadPublicPosts() {
-  try {
-    publicPosts.value = await api.posts();
-  } catch (e) {
-    postsError.value = e instanceof Error ? e.message : "公开工单加载失败";
-  }
-}
-
 async function loadTagSlugs() {
   try {
     const list = await api.listTags({ limit: 100 });
@@ -159,7 +149,6 @@ async function loadTagSlugs() {
 
 onMounted(() => {
   void load(true);
-  void loadPublicPosts();
   void loadTagSlugs();
 });
 </script>
@@ -208,20 +197,6 @@ onMounted(() => {
       </button>
     </div>
 
-    <p v-if="postsError" class="m-0 mt-4 text-14 text-danger">{{ postsError }}</p>
-    <section v-if="publicPosts.length" class="mt-8">
-      <h2 class="mb-3 text-18 font-semibold text-ink">工单公开问答</h2>
-      <div class="flex flex-col gap-5">
-        <article v-for="post in publicPosts" :key="post.id" class="rounded-card-lg border border-line bg-surface p-4 sm:p-[17px]">
-          <h3 class="m-0 text-[22px] font-bold leading-[30px] text-ink sm:text-24 sm:leading-8">{{ post.title }}</h3>
-          <p class="m-0 mt-2 whitespace-pre-wrap text-16 leading-6 text-ink">{{ post.questionBody }}</p>
-          <div class="mt-3 rounded-card bg-canvas px-3 py-2.5">
-            <p class="text-12 font-medium text-regular">HR 回答</p>
-            <p class="m-0 mt-1 whitespace-pre-wrap text-16 leading-6 text-ink">{{ post.hrAnswer }}</p>
-          </div>
-        </article>
-      </div>
-    </section>
   </div>
 </template>
 

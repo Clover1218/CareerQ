@@ -5,7 +5,6 @@ import com.careerq.common.ErrorCode;
 import com.careerq.common.PageResult;
 import com.careerq.dao.AnswerDao;
 import com.careerq.dao.InteractionDao;
-import com.careerq.dao.PublicPostDao;
 import com.careerq.dao.QuestionDao;
 import com.careerq.dataobject.InteractionDO;
 import com.careerq.favorite.FavoriteDtos.FavoriteView;
@@ -21,21 +20,18 @@ import java.util.Set;
 @Service
 public class FavoriteServiceImpl implements FavoriteService {
 
-    private static final Set<String> TARGET_TYPES = Set.of("question", "answer", "post");
+    private static final Set<String> TARGET_TYPES = Set.of("question", "answer");
 
     private final InteractionDao interactionDao;
     private final QuestionDao questionDao;
     private final AnswerDao answerDao;
-    private final PublicPostDao publicPostDao;
 
     public FavoriteServiceImpl(InteractionDao interactionDao,
                                QuestionDao questionDao,
-                               AnswerDao answerDao,
-                               PublicPostDao publicPostDao) {
+                               AnswerDao answerDao) {
         this.interactionDao = interactionDao;
         this.questionDao = questionDao;
         this.answerDao = answerDao;
-        this.publicPostDao = publicPostDao;
     }
 
     @Override
@@ -62,10 +58,13 @@ public class FavoriteServiceImpl implements FavoriteService {
     private FavoriteView resolve(InteractionDO row) {
         return switch (row.getTargetType()) {
             case "question" -> questionDao.findById(row.getTargetId())
+                    .filter(question -> "published".equals(question.getStatus()))
                     .map(question -> new FavoriteView("question", question.getId(), question.getTitle(),
                             excerpt(question.getBody()), row.getCreatedAt()))
                     .orElse(null);
             case "answer" -> answerDao.findById(row.getTargetId())
+                    .filter(answer -> "published".equals(answer.getStatus()))
+                    .filter(answer -> questionDao.findById(answer.getQuestionId()).filter(question -> "published".equals(question.getStatus())).isPresent())
                     .map(answer -> {
                         String title = questionDao.findById(answer.getQuestionId())
                                 .map(question -> "回答：" + question.getTitle())
@@ -73,10 +72,6 @@ public class FavoriteServiceImpl implements FavoriteService {
                         return new FavoriteView("answer", answer.getId(), title,
                                 excerpt(answer.getBody()), row.getCreatedAt());
                     })
-                    .orElse(null);
-            case "post" -> publicPostDao.findById(row.getTargetId())
-                    .map(post -> new FavoriteView("post", post.getId(), post.getTitle(),
-                            excerpt(post.getQuestionBody()), row.getCreatedAt()))
                     .orElse(null);
             default -> null;
         };
@@ -88,7 +83,7 @@ public class FavoriteServiceImpl implements FavoriteService {
         }
         String value = targetType.trim().toLowerCase();
         if (!TARGET_TYPES.contains(value)) {
-            throw new BusinessException(ErrorCode.INVALID_PARAM, "targetType 只能是 question/answer/post");
+            throw new BusinessException(ErrorCode.INVALID_PARAM, "targetType 只能是 question/answer");
         }
         return value;
     }

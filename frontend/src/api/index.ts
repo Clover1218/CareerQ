@@ -21,7 +21,7 @@ export interface UserBrief {
 
 export interface Question {
   id: number;
-  scope: "public" | "private";
+  scope: "public";
   status: string;
   title: string;
   body: string;
@@ -198,13 +198,6 @@ export interface Followup {
   createdAt: string;
   author: UserBrief;
   hr: boolean;
-}
-
-export interface PublicPost {
-  id: number;
-  title: string;
-  questionBody: string;
-  hrAnswer: string;
 }
 
 export interface TagCategory {
@@ -401,7 +394,7 @@ export const api = {
     });
   },
 
-  report(targetType: "question" | "answer" | "post" | "public_post", targetId: number, reason = "inappropriate"): Promise<void> {
+  report(targetType: "question" | "answer", targetId: number, reason = "inappropriate"): Promise<void> {
     return request<void>("/reports", {
       method: "POST",
       body: { targetType, targetId, reason },
@@ -410,8 +403,5 @@ export const api = {
 
   withdrawQuestion(questionId: number): Promise<Question> {
     return request<Question>(`/questions/${questionId}/withdraw`, { method: "POST" });
-  },
-  posts(): Promise<PublicPost[]> {
-    return request<PublicPost[]>("/posts");
   },
 };

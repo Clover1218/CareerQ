@@ -151,9 +151,6 @@ async function markUseful(answerId: number) {
 const reviewStatus: Record<string, string> = {
   pending_human: "待审核",
   rejected: "审核未通过",
-  public_pending: "已结单，公开稿待审核",
-  public_archived: "已脱敏公开",
-  public_rejected: "公开稿审核未通过",
 };
 
 onMounted(load);
@@ -170,7 +167,7 @@ onMounted(load);
       </button>
     </div>
     <div class="row" style="margin: 8px 0">
-      <span class="tag">{{ detail.question.scope === "private" ? "历史私密问题" : "公开" }}</span>
+      <span class="tag">公开</span>
       <span class="tag">{{ reviewStatus[detail.question.status] ?? detail.question.status }}</span>
       <span v-for="t in detail.question.tags" :key="t" class="tag">{{ t }}</span>
       <span class="muted">{{ detail.question.author.nickname }}</span>

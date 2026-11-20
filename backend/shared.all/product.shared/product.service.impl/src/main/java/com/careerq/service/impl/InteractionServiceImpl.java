@@ -4,7 +4,6 @@ import com.careerq.common.BusinessException;
 import com.careerq.common.ErrorCode;
 import com.careerq.dao.AnswerDao;
 import com.careerq.dao.InteractionDao;
-import com.careerq.dao.PublicPostDao;
 import com.careerq.dao.QuestionDao;
 import com.careerq.dataobject.AnswerDO;
 import com.careerq.dataobject.InteractionDO;
@@ -22,24 +21,21 @@ import java.util.Set;
 @Service
 public class InteractionServiceImpl implements InteractionService {
 
-    private static final Set<String> TARGET_TYPES = Set.of("answer", "question", "post");
+    private static final Set<String> TARGET_TYPES = Set.of("answer", "question");
     private static final Set<String> TYPES = Set.of("like", "useful", "favorite", "dislike");
 
     private final InteractionDao interactionDao;
     private final AnswerDao answerDao;
     private final QuestionDao questionDao;
-    private final PublicPostDao publicPostDao;
     private final TagAffinityService tagAffinityService;
 
     public InteractionServiceImpl(InteractionDao interactionDao,
                                   AnswerDao answerDao,
                                   QuestionDao questionDao,
-                                  PublicPostDao publicPostDao,
                                   TagAffinityService tagAffinityService) {
         this.interactionDao = interactionDao;
         this.answerDao = answerDao;
         this.questionDao = questionDao;
-        this.publicPostDao = publicPostDao;
         this.tagAffinityService = tagAffinityService;
     }
 
@@ -92,7 +88,7 @@ public class InteractionServiceImpl implements InteractionService {
             return;
         }
         if ("favorite".equals(type)) {
-            // 仅问题维护收藏计数；回答与观点帖的收藏只在“我的收藏”中体现
+            // 仅问题维护收藏计数；回答的收藏只在“我的收藏”中体现
             if ("question".equals(targetType)) {
                 boolean updated = delta > 0
                         ? questionDao.incrementFavorite(targetId) > 0
@@ -115,10 +111,6 @@ public class InteractionServiceImpl implements InteractionService {
                 case "useful" -> delta > 0 ? questionDao.incrementUseful(targetId) > 0 : questionDao.decrementUseful(targetId) > 0;
                 default -> false;
             };
-            case "post" -> updated = switch (type) {
-                case "like" -> delta > 0 ? publicPostDao.incrementLike(targetId) > 0 : publicPostDao.decrementLike(targetId) > 0;
-                default -> false;
-            };
             default -> updated = false;
         }
         if (!updated) {
@@ -128,13 +120,12 @@ public class InteractionServiceImpl implements InteractionService {
 
     private void requireSupported(String targetType, String type) {
         Set<String> supported = switch (targetType) {
-            case "post" -> Set.of("like", "favorite");
             case "answer" -> Set.of("like", "useful", "favorite");
             default -> Set.of("like", "useful", "favorite", "dislike");
         };
         if (!supported.contains(type)) {
             throw new BusinessException(ErrorCode.INVALID_PARAM,
-                    "post 只支持 like/favorite，answer 只支持 like/useful/favorite，question 额外支持 dislike");
+                    "answer 只支持 like/useful/favorite，question 额外支持 dislike");
         }
     }
 
@@ -155,9 +146,6 @@ public class InteractionServiceImpl implements InteractionService {
     }
 
     private void requireVisibleTarget(AuthUser user, String targetType, Long targetId) {
-        if ("post".equals(targetType)) {
-            return;
-        }
         Long questionId = targetId;
         if ("answer".equals(targetType)) {
             AnswerDO answer = answerDao.findById(targetId)
@@ -167,13 +155,7 @@ public class InteractionServiceImpl implements InteractionService {
         }
         QuestionDO question = questionDao.findById(questionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
-        if ("private".equals(question.getScope())) {
-            boolean participant = user.getId().equals(question.getAuthorId())
-                    || user.getId().equals(question.getAssignedHrId());
-            if (!participant || Set.of("pending_human", "rejected", "removed").contains(question.getStatus())) {
-                throw new BusinessException(ErrorCode.NOT_FOUND, "互动目标不存在");
-            }
-        } else if (!"published".equals(question.getStatus())) {
+        if (!"public".equals(question.getScope()) || !"published".equals(question.getStatus())) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "互动目标不存在");
         }
     }

@@ -3,7 +3,7 @@ package com.careerq.dataobject;
 import java.time.LocalDateTime;
 
 /**
- * 追问：公开问题与私密工单共用，用 scope 区分可见范围。
+ * 学生在公开问题下的追问。
  */
 public class FollowupDO {
 

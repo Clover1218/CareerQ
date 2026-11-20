@@ -21,7 +21,7 @@ backend/（聚合 pom）
 
 ## 构建命令
 
-职问桥项目的后端服务。接口契约见 [`../docs/接口契约-职问桥.md`](../docs/接口契约-职问桥.md)，方案见 [`../docs/技术方案-职问桥.md`](../docs/技术方案-职问桥.md)。
+职问桥项目的后端服务。接口契约见 [`../docs/接口契约-职问桥.md`](../docs/接口契约-职问桥.md)，方案见 [`../docs/技术方案-CareerQ.md`](../docs/技术方案-CareerQ.md)。
 
 ## 环境要求
 
@@ -74,15 +74,15 @@ mvn -f backend/pom.xml -pl shared.all/product.shared/product.service.impl spring
 
 - Flyway 管理，脚本在 `src/main/resources/db/migration/`。
 - 约定：迁移脚本保持 MySQL 方言中立，确保 H2（MySQL 模式）与 MySQL 8 都能执行。
-- Flyway 迁移包含 V1–V9：V8 为公开 Feed 筛选索引，V9 为 HR 回复追问增加关联字段。V1 中的私密问答表结构暂留作历史数据兼容，不再开放私密问答流程。
+- 已有 V1–V9 迁移按原校验内容保留：V8 为公开 Feed 筛选索引，V9 为 HR 回复追问增加关联字段。历史表结构不等于现行功能；不改写已执行迁移，也不自动清除已有数据库数据。
 
-## 已实现接口（M2–M3）
+## 当前主要接口
 
 | 方法 | 路径 | 说明 | 权限 |
 |---|---|---|---|
 | POST | `/api/v1/auth/sms-code` | 发送验证码（dev 固定 123456） | 公开 |
 | POST | `/api/v1/auth/login` | 登录，返回会话 Cookie | 公开 |
-| POST | `/api/v1/auth/register` | 注册学生账号并建立会话 | 公开 |
+| POST | `/api/v1/auth/register` | 注册账号并建立会话；HR 需按契约填写角色和公司 | 公开 |
 | POST | `/api/v1/auth/logout` | 登出 | 登录 |
 | GET | `/api/v1/me` | 当前用户 | 登录 |
 | POST | `/api/v1/questions` | 公开提问（`scope` 仅接受 public） | STUDENT |
@@ -96,10 +96,10 @@ mvn -f backend/pom.xml -pl shared.all/product.shared/product.service.impl spring
 | POST | `/api/v1/interactions` | 点赞/收藏/有用 | 登录 |
 | POST | `/api/v1/questions/{id}/followups` | 对公开问题追问 | STUDENT |
 | GET | `/api/v1/questions/{id}/followups` | 获取问题追问 | 公开/问题可见者 |
-
-| POST | `/api/v1/reports` | 举报（question/answer/post/public_post） | 登录 |
-| GET | `/api/v1/posts` | 已审核公开沉淀列表 | 公开 |
-| GET | `/api/v1/feed/highlights` | 精选（公开帖 Top10） | 公开 |
+| POST | `/api/v1/questions/{id}/withdraw` | 撤回本人尚无回答的问题 | 学生作者 |
+| POST | `/api/v1/answers/{id}/withdraw` | 撤销本人回答或追问回复 | HR 作者 |
+| POST | `/api/v1/questions/{id}/followups/{followupId}/withdraw` | 撤销本人追问 | 学生作者 |
+| POST | `/api/v1/reports` | 举报问题或回答（question/answer） | 登录 |
 | GET | `/api/v1/admin/moderation/queue` | 待人工审核队列 | OPERATOR/ADMIN |
 | POST | `/api/v1/admin/moderation/{targetType}/{id}/decide` | 通过/驳回/下架 | OPERATOR/ADMIN |
 | GET/POST | `/api/v1/admin/moderation/words` | 词库查询/维护 | ADMIN |
@@ -140,26 +140,13 @@ OpenAPI 契约：[`../docs/openapi.json`](../docs/openapi.json)（可用 `script
 
 ## 认证（dev）
 
-开发环境使用固定验证码 `123456`。先调用 `GET /api/v1/auth/csrf`，保存 Cookie，并在认证 POST 请求中发送 `X-XSRF-TOKEN`。已注册手机号调用 `/api/v1/auth/login`，新手机号调用 `/api/v1/auth/register`。保留会话 Cookie 后，可调用 `GET /api/v1/me` 或提交登出请求。
+开发环境使用固定验证码 `123456`。统一请求层先调用 `GET /api/v1/auth/csrf` 并保存 Cookie，内容写请求携带 `X-XSRF-TOKEN`；认证路径的 CSRF 豁免以安全配置为准。已注册手机号调用 `/api/v1/auth/login`，新手机号调用 `/api/v1/auth/register`。保留会话 Cookie 后，可调用 `GET /api/v1/me` 或提交登出请求。
 
 生产环境在接入真实短信前，发送验证码、登录和注册返回 `50301`。
 
-## 目录结构
+## 后续开发
 
-```text
-backend/
-├── pom.xml
-└── src/
-    ├── main/java/com/careerq/
-    │   ├── CareerQApplication.java
-    │   ├── common/      # 统一响应、错误码、异常处理
-    │   ├── config/      # 安全（会话 Cookie + CSRF）、OpenAPI
-    │   └── system/      # 健康检查
-    ├── main/resources/
-    │   ├── application.yml
-    │   └── db/migration/ # Flyway 脚本
-    └── test/java/com/careerq/
-```
+HR 原创职业观点帖、真实消息和真实 HR 认证仍待实现；运营页面按审核与举报职责开发。当前接口仅面向公开问题、回答和学生追问，不提供旧内容工作流。模块分工与交付标准见[三人全栈模块开发计划](../docs/三人全栈模块开发计划.md)。
 
 ## 当前进度
 

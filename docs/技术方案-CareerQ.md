@@ -1,302 +1,135 @@
 # 《CareerQ》技术方案与架构设计
 
-> 项目代号：**CareerQ**　｜　配套文档：[`项目策划书-CareerQ.md`](项目策划书-CareerQ.md)
-> 作者：**DeepSeek**　｜　Web 修订：**Qorder**　｜　日期：2026-11-12　｜　Web 修订日期：2026-11-13　｜　状态：**草案 v0.2**（待评审）
-> 范围：对齐策划书 MVP（第 1—4 周），给出可落地、低成本、可审核的 Web 技术架构。
+> 对外名称：职问桥　｜　更新日期：2026-11-20　｜　状态：当前工程基线
+> 配套：[产品策划书](项目策划书-CareerQ.md)、[接口契约](接口契约-职问桥.md)、[实施计划](实施计划-职问桥.md)
 
----
+## 1. 当前目标与交付范围
 
-## 0. 结论先行（TL;DR）
+项目提供公开、异步的职业问答。游客浏览已发布的问题和回答，学生提问与追问，HR 回答主问题或指定学生追问，运营审核内容并处理举报。所有角色使用同一 Web 工程，通过独立页面入口和后端授权区分职责。
 
-1. **模块化单体 + 轻量托管服务**，不上微服务、不上 K8s。团队小、周期 4 周，复杂度必须压到最低。
-2. 技术栈：**响应式 Web（Vue3 + TypeScript + Vite）+ FastAPI + PostgreSQL + Redis + 对象存储**；搜索先用 PG 全文，量大再上 Meilisearch。
-3. **审核是系统一级公民**：所有 UGC 走统一状态机，按风险进行规则初筛、内容安全机审与人工复核，全链路留痕、可申诉。
-4. 产品明确不做 IM / 私信 → **全部使用常规 HTTP/HTTPS 请求，无 WebSocket 长连接**，这是本方案最大的成本优势。
-5. MVP 验收线：问题 48 小时内可有回应、审核 SLA 可控、单机可跑、每日可备份。
-
-## 1. 需求 → 技术映射
-
-| 产品需求（策划书） | 技术实现 | MVP 优先级 |
+| 能力 | 实现方式 | 当前状态 |
 |---|---|---|
-| 公开问答库、可检索 | 内容表 + 标签表 + 只读缓存/分页 | P0 |
-| 学生提问 | 问题表 + 审核状态机 + 标签 | P0 |
-| HR 从问题池选答 | 问题池查询（按标签/未答时间排序） | P0 |
-| 两种回答长度 | `answers.length_type`：`one_liner` / `detailed` | P0 |
-| 点赞 / 收藏 / 标记有用 | 互动表（唯一约束）+ 计数异步更新 | P0 |
-| 公开追问 | 追问表（挂 answer，不做私聊） | P1 |
-| HR 观点帖 | 观点帖表（与回答共用审核链路） | P1 |
-| 本周精选 | 运营手动精选 + 只读精选接口 | P1 |
-| 举报与审核后台 | 举报表 + 审核队列 + 人审工作台 | P0 |
-| 身份认证 | Web 手机号短信验证 + HR 人工核验 | P0 |
-| 搜索与标签 | MVP：PG 全文 + 标签；后期 Meilisearch | P1 |
-| 数据看板（后续） | 只读聚合 + 定时任务 | P2 |
+| 公开问答浏览 | Feed、问题详情、回答时间线 | 已实现 |
+| 搜索、标签、时间筛选与排序 | 同一 Feed 查询契约；推荐、最新、热门 | 已实现 |
+| 学生提问与追问 | 问题、标签与追问 API；作者归属校验 | 已实现 |
+| HR 工作台 | 待回答、已回答公开问题、我回答过的三类列表 | 已实现 |
+| HR 回复追问 | 回答保存 `followup_id`，明确关联原学生追问 | 已实现 |
+| 互动与举报 | 点赞、收藏、有用、不感兴趣；举报处理接口 | 已实现 |
+| 内容审核 | 词库、内置规则、人工审核和审核记录 | 后端已实现；运营页面待完善 |
+| HR 原创职业观点帖 | 独立帖子模型、发布与审核、公开展示和互动 | 待开发，不能视为已有功能 |
+| 真实短信和 HR 认证 | 外部验证码供应商、身份资料验证 | 暂缓；演示使用固定验证码和测试账号 |
+| 真实消息通知 | 新回答、新追问与审核结果提醒 | 待开发；当前学生消息面板为示例 |
 
-## 2. 总体架构
+HR 不创建学生问题、不发起学生追问、不审核。运营不提问、不回答，专注内容审核和举报。公开追问与 HR 的定向回复属于问答链路，不构成独立聊天功能。
+
+## 2. 技术选型
+
+| 层 | 当前选型 | 使用方式 |
+|---|---|---|
+| 前端 | Vue 3、TypeScript、Vite | 响应式页面、统一请求层、角色路由 |
+| 状态与组件 | Pinia、Vue Router、Naive UI、Tailwind CSS | 会话状态、页面导航与公共展示组件 |
+| 后端 | Spring Boot 3、Java 21、Spring MVC | 模块化单体，Controller → Service → DAO |
+| 持久层 | MyBatis、Spring 事务 | 参数化 SQL、对象映射和事务一致性 |
+| 数据库 | MySQL 8；本地 H2 MySQL 兼容模式 | `prod` 与默认 `dev` profile 分离 |
+| 数据库迁移 | Flyway | 启动执行版本迁移；已有 V1–V9 不可改写，后续变更追加新版本 |
+| 契约 | springdoc OpenAPI | 运行时 `/v3/api-docs` 与仓库 `docs/openapi.json` |
+| 部署 | 前端静态资源 + Nginx/Caddy + Java 服务 | 生产建议同域 HTTPS 反向代理 |
+
+当前工程不依赖 Redis、消息队列、外部搜索服务或大模型服务即可启动。后续引入这些依赖前，应有明确的性能或产品需求。
+
+## 3. 工程结构与职责
+
+```text
+frontend/src/
+  views/             公开问答、学生页面、HR 工作台
+  components/        卡片、筛选、标签、资料与消息展示
+  api/               业务 API 与统一请求层
+  stores/            用户会话状态
+backend/shared.all/product.shared/
+  product.api/       Controller、参数校验、API 异常处理
+  product.service/   服务接口、DTO、统一响应、登录主体
+  product.service.impl/
+    src/main/java/   Service 实现、DO、MyBatis DAO、配置和启动类
+    src/main/resources/db/migration/   Flyway 历史迁移
+    src/test/java/   业务流程、权限和数据访问测试
+```
+
+前端通过公开 API 交换 DTO，不依赖 DAO、实体或表结构。后端跨模块的字段、状态与权限变化需要更新接口契约，并由受影响模块负责人协同审查。
+
+## 4. 运行架构
 
 ```mermaid
 flowchart LR
-    A[响应式 Web<br/>手机与桌面浏览器] --> B[CDN + WAF]
-    B --> C[静态站点 + API 网关<br/>Caddy]
-    C --> D[FastAPI 应用<br/>模块化单体]
-    E[运营审核后台 Web] --> C
-    D --> F[(PostgreSQL)]
-    D --> G[(Redis)]
-    D --> H[对象存储 OSS]
-    D --> I[Meilisearch<br/>后期]
-    D --> J[审核/通知 Worker]
-    G --> J
-    J --> K[内容安全 API<br/>大模型]
-    D --> L[短信 / 邮件服务]
-    J --> L
+    A[学生 / HR / 游客浏览器] --> B[Vue Web]
+    C[运营页面] --> B
+    B --> D[Nginx / Caddy 同域代理]
+    D --> E[Spring MVC Controller]
+    E --> F[Service 与事务]
+    F --> G[MyBatis DAO]
+    G --> H[(MySQL 8)]
+    F --> I[内容规则与审核记录]
 ```
 
-**说明**
+本地开发由 Vite 代理 `/api`。`CAREERQ_API_PROXY_TARGET` 可指定后端目标，默认 `http://localhost:8080`。前端在 5173 或 5176 运行时，应保持代理和 CORS 来源配置一致，避免浏览器 POST 被来源校验拒绝。
 
-- 应用层按模块分：`auth` / `question` / `answer` / `interaction` / `moderation` / `admin` / `feed`，单进程部署，模块间只通过服务层函数调用，**预留拆分接口**但不拆。
-- UGC 提交先落库并执行轻量规则初筛；内容安全 API、人工复核、通知与计数通过 Redis Stream 异步处理，**写路径不阻塞在大模型调用上**。
-- 用户端与运营后台均构建为 Web 静态资源，由 Caddy/CDN 托管；两端共用一套 API，后台使用独立路由组 `/admin/*` + RBAC。
+## 5. 数据边界
 
-## 3. 技术选型与理由（含反例）
+| 数据 | 核心关系与职责 |
+|---|---|
+| `users`、`hr_profiles` | 账号角色、匿名展示名与 HR 资料 |
+| `questions`、`tags`、`question_tags` | 公开问题、发布状态、计数和标签 |
+| `answers` | HR 回答；`followup_id` 为空为主问题回答，非空为指定追问回复 |
+| `followups` | 学生在公开问题下提交的追问 |
+| `interactions` | 当前用户对问题/回答的互动；唯一键保证同一互动不重复计数 |
+| `user_tag_affinity` | 可由互动事实重建的用户标签偏好缓存 |
+| `reports` | 举报目标、原因、状态和处理结果 |
+| `moderation_words`、`moderation_records` | 规则配置、机器与人工审核记录 |
 
-| 层 | 选型 | 理由 | 明确不选 |
-|---|---|---|---|
-| 用户端 | **响应式 Web：Vue3 + TypeScript + Vite** | 手机与桌面浏览器均可访问；组件化开发效率高，便于响应式适配与分享 | 不做微信小程序和独立 App（当前目标是统一 Web 端，避免多端维护） |
-| 管理后台 | Vue3 + TypeScript + Element Plus | 与用户端共享工程规范，运营审核工作台开发快 | 不引入第二套前端框架 |
-| 后端 | **FastAPI (Python 3.12)** | AI 审核 SDK 生态最好；异步任务、类型校验、自动 OpenAPI 文档 | 不上 Java/Spring 微服务（人力不够） |
-| 数据库 | **PostgreSQL 16** | 事务、JSONB、全文检索、成本低；审核与互动需要强一致 | 不用 MongoDB（关系查询与事务是刚需） |
-| 缓存 | Redis 7 | 限流、热点缓存、互动计数、队列 | — |
-| 队列 | Redis Stream（MVP） | 免运维；量起来再换 RabbitMQ | 不上 Kafka（过度设计） |
-| 搜索 | PG `tsvector` + 标签（MVP）→ Meilisearch（>1 万条） | 先零成本，后平滑替换 | 不一开始就上 ES |
-| 存储 | 云对象存储 OSS/COS | 图片/认证材料，直传 + 私有读 | 不把文件存服务器磁盘 |
-| 部署 | Docker Compose 单机 + Caddy | 自动 HTTPS、一条命令起全栈 | 不上 K8s / Service Mesh |
+当前业务只接受 `scope=public`。历史迁移可能保留已停用的存储结构，它们不构成现行 API 或产品功能；不为删除旧功能而改写已执行的 Flyway 脚本，也不自动清除已有数据库数据。
 
-## 4. 数据模型
+HR 原创观点帖尚未有可用的独立发布链路。后续开发需要新建帖子契约与迁移，不能把已移除的旧内容结构当作观点帖实现。
 
-```mermaid
-erDiagram
-    users ||--o| hr_profiles : "认证资料"
-    users ||--o{ questions : "提问"
-    users ||--o{ answers : "回答"
-    questions ||--o{ answers : "被回答"
-    answers ||--o{ followups : "公开追问"
-    questions }o--o{ tags : "question_tags"
-    users ||--o{ posts : "观点帖"
-    users ||--o{ interactions : "点赞/收藏/有用"
-    users ||--o{ reports : "举报"
-```
+## 6. 公开问答与 HR 流程
 
-核心表（字段为设计要点，非最终 DDL）：
+1. 学生提交问题。普通内容直接发布，命中审核规则的内容进入人工审核或拒绝状态。
+2. 公开 Feed 只返回已发布内容。问题作者通过自己的列表查看允许展示的审核状态。
+3. HR 待回答池排除已有已发布或审核中回答的问题，避免重复集中作答。
+4. HR 回答主问题，或选择一条已发布学生追问进行回复；后端校验问题与追问关系、角色和内容状态。
+5. 回答经过审核，通过后才增加公开回答数。提交者可以在本人回答记录中查看相应状态。
+6. 学生查看回答、提交追问并互动；运营通过队列和举报接口处理内容风险。
 
-| 表 | 关键字段 | 约束 / 索引 |
+问题、回答和追问的撤回/撤销以各服务的作者与状态校验为准。回答下架后的计数一致性、撤回与下架文案区分、新追问提醒属于后续收尾项，不能仅凭按钮或静态页面算完成。
+
+## 7. 接口和分页
+
+- 统一响应为 `{code, message, data}`；错误码和响应字段以[接口契约](接口契约-职问桥.md)与运行时 OpenAPI 为准。
+- HR 列表和普通列表使用 ID 游标，`nextCursor=null` 表示末页。HR 工作台每页 5 条，末页禁用下一页。
+- 推荐 Feed 使用不透明字符串游标，绑定排序与筛选条件；切换条件必须从第一页重新请求。
+- Feed 支持搜索词、标签、时间范围和推荐/最新/热门排序；详见[Feed 推荐流方案](技术方案-Feed推荐流.md)。
+- 写请求由统一请求层携带 Cookie 和 CSRF 令牌。前端需要防重复提交；通用 `Idempotency-Key` 尚未强制实现。
+
+## 8. 鉴权与内容可见性
+
+- 会话采用服务端 Session + HttpOnly Cookie。生产使用 HTTPS 与 Secure Cookie，浏览器不把长期会话令牌存入 localStorage。
+- 后端使用角色和对象归属授权，隐藏菜单不能替代授权；学生、HR、运营互不能调用对方的业务写接口。
+- 内容写接口校验 CSRF，CORS 使用明确来源白名单。认证接口的具体 CSRF 配置以 `SecurityConfig` 为准。
+- 公开读接口只返回已发布内容；作者可查看自己有权查看的审核内容，运营从审核接口读取上下文。
+- 真实身份资料与公开展示分开，手机号、验证码、Cookie 和认证材料不得进入公开返回或明文日志。
+
+## 9. 审核与举报
+
+当前机器审核是词库与内置规则，不是已接入的大模型。`block` 规则拒绝内容，`review` 规则进入人工队列，其余内容可直接发布。运营角色负责通过、驳回、下架与举报处理，管理员另有词库维护权限。
+
+后续可评估外部内容安全服务、真实风险分级、申诉、批量审核和消息通知。引入前需要增加可验证的契约、日志和失败处理，不能只在文档中声明已完成。
+
+## 10. 团队边界与交付
+
+| 模块 | 负责人 | 交付边界 |
 |---|---|---|
-| `users` | id, role(`student`/`hr`/`operator`/`admin`), phone_hash, phone_enc, phone_verified_at, nickname, school, major, grade, age_group, status, created_at | `phone_hash` 唯一；role+status 索引 |
-| `hr_profiles` | user_id, company_display, industry, position, verify_status(`pending`/`verified`/`rejected`), verify_material_ref, verified_at | user_id 唯一；**对外只暴露 company_display** |
-| `questions` | id, author_id, title, body, visibility, status, first_answer_at, answer_count, useful_count, created_at | `(status, created_at)` 索引；标签关联索引 |
-| `answers` | id, question_id, author_id, body, length_type, status, like_count, useful_count, created_at | `(question_id, status)` 索引；`(author_id, created_at)` |
-| `followups` | id, answer_id, author_id, body, status, created_at | `(answer_id, status)` |
-| `posts` | id, author_id, title, body, status, like_count, created_at | `(status, created_at)` |
-| `tags` / `question_tags` | id, name, slug, category, weight / (question_id, tag_id) | name 唯一；tag_id 反查索引 |
-| `interactions` | id, user_id, target_type, target_id, type(`like`/`favorite`/`useful`), created_at | **唯一约束** (user, target_type, target_id, type) |
-| `reports` | id, reporter_id, target_type, target_id, reason, status, handled_by, handled_at | `(status, created_at)` |
-| `moderation_records` | id, target_type, target_id, stage(`machine`/`human`), model_version, risk_labels(jsonb), decision, operator_id, note, created_at | `(target_id, created_at)`；**只增不改** |
-| `moderation_words` | id, word, category, action(`block`/`review`), updated_at | 热更新，运营可维护 |
+| 公开浏览与公共展示 | 王（按团队最终分工） | 游客 Feed、筛选、公开展示组件 |
+| 账号与学生提问 | 季（按团队最终分工） | 账号、学生提问、我的问答和学生交互 |
+| HR 与运营 | 李（已确认） | HR 工作台、回答与追问回复、后续观点帖、运营审核与举报页面及后端 |
 
-设计原则：
+李不直接修改学生端功能。涉及公共导航、共享卡片和跨模块契约时先明确归属，由对应负责人协调；本次仅删除停用业务的必要调用与文档。每项任务在最新 main 上建独立分支，完成适当测试后提交 PR，至少由另一位人类成员审查。
 
-- **软删除 + 状态字段**，不做物理删除（审核审计需要）。
-- 计数（like_count 等）冗余存储，异步校准，避免每次 `count(*)`。
-- 时间统一 `timestamptz`，服务端生成，不用客户端时间。
-- 所有 UGC 正文 MVP 阶段**只允许纯文本 + 换行**，从根上消灭 XSS 与富文本注入。
-
-## 5. 核心流程
-
-### 5.1 内容发布与审核状态机（全站统一）
-
-```mermaid
-stateDiagram-v2
-    [*] --> pending_machine: 用户提交
-    pending_machine --> published: 低风险直发
-    pending_machine --> pending_human: 命中 P1 规则
-    pending_machine --> rejected: 命中 P0 规则
-    pending_human --> published: 人审通过
-    pending_human --> rejected: 人审驳回
-    published --> reviewing: 被举报
-    reviewing --> published: 复核无问题
-    reviewing --> removed: 确认违规下架
-    rejected --> pending_human: 用户申诉
-```
-
-- 每次状态迁移写一条 `moderation_records`，记录阶段、模型版本、命中标签、决策人。
-- **未发布内容不对外可见**；学生提问在发布前不占「待回答池」，避免垃圾问题污染供给。
-
-### 5.2 HR 认证流程
-
-提交材料（企业邮箱验证码 / 工牌 / 在职证明）→ 机审 OCR 校验 → 人工核验 → `verified`。对外展示 `company_display`（如「某互联网公司 HR」），**永不展示真实姓名**。
-
-### 5.3 「有效回应」的计量
-
-- 回答发布时若 `questions.first_answer_at` 为空则写入当前时间。
-- 定时任务按小时统计：发布后 24h / 48h 是否 ≥1 条已发布回答 → 供指标看板与冷启动验收使用。
-
-## 6. API 设计（REST，`/api/v1`）
-
-| 方法 | 路径 | 说明 | 权限 |
-|---|---|---|---|
-| POST | `/auth/sms-code` | 发送手机号短信验证码 | 公开（严格限流） |
-| POST | `/auth/login` | 手机号 + 验证码登录，创建 Web 会话 | 公开 |
-| POST | `/auth/logout` | 注销当前会话 | 登录用户 |
-| POST | `/auth/hr-verify` | 提交 HR 认证材料 | 登录用户 |
-| GET | `/questions` | 问题列表（标签/排序/游标分页） | 公开 |
-| POST | `/questions` | 提问（进入审核） | student |
-| GET | `/questions/{id}` | 问题详情 + 已发布回答 | 公开 |
-| GET | `/hr/question-pool` | HR 问题池（未答优先） | hr |
-| POST | `/questions/{id}/answers` | 回答问题（进入审核） | hr |
-| POST | `/answers/{id}/followups` | 公开追问 | student |
-| POST | `/interactions` | 点赞 / 收藏 / 有用 | 登录用户 |
-| GET | `/posts` / `POST /posts` | 观点帖列表 / 发布 | 公开 / hr |
-| GET | `/feed/highlights` | 本周精选 | 公开 |
-| POST | `/reports` | 举报 | 登录用户 |
-| GET | `/me/*` | 我的提问/收藏/回答 | 登录用户 |
-| GET | `/admin/moderation/queue` | 审核队列（按风险×等待） | operator |
-| POST | `/admin/moderation/{id}/decide` | 通过 / 驳回 / 下架 | operator |
-| POST | `/admin/moderation/words` | 词库热更新 | operator |
-| GET | `/admin/metrics` | 回应率 / 时长 / 积压 | admin |
-
-**接口规范**
-
-- 游标分页（`cursor` + `limit`），不用 offset 翻深页。
-- 写接口支持 `Idempotency-Key` 头，防重复提交（尤其提问）。
-- 登录成功后通过 `Set-Cookie` 创建会话，浏览器自动携带；前端不保存长期令牌。
-- 统一错误体：`{code, message, request_id}`；`request_id` 贯穿日志。
-- 限流：公开读 60 req/min/IP，写 10 req/min/用户，登录 5 req/min/IP；短信验证码按 IP、手机号和设备限流，并配置每日发送上限。
-
-## 7. 审核系统设计（本项目的护城河）
-
-**分层过滤**
-
-1. **词库**：精确/变体匹配（禁用词、联系方式、招聘承诺、歧视词），命中 P0 → 直接拒，命中 P1 → 转人工。
-2. **内容安全 API / 大模型**：政治敏感、色情、辱骂、广告导流，返回风险标签与置信度。
-3. **规则**：持续联系方式（手机号/微信/QQ 正则）、URL 白名单、疑似招聘话术。
-4. **人工**：工作台按「风险等级 × 等待时长」排序，支持一键通过/驳回/编辑提示语。
-
-**风险分级与 SLA**
-
-| 等级 | 判定 | 处理 |
-|---|---|---|
-| P0 | 涉政、色情、违法招聘、人身威胁 | 机审直接拒 + 记录，不进队列 |
-| P1 | 高风险但需语境判断 | 4 小时内人审 |
-| P2 | 中风险/需抽检 | 24 小时内人审 |
-| P3 | 低风险 | 机审直发 + 抽样复核 |
-
-**可审计与可申诉**
-
-- `moderation_records` 只增不改，记录模型版本、命中标签、决策人、理由。
-- 被驳回内容对作者展示「原因分类 + 申诉入口」，申诉进 P1 队列。
-- 被举报内容回收进 `reviewing`，复核结果同样留痕。
-
-**审核效率**
-
-- 队列支持批量操作、快捷键、相似内容聚合。
-- 词库运营可自助增删（带操作审计）。
-- 每周输出「误伤率 / 漏放率 / 平均审核时长」三项，作为运营指标。
-
-## 8. 认证、隐私与合规技术措施
-
-| 要求 | 技术实现 |
-|---|---|
-| 学生实名（手机号） | Web 手机号 + 短信验证码；**不存明文**，存 `phone_hash` + 加密字段 |
-| HR 身份 | 企业邮箱验证码 / 工牌 OCR / 在职证明，人工核验 |
-| 展示脱敏 | 只展示 `company_display` + `industry` + `position`，禁止真实姓名与联系方式 |
-| 数据最小化 | 不采集身份证、不存简历、不做通讯录授权 |
-| 未成年人 | `age_group` 标记，限制引流类内容；不设私聊即天然降低风险 |
-| 免责声明 | 首页与详情页固定展示「个人项目，非学校官方；回答不构成招聘承诺」 |
-| 删除权 | 用户可申请删除自己的内容，实际执行软删 + 内容置灰 |
-| 日志 | 访问日志脱敏，手机号、短信验证码、Cookie、会话令牌不入明文日志 |
-
-## 9. 安全设计
-
-- **认证授权**：使用高熵随机会话 ID，通过 `HttpOnly` + `Secure` + `SameSite=Lax` Cookie 下发；服务端只在 Redis 保存会话 ID 哈希，支持注销与失效；角色 RBAC（student / hr / operator / admin），后台强制二次验证。长期令牌不写入 `localStorage`。
-- **Web 攻击面**：所有非 GET 写请求校验 CSRF Token 与 `Origin`；CORS 仅允许明确的站点域名，禁止带凭证的通配符；配置 CSP、`X-Content-Type-Options` 与合理的 `Referrer-Policy`。
-- **验证码安全**：短信验证码只存哈希、5 分钟过期、限制验证次数；按 IP + 手机号 + 设备限流，必要时接入图形/行为验证码，防短信轰炸。
-- **越权**：所有对象读写做 owner 校验，禁止仅凭前端传参。
-- **防刷**：IP + 设备 + 用户三维限流；发帖验证码；内容 SimHash 去重（防刷屏/搬运）。
-- **注入**：ORM 参数化查询；纯文本正文；URL 白名单。
-- **文件**：认证材料私有读 + 短时签名 URL，不公开桶。
-- **数据**：每日全量备份 + WAL 归档；管理操作审计日志保留 180 天。
-
-## 10. 性能与容量（MVP 估算）
-
-| 指标 | 目标 |
-|---|---|
-| API P95 延迟 | < 300 ms |
-| Web 手机端首屏 | < 1.5 s（静态资源缓存 + 列表接口 + 骨架屏） |
-| 可用性 | 99.5%（MVP 可接受） |
-| 容量假设 | 1 万注册 / 500—1000 DAU / 日新增内容 200 条 |
-
-- 单机 2C4G 足以支撑；瓶颈会先出现在 AI 审核调用，用队列削峰。
-- 缓存：精选与标签页 CDN 60s；问题详情 Redis 30s；互动计数异步落库。
-- 数据库连接池 + 慢查询阈值告警（>200ms）。
-
-## 11. 部署与运维
-
-- **环境**：dev / staging / prod，同一套 Compose，配置走环境变量（密钥不入库、不入 Git）。
-- **Web 发布**：CI 构建用户端与运营后台静态资源，Caddy/CDN 提供 HTTPS、缓存和路由回退；`/api/*` 反向代理到 FastAPI。前后端生产环境同域部署，减少跨域与 Cookie 配置复杂度。
-- **CI/CD**：GitHub Actions（`lint` → `test`（PG 容器）→ `build` → 部署脚本）。仓库已在 GitHub，天然衔接。
-- **监控**：Sentry（异常）+ 云监控（CPU/内存/延迟/错误率）+ 审核队列积压告警（>50 条或最老 >4h）。
-- **备份**：每日全量，RPO 24h / RTO 4h（MVP 目标）。
-- **成本**：2C4G 云服务器约 100—200 元/月；域名、OSS、短信/邮件与 AI 审核按实际用量计费，冷启动阶段通过发送限额控制成本。
-
-## 12. 演进路线（与策划书对齐）
-
-| 阶段 | 技术动作 |
-|---|---|
-| MVP（1—4 周） | 本方案全部 P0；审核状态机 + 工作台；基础埋点 |
-| 冷启动（5—8 周） | 数据看板、审核效率工具、指标告警、内容去重 |
-| 内容沉淀（9—12 周） | Meilisearch 接入、问答合集、专题页、SEO |
-| 扩展（13 周+） | 话题系统、收藏夹、推荐（可选）、多端 |
-
-## 13. 风险与取舍
-
-| 风险 | 应对 |
-|---|---|
-| AI 审核误伤，打击 HR 供给 | 人审兜底 + 申诉 + 误伤率监控；P1 才拦，P3 直发 |
-| 审核积压导致 48h 回应落空 | 队列告警 + 批量操作 + 风险分级；必要时先发后审（需评估合规） |
-| 单机故障 | 每日备份 + 一键重建脚本；数据库与 OSS 分离 |
-| 过度设计拖慢 MVP | 明确不上一堆中间件；先跑通「有回应」再扩 |
-| 合规变化 | 词库与审核规则可配置，不硬编码在代码里 |
-
-## 14. 团队分工与协作顺序
-
-现阶段按“王前端、季后端、李质量集成与前端辅助”分工。主责人负责协调和交付，但不独占文件；其他成员可通过独立分支和 PR 参与，后续可根据学习与开发情况协商调整。
-
-| 模块 | 人类 owner | 审查与协作 | 主责内容 |
-|---|---|---|---|
-| 用户端 Web | 王 | 季代码审查，李功能验收 | Vue3 工程、响应式页面、提问/回答/互动、API 对接与前端测试 |
-| 运营后台前端 | 王 | 季代码审查，李功能验收 | 审核队列、举报处理、HR 认证工作台与词库维护界面 |
-| 数据库与核心后端 | 季 | 王代码审查，李功能验收 | FastAPI、PostgreSQL、迁移、登录会话、RBAC、问答与互动 API |
-| 审核与平台后端 | 季 | 王代码审查，李功能验收 | 审核状态机、审核记录、举报、HR 认证、异步任务与审核 API |
-| 产品质量与集成 | 李 | 王、季配合，王或季审查 PR | 验收用例、测试数据、三角色联调、缺陷跟踪与演示验收 |
-| 辅助前端组件 | 李 | 王代码审查并提供指导 | 从状态标签、空状态、表单校验和简单列表等边界清晰的任务开始 |
-| CI、部署与运维 | 季 | 王代码审查，李发布验收 | CI、Caddy/HTTPS、环境配置、备份、监控与恢复验证 |
-| 项目文档与任务协调 | 李 | 王或季审查 | 任务拆解、验收标准、接口与状态变更记录、演示材料协调 |
-
-协作规则：
-
-- API 字段、数据库结构和审核状态变更由三人先确认；前端可先使用 Mock 数据并行开发，接口就绪后立即联调，不采用“后端全部完成后才做前端”的方式。
-- 王的前端 PR 由季进行代码审查，季的后端 PR 由王进行代码审查，李负责功能验收；李的开发 PR 由对应模块 owner 审查。每次合并至少经过另一名人类成员审查，AI 意见不计入人类审查人数。
-- AI 仅作为协助方，不代替人类 owner 或审查者；同机 AI 编辑使用 `.<name>_editing` 锁，跨成员协调使用 GitHub Issue、PR 和 owner 分配。
-
-开发顺序：
-
-1. **统一基线**：确认 MVP 范围、数据库字段、OpenAPI、审核状态和各功能验收标准。
-2. **第 1 周——提问闭环**：登录 → 学生提问 → 运营审核 → 问题公开发布。
-3. **第 2 周——回答闭环**：HR 问题池 → 回答审核 → 学生查看并点赞/收藏/标记有用。
-4. **第 3 周——可靠性加固**：权限、审核绕过、限流、异常状态、重复提交、日志和性能检查。
-5. **第 4 周——部署验收**：真实手机与桌面浏览器测试、HTTPS 部署、备份恢复、核心指标与演示验收；P0 稳定后再做 P1 扩展。
-
-## 15. 待用户确认（阻塞项）
-
-1. 比赛**截止时间**与**评审维度**（创新性 / 可行性 / 技术完成度 / 社会价值）。
-2. 是否需要**真实部署可访问**的 Demo，还是架构文档 + 原型即可。
-3. 是否有云账号、已备案域名、HTTPS 证书和短信/邮件验证码服务；本地开发使用验证码测试通道，不发送真实短信。
-4. 是否允许调用第三方大模型做审核（成本与合规）。
+构建、启动和部署方式见 [backend README](../backend/README.md)及[部署说明](部署说明-职问桥.md)。生产 MySQL 验证与备份恢复应在具备目标环境时单独执行，不以本地 H2 测试替代。

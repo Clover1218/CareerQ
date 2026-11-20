@@ -79,6 +79,19 @@ function Get-Items($collection) {
     return @($collection)
 }
 
+function Assert-ApiStatus([string]$method, [string]$path, $session, $body, [int]$expectedStatus, [string]$message) {
+    try {
+        Invoke-Api -Method $method -Path $path -Session $session -Body $body | Out-Null
+    } catch {
+        if ($_.Exception.Response) {
+            Assert-True ([int]$_.Exception.Response.StatusCode -eq $expectedStatus) $message
+            return
+        }
+        throw
+    }
+    throw "断言失败：$message（接口意外成功）"
+}
+
 try {
     if (-not (Wait-Healthy)) { throw "后端未在 120 秒内启动，查看日志：$log" }
     Write-Host "健康检查通过" -ForegroundColor Green
@@ -96,6 +109,20 @@ try {
     $student = New-Login "13800000001"
     $hr = New-Login "13800000002"
     $operator = New-Login "13800000003"
+
+    Assert-ApiStatus POST "/api/v1/questions" $student @{
+        title = "非法范围验证"; body = "只允许公开问题"; scope = "private"
+    } 400 "非公开范围的提问被拒绝"
+    foreach ($legacy in @(
+        @{ Method = "GET"; Path = "/api/v1/hr/private-pool" },
+        @{ Method = "POST"; Path = "/api/v1/hr/questions/1/claim" },
+        @{ Method = "POST"; Path = "/api/v1/questions/1/close" },
+        @{ Method = "POST"; Path = "/api/v1/questions/1/publish" },
+        @{ Method = "GET"; Path = "/api/v1/posts" },
+        @{ Method = "GET"; Path = "/api/v1/feed/highlights" }
+    )) {
+        Assert-ApiStatus $legacy.Method $legacy.Path $hr $null 404 "旧接口已移除：$($legacy.Path)"
+    }
 
     $risky = Invoke-Api POST "/api/v1/questions" $student @{
         title = "想找内推"; body = "可以加微信详细聊吗？"; scope = "public"
