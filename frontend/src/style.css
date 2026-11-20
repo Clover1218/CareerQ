@@ -49,12 +49,26 @@ html {
   box-sizing: border-box;
 }
 
+html {
+  /* 始终为纵向滚动条预留宽度：标签页切换时页面高度变化不会导致内容横向位移 */
+  scrollbar-gutter: stable;
+}
+
+/* 老浏览器不支持 scrollbar-gutter 时：强制常驻滚动条，效果相同 */
+@supports not (scrollbar-gutter: stable) {
+  html {
+    overflow-y: scroll;
+  }
+}
+
 body {
   margin: 0;
   font-family: var(--font-sans);
   background: var(--color-bg-main);
   color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
+  /* 顶栏 fixed 固定吸顶，内容区留出顶栏高度 */
+  padding-top: 57px;
 }
 
 a {
@@ -71,10 +85,12 @@ a {
   padding: 0 32px;
   background: var(--color-bg-surface);
   border-bottom: 1px solid var(--color-border-subtle);
-  position: sticky;
+  position: fixed;
   top: 0;
-  z-index: 50;
-}
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 100;}
 
 .brand {
   justify-self: start;
@@ -145,6 +161,108 @@ a {
   line-height: 18px;
 }
 
+/* ---------------- 顶栏账号：头像 + 昵称 + 悬浮角色卡 ---------------- */
+.account-profile {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.account-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: none;
+  padding: 2px 6px 2px 2px;
+  border-radius: 999px;
+  font-family: inherit;
+  color: var(--color-text-regular);
+  font-size: 14px;
+  line-height: 22px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.account-trigger:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+.account-avatar {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--color-brand);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.account-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.account-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 悬浮框：鼠标悬停或键盘聚焦时出现在「昵称」下方 */
+.account-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  min-width: 132px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px -8px rgba(0, 0, 0, 0.25);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease,
+    visibility 0.15s ease;
+  pointer-events: none;
+  cursor: pointer;
+}
+
+.account-profile:hover .account-pop,
+.account-profile:focus-within .account-pop {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.account-pop .role {
+  align-self: flex-start;
+}
+
+.account-pop-hint {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
 /* ---------------- 页面骨架 ---------------- */
 .container {
   max-width: 655px;
@@ -185,6 +303,62 @@ a {
 .icon-btn:hover {
   background: var(--color-bg-hover);
   color: var(--color-text-primary);
+}
+
+/* 我的问答标签栏：固定顶栏高度 + 间距，切换标签时 scrollIntoView 不被顶栏遮住 */
+/* 我的问答：学生头像（横幅可点击更换 + 侧边资料栏展示） */
+.myqa-avatar {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  flex: 0 0 auto;
+  border: 0;
+  padding: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-brand);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.myqa-avatar--sm {
+  width: 44px;
+  height: 44px;
+  font-size: 16px;
+  cursor: default;
+}
+
+.myqa-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.myqa-avatar-mask {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.myqa-avatar:hover .myqa-avatar-mask {
+  opacity: 1;
+}
+
+.myqa-tabs {
+  scroll-margin-top: 73px;
 }
 
 .myqa-tab {
@@ -605,3 +779,138 @@ textarea {
   }
 }
 
+
+/* ================= 退出登录确认弹窗（全屏遮罩 + 居中大字号） ================= */
+.confirm-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(17, 24, 39, 0.5);
+  backdrop-filter: blur(2px);
+}
+
+.confirm-dialog {
+  width: min(440px, calc(100vw - 32px));
+  padding: 40px 36px 32px;
+  background: var(--color-bg-surface);
+  border-radius: 12px;
+  box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.35);
+  text-align: center;
+}
+
+.confirm-title {
+  margin: 0;
+  font-size: 28px;
+  line-height: 38px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.confirm-hint {
+  margin: 12px 0 0;
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--color-text-muted);
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 14px;
+  margin-top: 32px;
+}
+
+.confirm-btn {
+  flex: 1;
+  height: 52px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.confirm-btn--ghost {
+  background: var(--color-bg-surface);
+  border-color: var(--color-border-default);
+  color: var(--color-text-regular);
+}
+
+.confirm-btn--ghost:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+.confirm-btn--primary {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+  color: #fff;
+}
+
+.confirm-btn--primary:hover {
+  background: var(--color-brand-dark);
+  border-color: var(--color-brand-dark);
+}
+
+.confirm-fade-enter-active,
+.confirm-fade-leave-active {
+  transition: opacity 0.18s ease;
+}
+
+.confirm-fade-enter-from,
+.confirm-fade-leave-to {
+  opacity: 0;
+}
+/* 「我的问答」右侧个人资料栏：随页面滚动固定在右侧 */
+.profile-aside {
+  position: sticky;
+  top: 73px;
+  align-self: start;
+}
+
+@media (max-width: 1023px) {
+  .profile-aside {
+    position: static;
+  }
+}
+
+/* 顶栏头像悬停浮层里的资料摘要 */
+.account-pop-meta {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--color-text-regular);
+}
+
+.account-pop-meta--muted {
+  color: var(--color-text-muted);
+}
+/* 历史浏览：单条记录删除图标 */
+.history-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.history-delete:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-danger);
+}

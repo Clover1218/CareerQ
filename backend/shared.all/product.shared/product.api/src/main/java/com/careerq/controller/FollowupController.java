@@ -39,4 +39,9 @@ public class FollowupController {
     public ApiResponse<List<FollowupView>> list(Authentication authentication, @PathVariable Long id) {
         return ApiResponse.ok(followupService.list(AuthUsers.optional(authentication), id));
     }
+    @PostMapping("/{followupId}/withdraw")
+    public ApiResponse<FollowupView> withdraw(Authentication authentication, @PathVariable Long followupId) {
+        return ApiResponse.ok(followupService.withdraw(AuthUsers.require(authentication), followupId));
+    }
+
 }

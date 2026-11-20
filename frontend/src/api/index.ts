@@ -6,6 +6,7 @@ export interface User {
   id: number;
   role: "student" | "hr" | "operator" | "admin";
   nickname: string;
+  avatarUrl?: string | null;
   school?: string | null;
   major?: string | null;
   grade?: string | null;
@@ -160,6 +161,7 @@ export interface Profile {
   id: number;
   role: string;
   nickname: string;
+  avatarUrl?: string | null;
   school?: string | null;
   major?: string | null;
   grade?: string | null;
@@ -293,8 +295,13 @@ export const api = {
     return request<Profile>("/me/profile", { method: "PATCH", body: payload });
   },
 
-  listQuestions(tag?: string, cursor?: number | null, limit = 20): Promise<PageResult<QuestionFeedItem>> {
-    const params = new URLSearchParams();
+  uploadAvatar(file: File): Promise<Profile> {
+    const form = new FormData();
+    form.append("file", file);
+    return request<Profile>("/me/avatar", { method: "POST", rawBody: form });
+  },
+
+  listQuestions(tag?: string, cursor?: number | null, limit = 20): Promise<PageResult<QuestionFeedItem>> {    const params = new URLSearchParams();
     if (tag) params.set("tag", tag);
     if (cursor != null) params.set("cursor", String(cursor));
     params.set("limit", String(limit));
@@ -365,6 +372,15 @@ export const api = {
   followup(questionId: number, body: string): Promise<Followup> {
     return request<Followup>(`/questions/${questionId}/followups`, { method: "POST", body: { body } });
   },
+  withdrawAnswer(answerId: number): Promise<void> {
+    return request<void>(`/answers/${answerId}/withdraw`, { method: "POST" });
+  },
+
+  withdrawFollowup(questionId: number, followupId: number): Promise<void> {
+    return request<void>(`/questions/${questionId}/followups/${followupId}/withdraw`, {
+      method: "POST",
+    });
+  },
 
   interact(targetType: string, targetId: number, type: string): Promise<void> {
     return request<void>("/interactions", {
@@ -387,6 +403,9 @@ export const api = {
     });
   },
 
+  withdrawQuestion(questionId: number): Promise<Question> {
+    return request<Question>(`/questions/${questionId}/withdraw`, { method: "POST" });
+  },
   posts(): Promise<PublicPost[]> {
     return request<PublicPost[]>("/posts");
   },

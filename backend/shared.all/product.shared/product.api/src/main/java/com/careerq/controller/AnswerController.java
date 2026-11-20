@@ -25,6 +25,11 @@ public class AnswerController {
         this.answerService = answerService;
     }
 
+    @PostMapping("/answers/{id}/withdraw")
+    public ApiResponse<AnswerView> withdraw(Authentication authentication, @PathVariable Long id) {
+        return ApiResponse.ok(answerService.withdraw(AuthUsers.require(authentication), id));
+    }
+
     @PostMapping("/questions/{id}/answers")
     @PreAuthorize("hasRole('HR')")
     public ApiResponse<AnswerView> answer(Authentication authentication,

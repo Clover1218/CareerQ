@@ -17,12 +17,13 @@
 | 接口契约 | `docs/接口契约-职问桥.md`（前后端联调唯一依据，v1.1） |
 | 实施计划 | `docs/实施计划-职问桥.md`（M0—M6 里程碑，进行中） |
 | 开发平台 | **自建部署**：前端静态（Nginx/CDN）+ Spring Boot + MySQL 8；Qoder Sites 不再强制 |
-| Web 技术栈 | 前端：**Vue3 + TypeScript**（队友负责）；后端：**Spring Boot 3 + Java 21 + MySQL 8 + Flyway**（用户负责） |
+| Web 技术栈 | 前端：**Vue3 + TypeScript + Vite**（2026-11-18 起为 Pinia + NaiveUI + Tailwind，PR #7 重构版）；后端：**Spring Boot 3 + Java 21 + MySQL 8 + Flyway**（用户负责） |
 | 鉴权 | **Cookie 会话 + CSRF Token**；登录/注册分离：未注册登录返回 40401，`POST /auth/register` 注册并建会话 |
 | ⚠️ 分工 | **用户本人负责 Spring Boot 后端与前后端连接**；前端界面由队友负责；Qoder Sites 与 Spring Boot 的关系待确认 |
 | ✅ 已裁决 | 2026-11-14：采用**方案 C（公开提问 + 私密工单混合）**；Qoder Sites 强制。详见 `docs/流程v2评估-私密问答与公开沉淀.md` |
 | Web 技术栈 | 响应式 Web：Vue3 + TypeScript + Vite；FastAPI + PostgreSQL + Redis；Caddy/CDN |
-| 工作区 | `D:\CareerQ` |
+| 工作区 | `E:\CareerQ`（2026-11-15 起；早期记录写 `D:\CareerQ`） |
+| 本地服务 | 后端 `http://localhost:8080`（`dev,demo`，H2 内存库）；前端 `http://127.0.0.1:5173/careerq/`（`pnpm dev`）；演示账号 `13800000001/2/3`，验证码 `123456` |
 | 远端仓库 | `https://github.com/Clover1218/CareerQ.git`（`main` 已建立，2026-11-11 首次推送成功） |
 | 主干规则 | 所有改动经 PR 合并进入 `main`；禁止直接推送或强制推送 `main` |
 | 记忆规范 | `记忆书写规范.md`（六条铁律 + 三层记忆 + 写作模板） |
@@ -105,6 +106,10 @@
 - 2026-11-15 公开问答重构：feed 摘要 → `/content` → `/thread` 三态懒加载；前端 FeedCard1/2/3 与 Figma 对齐并做响应式页头；后端 37 项测试、`pnpm build` 通过；`docs/openapi.json` 重新生成（30 个 path）。注意：当前 shell 的 `JAVA_HOME` 可能仍是 JDK 17，Maven 前需指向 JDK 21。
 - 2026-11-16 公开问答交互修订：去头像；feed 的 `excerpt` 改为完整正文（删 `truncated` 与 120 字截断），每张卡片固定「阅读全文」；全文与回答区互相独立；发送按钮随输入框焦点显隐（按钮需 `@mousedown.prevent`）。37 项测试与构建通过。
 - 2026-11-19 公开问答筛选：后端 `/api/v1/feed/questions` 支持 `q`、`tags`（多标签 AND）、`period/from/to`、`sort=recommend|latest|hot` 与不透明游标（快照+种子，筛选指纹校验）；前端新增 `FeedFilterPanel`（搜索、标签复用 TagPicker、时间预设+自定义起止、排序、换一换）并接入列表页。注意：naive-ui 日期范围面板首次点击即下发 `[start,start]`，需自维护「选择中」阶段，否则会在首击就关闭并只筛一天。详见 `2026-11-19_QORDER.md`。
+- 2026-11-19 学生端前端完善：顶栏头像 + 角色浮层、消息栏（回复我的/收到的赞/系统消息）、我的问答默认 3 条可展开、历史浏览标签（localStorage）、学生页头像上传（`POST /me/avatar`，PNG/JPEG/WEBP ≤2MB）、退出登录全屏居中确认弹窗；修复顶栏吸顶（fixed）、滚动条占位（scrollbar-gutter）导致切换横向位移、Vite Windows HMR 偶发失效（`server.watch.usePolling`）。
+- 2026-11-19 提问撤回：后端 `POST /api/v1/questions/{id}/withdraw`（仅作者、无回答、待审核/已发布可撤回，状态 `removed`，公开列表隐藏）；前端「我的问答」撤回按钮 + 二次确认 + 「已撤回」标签；新增 `WithdrawFlowTests`，全量 `mvn test` **77/77**、`pnpm build` 通过。
+- 2026-11-19 ⚠️ PR 事故与暂停：PR #13 已合入 main；PR #14 为 stacked PR（base `ji/no-private-no-comments`），在该 base 先合入 main 后才合并，导致 6 个前端提交**未进入 main**；PR #16 因 main 被 PR #15 改动而冲突，**按用户要求已关闭**。`main`=`5e9b7e9`；本地/远端分支 `ji/student-frontend`=`afefe55` 保留全部功能。用户要求暂停提交/合并/回滚，待决定：rebase 补回全部前端功能 / 只摘「提问撤回」 / 保持本地。
+- 2026-11-19 同日后续：个人信息弹出抽屉（ProfileDrawer）、悬停头像资料摘要、我的问答右侧资料栏 sticky、历史浏览单条删除图标 + `?tab=history` 自动切标签；回复/追问撤销（`POST /answers/{id}/withdraw`、`POST /questions/{qid}/followups/{fid}/withdraw`，仅作者、计数递减，新增 `ReplyWithdrawFlowTests`），全量 `mvn test` **87/87**、`pnpm build` 通过。Codex 的并发改动文件未纳入本次提交。
 
 ## 五、项目概要（CareerQ）
 
