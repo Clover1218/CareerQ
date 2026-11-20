@@ -251,15 +251,17 @@ class QuestionFlowTests {
         long questionId = createQuestion(student, "public", "回答流合并测试",
                 "想了解回答与追问如何平级展示。", List.of("回答流测试"));
 
+        MockHttpSession hr = loginAsHr("13800000108");
+        long hrId = currentUserId(hr);
+
+        // 还没有 HR 回答时不能被追问
         mockMvc.perform(post("/api/v1/questions/{id}/followups", questionId)
                         .session(student).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("body", "想先了解一下准备周期。"))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.hr").value(false))
-                .andExpect(jsonPath("$.data.author.nickname").value("测试用户"));
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "hrId", hrId, "body", "想先了解一下准备周期。"))))
+                .andExpect(status().isBadRequest());
 
-        MockHttpSession hr = loginAsHr("13800000108");
         MvcResult answerResult = mockMvc.perform(post("/api/v1/questions/{id}/answers", questionId)
                         .session(hr).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -272,9 +274,28 @@ class QuestionFlowTests {
                 .path("data").path("id").asLong();
 
         mockMvc.perform(post("/api/v1/questions/{id}/followups", questionId)
+                        .session(student).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "hrId", hrId, "body", "想先了解一下准备周期。"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.hr").value(false))
+                .andExpect(jsonPath("$.data.hrId").value((int) hrId))
+                .andExpect(jsonPath("$.data.author.nickname").value("测试用户"));
+
+        MockHttpSession otherStudent = login("13800000109");
+        mockMvc.perform(post("/api/v1/questions/{id}/followups", questionId)
+                        .session(otherStudent).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "hrId", hrId, "body", "非题主也能追问吗？"))))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/v1/questions/{id}/followups", questionId)
                         .session(hr).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("body", "也可以先做一次模拟面试评估基础。"))))
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "hrId", hrId, "body", "也可以先做一次模拟面试评估基础。"))))
                 .andExpect(status().isForbidden());
 
         mockMvc.perform(post("/api/v1/interactions").session(student).with(csrf())
@@ -306,11 +327,13 @@ class QuestionFlowTests {
                 assertTrue(item.path("hr").asBoolean());
                 assertEquals(answerId, item.path("id").asLong());
                 assertTrue(item.path("liked").asBoolean());
+                assertEquals(hrId, item.path("author").path("id").asLong());
             }
             if ("followup".equals(item.path("kind").asText())
                     && "测试用户".equals(item.path("author").path("nickname").asText())
                     && !item.path("hr").asBoolean()) {
                 studentFollowupIndex = i;
+                assertEquals(hrId, item.path("hrId").asLong());
             }
         }
         assertTrue(kinds.contains("hr_answer"));

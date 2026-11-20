@@ -6,11 +6,13 @@ import com.careerq.common.ErrorCode;
 import com.careerq.common.PageResult;
 import com.careerq.common.UserBrief;
 import com.careerq.dao.AnswerDao;
+import com.careerq.dao.HrProfileDao;
 import com.careerq.dao.InteractionDao;
 import com.careerq.dao.QuestionDao;
 import com.careerq.dao.TagDao;
 import com.careerq.dao.UserDao;
 import com.careerq.dataobject.AnswerDO;
+import com.careerq.dataobject.HrProfileDO;
 import com.careerq.dataobject.QuestionDO;
 import com.careerq.dataobject.QuestionTagDO;
 import com.careerq.dataobject.TagDO;
@@ -71,6 +73,7 @@ public class QuestionServiceImpl implements QuestionService {
     private final FollowupService followupService;
     private final InteractionDao interactionDao;
     private final TagAffinityService tagAffinityService;
+    private final HrProfileDao hrProfileDao;
 
     public QuestionServiceImpl(QuestionDao questionDao,
                                AnswerDao answerDao,
@@ -79,7 +82,8 @@ public class QuestionServiceImpl implements QuestionService {
                                ModerationService moderationService,
                                FollowupService followupService,
                                InteractionDao interactionDao,
-                               TagAffinityService tagAffinityService) {
+                               TagAffinityService tagAffinityService,
+                               HrProfileDao hrProfileDao) {
         this.questionDao = questionDao;
         this.answerDao = answerDao;
         this.tagDao = tagDao;
@@ -88,6 +92,7 @@ public class QuestionServiceImpl implements QuestionService {
         this.followupService = followupService;
         this.interactionDao = interactionDao;
         this.tagAffinityService = tagAffinityService;
+        this.hrProfileDao = hrProfileDao;
     }
 
     @Override
@@ -514,6 +519,7 @@ public class QuestionServiceImpl implements QuestionService {
                     answer.getFollowupId() == null ? "hr_answer" : "followup_answer",
                     answer.getId(),
                     answer.getFollowupId(),
+                    null,
                     answer.getBody(),
                     authorOf(answer.getAuthorId()),
                     true,
@@ -529,6 +535,7 @@ public class QuestionServiceImpl implements QuestionService {
                     "followup",
                     followup.id(),
                     null,
+                    followup.hrId(),
                     followup.body(),
                     followup.author(),
                     followup.hr(),
@@ -753,7 +760,15 @@ public class QuestionServiceImpl implements QuestionService {
 
     private UserBrief authorOf(Long userId) {
         return userDao.findById(userId)
-                .map(user -> new UserBrief(user.getId(), user.getNickname()))
+                .map(user -> {
+                    if (!"hr".equals(user.getRole())) {
+                        return new UserBrief(user.getId(), user.getNickname());
+                    }
+                    HrProfileDO profile = hrProfileDao.findByUserId(user.getId()).orElse(null);
+                    return new UserBrief(user.getId(), user.getNickname(),
+                            profile == null ? null : profile.getCompanyDisplay(),
+                            profile == null ? null : profile.getPosition());
+                })
                 .orElse(new UserBrief(userId, "用户"));
     }
 }
