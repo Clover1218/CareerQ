@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { useDialog, useMessage } from "naive-ui";
@@ -35,6 +35,17 @@ const dialog = useDialog();
 const userStore = useUserStore();
 const { user } = storeToRefs(userStore);
 
+interface Conversation {
+  hrId: number;
+  nickname: string;
+  company?: string | null;
+  position?: string | null;
+  /** HR 对主问题的回答 */
+  rootAnswer: ThreadItem | null;
+  /** 该 HR 与题主之间的追问消息，按时间正序 */
+  messages: ThreadItem[];
+}
+
 const expanded = ref(false);
 const threadOpen = ref(false);
 const loadingContent = ref(false);
@@ -44,13 +55,10 @@ const error = ref("");
 const content = ref<QuestionContent | null>(null);
 const detail = ref<QuestionDetail | null>(null);
 const thread = ref<Thread | null>(null);
-const composerText = ref("");
-const composerFocused = ref(false);
-const topComposerRef = ref<HTMLTextAreaElement | null>(null);
-// v-for 内的 template ref 会被 Vue 收集成数组；同一时刻只渲染一个回复框
-const replyComposerRef = ref<HTMLTextAreaElement[] | null>(null);
-const replyTargetKey = ref<string | null>(null);
-const draftBeforeReply = ref("");
+const openHrIds = ref<number[]>([]);
+const rootDraft = ref("");
+const threadDrafts = reactive<Record<number, string>>({});
+const focusedComposer = ref<string | null>(null);
 const menuOpen = ref<string | null>(null);
 
 const counts = reactive({
@@ -75,6 +83,71 @@ const createdAt = computed(() => content.value?.question.createdAt ?? props.item
 const replyLabel = computed(() => {
   if (counts.replyCount > 0) return `${counts.replyCount} 条回答`;
   return props.ownerMode ? "暂无评论" : "我来回答";
+});
+const questionAuthorId = computed(() => content.value?.question.author.id ?? null);
+
+// 每个 HR 一条独立线程：主回答 + 该 HR 与题主之间的追问气泡
+const conversations = computed<Conversation[]>(() => {
+  const items = thread.value?.items ?? [];
+  const followupHr = new Map<number, number>();
+  for (const item of items) {
+    if (item.kind === "followup" && item.hrId != null) followupHr.set(item.id, item.hrId);
+  }
+  // 旧数据没有 hr_id 时，用回复追问的 HR 反推线程归属
+  for (const item of items) {
+    if (item.kind === "followup_answer" && item.followupId != null && !followupHr.has(item.followupId)) {
+      followupHr.set(item.followupId, item.author.id);
+    }
+  }
+
+  const map = new Map<number, Conversation>();
+  for (const item of items) {
+    if (item.kind !== "hr_answer") continue;
+    map.set(item.author.id, {
+      hrId: item.author.id,
+      nickname: item.author.nickname,
+      company: item.author.company,
+      position: item.author.position,
+      rootAnswer: item,
+      messages: [],
+    });
+  }
+
+  const hrIds = [...map.keys()];
+  for (const item of items) {
+    if (item.kind === "hr_answer") continue;
+    const hrId =
+      item.kind === "followup"
+        ? item.hrId ?? (hrIds.length === 1 ? hrIds[0] : undefined)
+        : item.hrId ?? (item.followupId != null ? followupHr.get(item.followupId) : undefined);
+    if (hrId == null) continue;
+    let conversation = map.get(hrId);
+    if (!conversation) {
+      conversation = {
+        hrId,
+        nickname: item.author.nickname,
+        company: item.author.company,
+        position: item.author.position,
+        rootAnswer: null,
+        messages: [],
+      };
+      map.set(hrId, conversation);
+    }
+    conversation.messages.push(item);
+  }
+
+  for (const conversation of map.values()) {
+    conversation.messages.sort((a, b) => {
+      if (a.createdAt === b.createdAt) return a.kind === "followup" ? -1 : 1;
+      return a.createdAt < b.createdAt ? -1 : 1;
+    });
+  }
+
+  return [...map.values()].sort((a, b) => {
+    if (!a.rootAnswer) return 1;
+    if (!b.rootAnswer) return -1;
+    return a.rootAnswer.createdAt < b.rootAnswer.createdAt ? -1 : 1;
+  });
 });
 
 const STATUS_META: Record<string, { text: string; color: string }> = {
@@ -167,6 +240,7 @@ async function loadThread() {
           kind: answer.followupId == null ? "hr_answer" as const : "followup_answer" as const,
           id: answer.id,
           followupId: answer.followupId,
+          hrId: answer.followupId == null ? null : answer.author.id,
           body: answer.body,
           author: answer.author,
           hr: true,
@@ -180,6 +254,7 @@ async function loadThread() {
           kind: "followup" as const,
           id: followup.id,
           followupId: null,
+          hrId: followup.hrId ?? null,
           body: followup.body,
           author: followup.author,
           hr: followup.hr,
@@ -188,13 +263,7 @@ async function loadThread() {
           liked: false,
           createdAt: followup.createdAt,
         })),
-      ].sort((a, b) => {
-        if (a.createdAt === b.createdAt) {
-          const order = { followup: 0, hr_answer: 1, followup_answer: 2 };
-          return order[a.kind] - order[b.kind];
-        }
-        return a.createdAt < b.createdAt ? -1 : 1;
-      });
+      ];
       thread.value = {
         items,
         viewer: data.viewer,
@@ -231,8 +300,7 @@ async function toggleExpand() {
 async function toggleThread() {
   if (threadOpen.value) {
     threadOpen.value = false;
-    replyTargetKey.value = null;
-    draftBeforeReply.value = "";
+    focusedComposer.value = null;
     return;
   }
   threadOpen.value = true;
@@ -285,16 +353,16 @@ async function toggleFavorite() {
 
 function withdrawEntry(entry: ThreadItem) {
   dialog.warning({
-    title: entry.kind === "hr_answer" ? "撤销回答" : "撤销追问",
+    title: entry.kind === "followup" ? "撤销追问" : "撤销回答",
     content: "撤销后该内容将不再展示，确定要撤销吗？",
     positiveText: "确定撤销",
     negativeText: "取消",
     onPositiveClick: async () => {
       try {
-        if (entry.kind === "hr_answer") {
-          await api.withdrawAnswer(entry.id);
-        } else {
+        if (entry.kind === "followup") {
           await api.withdrawFollowup(props.item.id, entry.id);
+        } else {
+          await api.withdrawAnswer(entry.id);
         }
         message.success("已撤销");
         thread.value = null;
@@ -350,43 +418,76 @@ function toggleMenu(key: string) {
   menuOpen.value = menuOpen.value === key ? null : key;
 }
 
-async function replyTo(entry: ThreadItem) {
+function isHrOpen(hrId: number): boolean {
+  return openHrIds.value.includes(hrId);
+}
+
+// 多位 HR 的回答可同时展开，保证阅读连贯性
+function toggleHr(hrId: number) {
+  openHrIds.value = isHrOpen(hrId)
+    ? openHrIds.value.filter((id) => id !== hrId)
+    : [...openHrIds.value, hrId];
+}
+
+function openHr(hrId: number) {
+  if (!isHrOpen(hrId)) openHrIds.value = [...openHrIds.value, hrId];
+}
+
+function latestFollowupId(conversation: Conversation): number | null {
+  for (let i = conversation.messages.length - 1; i >= 0; i--) {
+    if (conversation.messages[i].kind === "followup") return conversation.messages[i].id;
+  }
+  return null;
+}
+
+// 只有题主能追问，且只有该线程的目标 HR 能回复
+function canWriteConversation(conversation: Conversation): boolean {
+  if (!user.value) return false;
+  if (user.value.role === "student") return user.value.id === questionAuthorId.value;
+  if (user.value.role === "hr") {
+    return user.value.id === conversation.hrId && latestFollowupId(conversation) != null;
+  }
+  return false;
+}
+
+function conversationPlaceholder(): string {
+  return user.value?.role === "hr" ? "回复追问…" : "继续追问…";
+}
+
+async function submitRootAnswer() {
+  const body = rootDraft.value.trim();
+  if (!body || submitting.value) return;
   if (!requireLogin()) return;
-  threadOpen.value = true;
-  if (replyTargetKey.value === null) draftBeforeReply.value = composerText.value;
-  replyTargetKey.value = entry.key;
-  composerText.value = `@${entry.author.nickname} `;
-  await nextTick();
-  composerFocused.value = true;
-  const replyInput = replyComposerRef.value?.[0];
-  replyInput?.focus();
-  replyInput?.scrollIntoView({ behavior: "smooth", block: "center" });
+  submitting.value = true;
+  error.value = "";
+  try {
+    await api.answer(props.item.id, body);
+    rootDraft.value = "";
+    await loadThread();
+    if (user.value?.role === "hr") openHr(user.value.id);
+  } catch (e) {
+    reportError(e, "提交失败");
+  } finally {
+    submitting.value = false;
+  }
 }
 
-async function cancelReply() {
-  replyTargetKey.value = null;
-  composerText.value = draftBeforeReply.value;
-  draftBeforeReply.value = "";
-  await nextTick();
-  composerFocused.value = true;
-  topComposerRef.value?.focus();
-}
-
-async function submit() {
-  const body = composerText.value.trim();
+async function submitThread(conversation: Conversation) {
+  const body = (threadDrafts[conversation.hrId] ?? "").trim();
   if (!body || submitting.value) return;
   if (!requireLogin()) return;
   submitting.value = true;
   error.value = "";
   try {
     if (user.value?.role === "hr") {
-      await api.answer(props.item.id, body);
+      const followupId = latestFollowupId(conversation);
+      if (followupId == null) return;
+      await api.answerFollowup(props.item.id, followupId, body);
     } else {
-      await api.followup(props.item.id, body);
+      await api.followup(props.item.id, body, conversation.hrId);
     }
-    composerText.value = "";
-    replyTargetKey.value = null;
-    draftBeforeReply.value = "";
+    threadDrafts[conversation.hrId] = "";
+    openHr(conversation.hrId);
     await loadThread();
   } catch (e) {
     reportError(e, "提交失败");
@@ -401,12 +502,12 @@ function closeMenu() {
 
 let blurTimer: ReturnType<typeof setTimeout> | undefined;
 
-function onComposerFocus() {
+function onComposerFocus(which: string) {
   if (blurTimer) {
     clearTimeout(blurTimer);
     blurTimer = undefined;
   }
-  composerFocused.value = true;
+  focusedComposer.value = which;
 }
 
 function onComposerBlur() {
@@ -416,7 +517,7 @@ function onComposerBlur() {
     blurTimer = undefined;
     const active = document.activeElement;
     if (!(active instanceof HTMLTextAreaElement && active.classList.contains("composer-input"))) {
-      composerFocused.value = false;
+      focusedComposer.value = null;
     }
   }, 150);
 }
@@ -429,7 +530,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <article class="flex flex-col gap-4 rounded-card-lg border border-solid border-line bg-surface py-4">
+  <!-- 菜单打开时整卡提升层级，避免下拉菜单被后续卡片覆盖 -->
+  <article
+    class="flex flex-col gap-4 rounded-card-lg border border-solid border-line bg-surface py-4"
+    :class="{ 'relative z-30': menuOpen !== null }"
+  >
     <!-- 问题卡片（Right）：回答区展开时才抬起，向下投影落在回答卡上；clip-path 裁掉上方与左右，只留向下的阴影 -->
     <div
       class="relative z-10 flex flex-col gap-2 rounded-card-lg bg-surface px-4"
@@ -459,7 +564,7 @@ onBeforeUnmount(() => {
           <span
             v-for="tag in item.tags"
             :key="tag"
-            class="shrink-0 whitespace-nowrap rounded-[4px] bg-[#e6f0ff] px-1 py-0.5 text-[12px] leading-[18px] text-[#3874d0]"
+            class="shrink-0 whitespace-nowrap rounded-[4px] bg-[#f8f9fa] px-1 py-0.5 text-[12px] leading-[18px] text-[#4b5563]"
           >{{ tag }}</span>
         </div>
       </div>
@@ -522,116 +627,185 @@ onBeforeUnmount(() => {
       <p v-if="error" class="m-0 text-14 text-danger">{{ error }}</p>
     </div>
 
-    <!-- 评论/回答区（Wrapper）：上移 8px 叠在问题卡下方，展开时从卡片底下抽出 -->
+    <!-- 回答区（Wrapper）：上移 8px 叠在问题卡下方，展开时从卡片底下抽出 -->
     <div v-if="threadOpen" class="drawer-panel relative z-0 -mt-6 flex flex-col rounded-card-lg bg-surface pt-2">
-      <!-- 我的回答输入框（MyComment）：padding 16、内部 gap 4 -->
-      <div v-if="!ownerMode && replyTargetKey === null" class="flex flex-col gap-1 p-4">
-        <!-- <div class="flex items-center gap-1.5">
-          <span class="text-14 leading-[22px] text-regular">{{ user?.nickname ?? "我" }}</span>
-        </div> -->
-        <template v-if="user">
-          <textarea
-            ref="topComposerRef"
-            v-model="composerText"
-            rows="1"
-            class="composer-input"
-            :placeholder="user.role === 'hr' ? '以 HR 身份回答…' : '回答，或者观望'"
-            @focus="onComposerFocus"
-            @blur="onComposerBlur"
-          />
-          <div v-if="composerFocused" class="mt-2 flex justify-end">
-            <button
-              class="primary-btn"
-              :disabled="!composerText.trim() || submitting"
-              @mousedown.prevent
-              @click="submit"
-            >
-              {{ submitting ? "提交中…" : user.role === "hr" ? "发布回答" : "发送" }}
-            </button>
-          </div>
-        </template>
-        <div v-else class="composer-guest">
+      <!-- 游客提示 -->
+      <div v-if="!user" class="p-4">
+        <div class="composer-guest">
           <router-link :to="{ path: '/login', query: { redirect: route.fullPath } }">登录</router-link>
           后参与回答和追问
         </div>
       </div>
+      <!-- HR 主回答输入框 -->
+      <div v-else-if="user.role === 'hr'" class="flex flex-col gap-1 p-4">
+        <textarea
+          v-model="rootDraft"
+          rows="1"
+          class="composer-input"
+          placeholder="以 HR 身份回答…"
+          @focus="onComposerFocus('root')"
+          @blur="onComposerBlur"
+        />
+        <div v-if="focusedComposer === 'root'" class="mt-2 flex justify-end">
+          <button
+            class="primary-btn"
+            :disabled="!rootDraft.trim() || submitting"
+            @mousedown.prevent
+            @click="submitRootAnswer"
+          >
+            {{ submitting ? "提交中…" : "发布回答" }}
+          </button>
+        </div>
+      </div>
 
-      <!-- 评论列表（CommentBlock）：上下 24、左右 16；评论流 gap 16 -->
+      <!-- HR 列表 + 展开后的线程 -->
       <div class="flex flex-col px-4 pb-6 pt-6">
         <p v-if="loadingThread" class="m-0 text-14 text-muted">正在加载回答…</p>
-        <p v-else-if="thread && thread.items.length === 0" class="m-0 text-14 text-muted">
-          {{ ownerMode ? "还没有回答。" : "还没有回答，来写下第一条经验吧。" }}
+        <p v-else-if="thread && conversations.length === 0" class="m-0 text-14 text-muted">
+          还没有回答，来写下第一条经验吧。
         </p>
 
-        <div v-else-if="thread" class="flex flex-col gap-4">
-          <div v-for="entry in thread.items" :key="entry.key">
-            <div class="flex flex-wrap items-center gap-1.5">
-              <span class="text-14 leading-[22px] text-regular">{{ entry.author.nickname }}</span>
-              <span v-if="entry.hr" class="hr-tag">[HR]</span>
-            </div>
+        <div v-else-if="thread" class="flex flex-col gap-2">
+          <p class="m-0 text-14 leading-[22px] text-ink">共有{{ conversations.length }}位HR参与回答</p>
 
-            <p class="m-0 mt-2 whitespace-pre-wrap text-16 leading-6 text-ink">{{ entry.body }}</p>
+          <div class="flex flex-col gap-1">
+            <div v-for="conversation in conversations" :key="conversation.hrId" class="flex flex-col">
+              <!-- HRClose / HROpen -->
+              <button
+                type="button"
+                class="hr-row"
+                :title="conversation.nickname"
+                :aria-expanded="isHrOpen(conversation.hrId)"
+                @click="openHr(conversation.hrId)"
+              >
+                <span class="hr-name">{{ conversation.nickname }}</span>
+                <span class="hr-chips">
+                  <span v-if="conversation.company" class="hr-chip">{{ conversation.company }}</span>
+                  <span v-if="conversation.position" class="hr-chip">{{ conversation.position }}</span>
+                </span>
+                <span
+                  v-if="!isHrOpen(conversation.hrId)"
+                  class="shrink-0 whitespace-nowrap text-14 leading-[22px] text-muted"
+                >展开详情</span>
+              </button>
 
-            <div class="mt-2 flex flex-wrap items-center justify-between gap-4">
-              <span class="text-14 text-muted">
-                {{ entry.kind === "hr_answer" ? "回答于" : entry.kind === "followup_answer" ? "回复追问于" : "追问于" }} {{ formatTime(entry.createdAt) }}
-              </span>
-              <div class="flex shrink-0 items-center gap-4">
-                <button
-                  v-if="user && entry.author.id === user.id"
-                  class="feed-action"
-                  aria-label="撤销"
-                  @click="withdrawEntry(entry)"
-                >
-                  <span>撤销</span>
-                </button>
-                <button v-if="!ownerMode && user?.role !== 'hr' && entry.kind !== 'followup_answer'" class="feed-action" aria-label="回复" @click="replyTo(entry)">                  <FeedIcon name="comment" />
-                  <span>回复</span>
-                </button>
-                <button
-                  v-if="entry.kind !== 'followup'"
-                  class="feed-action"
-                  :class="{ 'is-active': entry.liked }"
-                  aria-label="点赞"
-                  @click="toggleAnswerLike(entry)"
-                >
-                  <FeedIcon name="like" :filled="entry.liked" />
-                  <span>{{ entry.likeCount }}</span>
-                </button>
-                <div v-if="entry.kind !== 'followup' && !ownerMode" class="relative flex items-center">
-                  <button class="feed-action" aria-label="更多" @click.stop="toggleMenu(entry.key)">
-                    <FeedIcon name="dots" />
-                  </button>
-                  <div v-if="menuOpen === entry.key" class="more-menu" @click.stop>
-                    <button class="more-item" @click="report('answer', entry.id)">举报</button>
+              <!-- HRA&UserQ：首回复卡与追问气泡区之间 32px -->
+              <div v-if="isHrOpen(conversation.hrId)" class="flex flex-col gap-8 pt-2">
+                <!-- HR 对主问题的回答 -->
+                <article v-if="conversation.rootAnswer" class="flex flex-col">
+                  <p class="m-0 whitespace-pre-wrap text-16 leading-6 text-ink">{{ conversation.rootAnswer.body }}</p>
+                  <div class="mt-2 flex items-center justify-between gap-4">
+                    <span class="text-14 leading-[22px] text-muted">
+                      回答于 {{ formatTime(conversation.rootAnswer.createdAt) }}
+                    </span>
+                    <div class="flex shrink-0 items-center gap-4">
+                      <button
+                        v-if="user && conversation.rootAnswer.author.id === user.id"
+                        class="feed-action"
+                        aria-label="撤销"
+                        @click="withdrawEntry(conversation.rootAnswer)"
+                      >
+                        <span>撤销</span>
+                      </button>
+                      <button
+                        class="feed-action"
+                        :class="{ 'is-active': conversation.rootAnswer.liked }"
+                        aria-label="点赞"
+                        @click="toggleAnswerLike(conversation.rootAnswer)"
+                      >
+                        <FeedIcon name="like" :filled="conversation.rootAnswer.liked" />
+                        <span>{{ conversation.rootAnswer.likeCount }}</span>
+                      </button>
+                      <div v-if="!ownerMode" class="relative flex items-center">
+                        <button class="feed-action" aria-label="更多" @click.stop="toggleMenu(conversation.rootAnswer.key)">
+                          <FeedIcon name="dots" />
+                        </button>
+                        <div v-if="menuOpen === conversation.rootAnswer.key" class="more-menu" @click.stop>
+                          <button class="more-item" @click="report('answer', conversation.rootAnswer.id)">举报</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+
+                <!-- BubbleCard：追问气泡整体一块，内部保持 8px 间距 -->
+                <div v-if="conversation.messages.length" class="flex flex-col gap-2">
+                  <!-- 追问气泡：题主在右、HR 在左；时间与点赞仅悬停显示，占位保持 22px -->
+                  <div
+                    v-for="entry in conversation.messages"
+                    :key="entry.key"
+                    class="group flex flex-col"
+                    :class="entry.kind === 'followup' ? 'items-end' : 'items-start'"
+                  >
+                    <span class="text-14 leading-[22px] text-regular">
+                      {{ entry.author.nickname }}
+                    </span>
+                    <p
+                      class="m-0 mt-1 max-w-[500px] whitespace-pre-wrap rounded-card px-2 py-2 text-16 leading-6 text-ink"
+                      :class="entry.kind === 'followup' ? 'bg-hover' : 'bg-[#e6f0ff]'"
+                    >{{ entry.body }}</p>
+                    <div
+                      class="mt-1 flex h-[22px] items-center gap-4 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
+                      :class="entry.kind === 'followup' ? 'justify-end' : 'justify-start'"
+                    >
+                      <span class="text-14 leading-[22px] text-muted">{{ formatTime(entry.createdAt) }}</span>
+                      <button
+                        v-if="user && entry.author.id === user.id"
+                        class="feed-action"
+                        aria-label="撤销"
+                        @click="withdrawEntry(entry)"
+                      >
+                        <span>撤销</span>
+                      </button>
+                      <template v-if="entry.kind === 'followup_answer'">
+                        <button
+                          class="feed-action"
+                          :class="{ 'is-active': entry.liked }"
+                          aria-label="点赞"
+                          @click="toggleAnswerLike(entry)"
+                        >
+                          <FeedIcon name="like" :filled="entry.liked" />
+                          <span>{{ entry.likeCount }}</span>
+                        </button>
+                        <div v-if="!ownerMode" class="relative flex items-center">
+                          <button class="feed-action" aria-label="更多" @click.stop="toggleMenu(entry.key)">
+                            <FeedIcon name="dots" />
+                          </button>
+                          <div v-if="menuOpen === entry.key" class="more-menu" @click.stop>
+                            <button class="more-item" @click="report('answer', entry.id)">举报</button>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
 
-            <div v-if="!ownerMode && replyTargetKey === entry.key && user" class="mt-4">
-              <div class="flex items-center justify-between gap-3">
-                <span class="text-14 leading-[22px] text-regular">回复 {{ entry.author.nickname }}</span>
-                <button class="aux-btn" @click="cancelReply">取消</button>
-              </div>
-              <textarea
-                ref="replyComposerRef"
-                v-model="composerText"
-                rows="1"
-                class="composer-input mt-1.5"
-                :placeholder="user.role === 'hr' ? '以 HR 身份回答…' : '回答，或者观望'"
-                @focus="onComposerFocus"
-                @blur="onComposerBlur"
-              />
-              <div v-if="composerFocused" class="mt-2 flex justify-end">
-                <button
-                  class="primary-btn"
-                  :disabled="!composerText.trim() || submitting"
-                  @mousedown.prevent
-                  @click="submit"
-                >
-                  {{ submitting ? "提交中…" : user.role === "hr" ? "发布回答" : "发送" }}
-                </button>
+                <!-- 线程输入框：题主追问；该 HR 回复最新一条追问 -->
+                <div v-if="canWriteConversation(conversation)" class="flex flex-col gap-1">
+                  <textarea
+                    v-model="threadDrafts[conversation.hrId]"
+                    rows="1"
+                    class="composer-input"
+                    :placeholder="conversationPlaceholder()"
+                    @focus="onComposerFocus(`thread-${conversation.hrId}`)"
+                    @blur="onComposerBlur"
+                  />
+                  <div v-if="focusedComposer === `thread-${conversation.hrId}`" class="mt-2 flex justify-end">
+                    <button
+                      class="primary-btn"
+                      :disabled="!(threadDrafts[conversation.hrId] ?? '').trim() || submitting"
+                      @mousedown.prevent
+                      @click="submitThread(conversation)"
+                    >
+                      {{ submitting ? "提交中…" : "发送" }}
+                    </button>
+                  </div>
+                </div>
+
+                <!-- 展开态末尾：收起该 HR 会话（Figma Frame 38，右对齐 14/22） -->
+                <div class="flex h-[22px] items-center justify-end">
+                  <button type="button" class="hr-collapse" @click="toggleHr(conversation.hrId)">收起详情</button>
+                </div>
               </div>
             </div>
           </div>

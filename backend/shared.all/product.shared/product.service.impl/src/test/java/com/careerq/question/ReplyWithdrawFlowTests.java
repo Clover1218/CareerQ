@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -77,11 +78,20 @@ class ReplyWithdrawFlowTests {
                 .path("data").path("id").asLong();
     }
 
-    private long followup(MockHttpSession student, long questionId) throws Exception {
+    private long currentUserId(MockHttpSession session) throws Exception {
+        MvcResult result = mockMvc.perform(get("/api/v1/me").session(session))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("data").path("id").asLong();
+    }
+
+    private long followup(MockHttpSession student, long questionId, long hrId) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/questions/{id}/followups", questionId)
                         .session(student).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("body", "追问：具体该怎么排序？"))))
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "hrId", hrId, "body", "追问：具体该怎么排序？"))))
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString())
@@ -94,12 +104,14 @@ class ReplyWithdrawFlowTests {
         MockHttpSession hr = login("13800004002", "hr");
         long questionId = createQuestion(student);
 
+        long hrId = currentUserId(hr);
         long answerId = answer(hr, questionId);
+        long followupId = followup(student, questionId, hrId);
+
         mockMvc.perform(post("/api/v1/answers/{id}/withdraw", answerId).session(hr).with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("removed"));
 
-        long followupId = followup(student, questionId);
         mockMvc.perform(post("/api/v1/questions/{qid}/followups/{fid}/withdraw", questionId, followupId)
                         .session(student).with(csrf()))
                 .andExpect(status().isOk())
@@ -112,7 +124,10 @@ class ReplyWithdrawFlowTests {
         MockHttpSession hr = login("13800004004", "hr");
         long questionId = createQuestion(student);
 
+        long hrId = currentUserId(hr);
         long answerId = answer(hr, questionId);
+        long followupId = followup(student, questionId, hrId);
+
         mockMvc.perform(post("/api/v1/answers/{id}/withdraw", answerId).session(student).with(csrf()))
                 .andExpect(status().isForbidden());
         mockMvc.perform(post("/api/v1/answers/{id}/withdraw", answerId).session(hr).with(csrf()))
@@ -120,7 +135,6 @@ class ReplyWithdrawFlowTests {
         mockMvc.perform(post("/api/v1/answers/{id}/withdraw", answerId).session(hr).with(csrf()))
                 .andExpect(status().isConflict());
 
-        long followupId = followup(student, questionId);
         mockMvc.perform(post("/api/v1/questions/{qid}/followups/{fid}/withdraw", questionId, followupId)
                         .session(hr).with(csrf()))
                 .andExpect(status().isForbidden());

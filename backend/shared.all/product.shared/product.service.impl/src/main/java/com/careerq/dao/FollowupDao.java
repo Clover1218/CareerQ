@@ -14,9 +14,9 @@ public interface FollowupDao {
 
     @Insert("""
             insert into followups (
-                question_id, sender_id, sender_role, body, scope, status, created_at
+                question_id, hr_id, sender_id, sender_role, body, scope, status, created_at
             ) values (
-                #{questionId}, #{senderId}, #{senderRole}, #{body}, #{scope}, #{status}, #{createdAt}
+                #{questionId}, #{hrId}, #{senderId}, #{senderRole}, #{body}, #{scope}, #{status}, #{createdAt}
             )
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id")
