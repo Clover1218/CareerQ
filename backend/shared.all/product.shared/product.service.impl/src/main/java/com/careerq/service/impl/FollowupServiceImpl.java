@@ -5,7 +5,6 @@ import com.careerq.common.ErrorCode;
 import com.careerq.common.UserBrief;
 import com.careerq.dao.FollowupDao;
 import com.careerq.dao.QuestionDao;
-import com.careerq.dao.UserDao;
 import com.careerq.dataobject.FollowupDO;
 import com.careerq.dataobject.QuestionDO;
 import com.careerq.followup.FollowupDtos.CreateRequest;
@@ -17,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -28,14 +28,14 @@ public class FollowupServiceImpl implements FollowupService {
 
     private final FollowupDao followupDao;
     private final QuestionDao questionDao;
-    private final UserDao userDao;
+    private final ContentReadSupport contentReadSupport;
     private final ModerationService moderationService;
 
-    public FollowupServiceImpl(FollowupDao followupDao, QuestionDao questionDao, UserDao userDao,
+    public FollowupServiceImpl(FollowupDao followupDao, QuestionDao questionDao, ContentReadSupport contentReadSupport,
                                ModerationService moderationService) {
         this.followupDao = followupDao;
         this.questionDao = questionDao;
-        this.userDao = userDao;
+        this.contentReadSupport = contentReadSupport;
         this.moderationService = moderationService;
     }
 
@@ -68,7 +68,7 @@ public class FollowupServiceImpl implements FollowupService {
         } else {
             questionDao.incrementFollowup(questionId);
         }
-        return toView(followup);
+        return toView(followup, contentReadSupport.authors(List.of(followup.getSenderId())));
     }
 
     @Override
@@ -83,8 +83,32 @@ public class FollowupServiceImpl implements FollowupService {
             requireVisible(current, question);
         }
         Long senderId = "private".equals(question.getScope()) ? current.getId() : null;
-        return followupDao.findVisible(questionId, senderId)
-                .stream().map(this::toView).toList();
+        List<FollowupDO> rows = followupDao.findVisible(questionId, senderId);
+        Map<Long, UserBrief> authors = contentReadSupport.authors(rows.stream().map(FollowupDO::getSenderId).toList());
+        return rows.stream().map(row -> toView(row, authors)).toList();
+    }
+
+    @Override
+    @Transactional
+    public FollowupView withdraw(AuthUser sender, Long followupId) {
+        FollowupDO followup = followupDao.findByIdForUpdate(followupId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "追问不存在"));
+        if (!sender.getId().equals(followup.getSenderId())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "只能撤销自己的追问");
+        }
+        if ("removed".equals(followup.getStatus())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "追问已撤销");
+        }
+        if (!Set.of("published", "pending_human", "pending_machine").contains(followup.getStatus())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "当前状态不可撤销");
+        }
+        boolean published = PUBLISHED.equals(followup.getStatus());
+        followupDao.updateStatus(followupId, "removed");
+        if (published) {
+            questionDao.decrementFollowup(followup.getQuestionId());
+        }
+        followup.setStatus("removed");
+        return toView(followup, contentReadSupport.authors(List.of(followup.getSenderId())));
     }
 
     private void requireVisible(AuthUser current, QuestionDO question) {
@@ -106,10 +130,8 @@ public class FollowupServiceImpl implements FollowupService {
         }
     }
 
-    private FollowupView toView(FollowupDO followup) {
-        UserBrief author = userDao.findById(followup.getSenderId())
-                .map(user -> new UserBrief(user.getId(), user.getNickname()))
-                .orElse(new UserBrief(followup.getSenderId(), "用户"));
+    private FollowupView toView(FollowupDO followup, Map<Long, UserBrief> authors) {
+        UserBrief author = contentReadSupport.author(authors, followup.getSenderId());
         return new FollowupView(
                 followup.getId(),
                 followup.getQuestionId(),

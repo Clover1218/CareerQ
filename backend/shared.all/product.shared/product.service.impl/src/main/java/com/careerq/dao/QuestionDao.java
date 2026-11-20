@@ -154,6 +154,12 @@ public interface QuestionDao {
             """)
     int decrementUseful(Long id);
 
+    @Update("update questions set answer_count = greatest(answer_count - 1, 0), updated_at = current_timestamp where id = #{id}")
+    int decrementAnswer(Long id);
+
+    @Update("update questions set followup_count = greatest(followup_count - 1, 0), updated_at = current_timestamp where id = #{id}")
+    int decrementFollowup(Long id);
+
     @Update("""
             update questions set like_count = like_count + 1, updated_at = current_timestamp where id = #{id}
             """)

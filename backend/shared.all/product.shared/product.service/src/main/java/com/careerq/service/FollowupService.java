@@ -11,4 +11,6 @@ public interface FollowupService {
     FollowupView create(AuthUser sender, Long questionId, CreateRequest request);
 
     List<FollowupView> list(AuthUser current, Long questionId);
+
+    FollowupView withdraw(AuthUser sender, Long followupId);
 }

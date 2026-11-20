@@ -276,6 +276,15 @@ export const api = {
   followup(questionId: number, body: string): Promise<Followup> {
     return request<Followup>(`/questions/${questionId}/followups`, { method: "POST", body: { body } });
   },
+  withdrawAnswer(answerId: number): Promise<void> {
+    return request<void>(`/answers/${answerId}/withdraw`, { method: "POST" });
+  },
+
+  withdrawFollowup(questionId: number, followupId: number): Promise<void> {
+    return request<void>(`/questions/${questionId}/followups/${followupId}/withdraw`, {
+      method: "POST",
+    });
+  },
 
   interact(targetType: string, targetId: number, type: string): Promise<void> {
     return request<void>("/interactions", {

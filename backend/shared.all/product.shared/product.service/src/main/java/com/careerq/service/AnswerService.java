@@ -7,4 +7,6 @@ import com.careerq.security.AuthUser;
 public interface AnswerService {
 
     AnswerView create(AuthUser hr, Long questionId, CreateRequest request);
+
+    AnswerView withdraw(AuthUser author, Long answerId);
 }

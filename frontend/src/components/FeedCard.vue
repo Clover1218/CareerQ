@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
-import { useMessage } from "naive-ui";
+import { useDialog, useMessage } from "naive-ui";
 import {
   api,
   type QuestionContent,
@@ -29,6 +29,7 @@ const emit = defineEmits<{ withdraw: [] }>();
 const route = useRoute();
 const router = useRouter();
 const message = useMessage();
+const dialog = useDialog();
 const userStore = useUserStore();
 const { user } = storeToRefs(userStore);
 
@@ -268,6 +269,30 @@ async function toggleFavorite() {
   } catch (e) {
     reportError(e, "操作失败");
   }
+}
+
+function withdrawEntry(entry: ThreadItem) {
+  dialog.warning({
+    title: entry.kind === "hr_answer" ? "撤销回答" : "撤销追问",
+    content: "撤销后该内容将不再展示，确定要撤销吗？",
+    positiveText: "确定撤销",
+    negativeText: "取消",
+    onPositiveClick: async () => {
+      try {
+        if (entry.kind === "hr_answer") {
+          await api.withdrawAnswer(entry.id);
+        } else {
+          await api.withdrawFollowup(props.item.id, entry.id);
+        }
+        message.success("已撤销");
+        thread.value = null;
+        counts.replyCount = Math.max(counts.replyCount - 1, 0);
+        await loadThread();
+      } catch (e) {
+        reportError(e, "撤销失败");
+      }
+    },
+  });
 }
 
 async function toggleAnswerLike(entry: ThreadItem) {
@@ -564,6 +589,14 @@ onBeforeUnmount(() => {
                 {{ entry.kind === "hr_answer" ? "回答于" : "追问于" }} {{ formatTime(entry.createdAt) }}
               </span>
               <div class="flex shrink-0 items-center gap-4">
+                <button
+                  v-if="user && entry.author.id === user.id"
+                  class="feed-action"
+                  aria-label="撤销"
+                  @click="withdrawEntry(entry)"
+                >
+                  <span>撤销</span>
+                </button>
                 <button v-if="!ownerMode && user?.role !== 'hr'" class="feed-action" aria-label="回复" @click="replyTo(entry)">
                   <FeedIcon name="comment" />
                   <span>回复</span>
