@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
-import { useMessage } from "naive-ui";
+import { useDialog, useMessage } from "naive-ui";
 import {
   api,
   type QuestionContent,
@@ -20,13 +20,18 @@ const props = defineProps<{
   status?: string;
   /** 我的问答列表：作者视角，隐藏编辑器并将提问时间常驻 */
   ownerMode?: boolean;
+  /** 我的问答列表：是否显示「撤回」操作 */
+  withdrawable?: boolean;
 }>();
 
-const emit = defineEmits<{ (e: "dismiss", id: number): void }>();
-
+const emit = defineEmits<{
+  dismiss: [id: number];
+  withdraw: [];
+}>();
 const route = useRoute();
 const router = useRouter();
 const message = useMessage();
+const dialog = useDialog();
 const userStore = useUserStore();
 const { user } = storeToRefs(userStore);
 
@@ -156,10 +161,11 @@ const STATUS_META: Record<string, { text: string; color: string }> = {
   open: { text: "待认领", color: "var(--color-text-muted)" },
   assigned: { text: "进行中", color: "var(--color-brand)" },
   closed: { text: "已结单", color: "var(--color-text-muted)" },
+  removed: { text: "已撤回", color: "var(--color-text-muted)" },
 };
 
 const statusMeta = computed(() => {
-  if (!props.status || props.status === "removed") return null;
+  if (!props.status) return null;
   return STATUS_META[props.status] ?? { text: props.status, color: "var(--color-text-muted)" };
 });
 
@@ -343,6 +349,30 @@ async function toggleFavorite() {
   } catch (e) {
     reportError(e, "操作失败");
   }
+}
+
+function withdrawEntry(entry: ThreadItem) {
+  dialog.warning({
+    title: entry.kind === "followup" ? "撤销追问" : "撤销回答",
+    content: "撤销后该内容将不再展示，确定要撤销吗？",
+    positiveText: "确定撤销",
+    negativeText: "取消",
+    onPositiveClick: async () => {
+      try {
+        if (entry.kind === "followup") {
+          await api.withdrawFollowup(props.item.id, entry.id);
+        } else {
+          await api.withdrawAnswer(entry.id);
+        }
+        message.success("已撤销");
+        thread.value = null;
+        counts.replyCount = Math.max(counts.replyCount - 1, 0);
+        await loadThread();
+      } catch (e) {
+        reportError(e, "撤销失败");
+      }
+    },
+  });
 }
 
 async function toggleAnswerLike(entry: ThreadItem) {
@@ -550,6 +580,14 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="flex shrink-0 items-center gap-4">
+          <button
+            v-if="ownerMode && withdrawable"
+            class="feed-action"
+            aria-label="撤回提问"
+            @click="emit('withdraw')"
+          >
+            <span>撤回</span>
+          </button>
           <button class="feed-action" aria-label="回答" @click="toggleThread">
             <FeedIcon name="comment" />
             <span>{{ threadOpen ? "收起回答" : replyLabel }}</span>
@@ -662,6 +700,14 @@ onBeforeUnmount(() => {
                     </span>
                     <div class="flex shrink-0 items-center gap-4">
                       <button
+                        v-if="user && conversation.rootAnswer.author.id === user.id"
+                        class="feed-action"
+                        aria-label="撤销"
+                        @click="withdrawEntry(conversation.rootAnswer)"
+                      >
+                        <span>撤销</span>
+                      </button>
+                      <button
                         class="feed-action"
                         :class="{ 'is-active': conversation.rootAnswer.liked }"
                         aria-label="点赞"
@@ -703,6 +749,14 @@ onBeforeUnmount(() => {
                       :class="entry.kind === 'followup' ? 'justify-end' : 'justify-start'"
                     >
                       <span class="text-14 leading-[22px] text-muted">{{ formatTime(entry.createdAt) }}</span>
+                      <button
+                        v-if="user && entry.author.id === user.id"
+                        class="feed-action"
+                        aria-label="撤销"
+                        @click="withdrawEntry(entry)"
+                      >
+                        <span>撤销</span>
+                      </button>
                       <template v-if="entry.kind === 'followup_answer'">
                         <button
                           class="feed-action"

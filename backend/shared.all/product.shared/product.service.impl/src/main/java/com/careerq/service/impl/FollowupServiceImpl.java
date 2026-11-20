@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -85,8 +86,31 @@ public class FollowupServiceImpl implements FollowupService {
             requireVisible(current, question);
         }
         Long senderId = "private".equals(question.getScope()) ? current.getId() : null;
-        return followupDao.findVisible(questionId, senderId)
-                .stream().map(this::toView).toList();
+        List<FollowupDO> rows = followupDao.findVisible(questionId, senderId);
+        return rows.stream().map(this::toView).toList();
+    }
+
+    @Override
+    @Transactional
+    public FollowupView withdraw(AuthUser sender, Long followupId) {
+        FollowupDO followup = followupDao.findByIdForUpdate(followupId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "追问不存在"));
+        if (!sender.getId().equals(followup.getSenderId())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "只能撤销自己的追问");
+        }
+        if ("removed".equals(followup.getStatus())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "追问已撤销");
+        }
+        if (!Set.of("published", "pending_human", "pending_machine").contains(followup.getStatus())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "当前状态不可撤销");
+        }
+        boolean published = PUBLISHED.equals(followup.getStatus());
+        followupDao.updateStatus(followupId, "removed");
+        if (published) {
+            questionDao.decrementFollowup(followup.getQuestionId());
+        }
+        followup.setStatus("removed");
+        return toView(followup);
     }
 
     private void requireVisible(AuthUser current, QuestionDO question) {
