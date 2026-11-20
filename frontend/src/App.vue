@@ -48,9 +48,9 @@ watch(() => route.fullPath, refresh);
               <div class="brand" @click="router.push('/')">CareerQ</div>
               <nav class="nav">
                 <router-link to="/">公开问答</router-link>
-                <router-link to="/me">我的问答</router-link>
+                <router-link v-if="user?.role === 'student'" to="/me">我的问答</router-link>
+                <router-link v-if="user?.role === 'hr'" to="/hr">HR 工作台</router-link>
                 <router-link v-if="user?.role === 'student' || !user" to="/ask">提问</router-link>
-                <router-link v-if="user?.role === 'hr'" to="/hr/private-pool">私密工单</router-link>
               </nav>
               <div class="account">
                 <template v-if="user">
@@ -63,8 +63,15 @@ watch(() => route.fullPath, refresh);
                 </template>
               </div>
             </header>
-            <main :class="route.name === 'my-qa' ? 'wide-shell' : 'container'">
-              <router-view />
+            <main :class="['my-qa', 'hr-workbench'].includes(String(route.name)) ? 'wide-shell' : 'container'">
+              <router-view v-slot="{ Component, route: currentRoute }">
+                <keep-alive include="HrWorkspaceView">
+                  <component
+                    :is="Component"
+                    :key="currentRoute.name === 'hr-workbench' ? 'hr-workbench' : currentRoute.fullPath"
+                  />
+                </keep-alive>
+              </router-view>
             </main>
           </n-loading-bar-provider>
         </n-notification-provider>

@@ -42,7 +42,13 @@ public interface QuestionDao {
             select q.* from questions q
             where q.scope = #{scope} and q.status = #{status}
             <if test="cursor != null">and q.id &lt; #{cursor}</if>
-            <if test="unanswered">and q.answer_count = 0</if>
+            <if test="unanswered">
+                and q.answer_count = 0
+                and not exists (
+                    select 1 from answers a where a.question_id = q.id
+                      and a.status in ('published', 'pending_machine', 'pending_human')
+                )
+            </if>
             <if test="tag != null">
                 and exists (
                     select 1 from question_tags qt join tags t on t.id = qt.tag_id
@@ -189,15 +195,27 @@ public interface QuestionDao {
                                              @Param("cursor") Long cursor,
                                              @Param("limit") int limit);
 
+    @Select("""
+            <script>
+            select q.*,
+                exists (
+                    select 1 from answers pa where pa.question_id = q.id
+                      and pa.status in ('pending_machine', 'pending_human')
+                ) as has_pending_answer
+            from questions q
+            where q.scope = 'public' and q.status = 'published'
+              and exists (
+                    select 1 from answers a where a.question_id = q.id
+                      and a.status in ('published', 'pending_machine', 'pending_human')
+              )
+            <if test="cursor != null">and q.id &lt; #{cursor}</if>
+            order by q.id desc limit #{limit}
+            </script>
+            """)
+    List<QuestionDO> listPublicWithAnyAnswer(@Param("cursor") Long cursor, @Param("limit") int limit);
+
     @Update("update questions set status = #{status}, updated_at = current_timestamp where id = #{id}")
     int updateStatus(@Param("id") Long id, @Param("status") String status);
-
-    @Update("""
-            update questions set status = #{status}, assigned_hr_id = #{assignedHrId},
-                closed_at = #{closedAt}, updated_at = current_timestamp
-            where id = #{id}
-            """)
-    int updatePrivateState(QuestionDO question);
 
     @Update("""
             update questions set answer_count = answer_count + 1,

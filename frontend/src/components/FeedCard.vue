@@ -157,9 +157,10 @@ async function loadThread() {
       const data = detail.value;
       const items: ThreadItem[] = [
         ...data.answers.map((answer) => ({
-          key: `answer-${answer.id}`,
-          kind: "hr_answer" as const,
+          key: `${answer.followupId == null ? "answer" : "followup-answer"}-${answer.id}`,
+          kind: answer.followupId == null ? "hr_answer" as const : "followup_answer" as const,
           id: answer.id,
+          followupId: answer.followupId,
           body: answer.body,
           author: answer.author,
           hr: true,
@@ -172,6 +173,7 @@ async function loadThread() {
           key: `followup-${followup.id}`,
           kind: "followup" as const,
           id: followup.id,
+          followupId: null,
           body: followup.body,
           author: followup.author,
           hr: followup.hr,
@@ -181,7 +183,10 @@ async function loadThread() {
           createdAt: followup.createdAt,
         })),
       ].sort((a, b) => {
-        if (a.createdAt === b.createdAt) return a.kind === "hr_answer" ? -1 : 1;
+        if (a.createdAt === b.createdAt) {
+          const order = { followup: 0, hr_answer: 1, followup_answer: 2 };
+          return order[a.kind] - order[b.kind];
+        }
         return a.createdAt < b.createdAt ? -1 : 1;
       });
       thread.value = {
@@ -531,15 +536,15 @@ onBeforeUnmount(() => {
 
             <div class="mt-2 flex flex-wrap items-center justify-between gap-4">
               <span class="text-14 text-muted">
-                {{ entry.kind === "hr_answer" ? "回答于" : "追问于" }} {{ formatTime(entry.createdAt) }}
+                {{ entry.kind === "hr_answer" ? "回答于" : entry.kind === "followup_answer" ? "回复追问于" : "追问于" }} {{ formatTime(entry.createdAt) }}
               </span>
               <div class="flex shrink-0 items-center gap-4">
-                <button v-if="!ownerMode && user?.role !== 'hr'" class="feed-action" aria-label="回复" @click="replyTo(entry)">
+                <button v-if="!ownerMode && user?.role !== 'hr' && entry.kind !== 'followup_answer'" class="feed-action" aria-label="回复" @click="replyTo(entry)">
                   <FeedIcon name="comment" />
                   <span>回复</span>
                 </button>
                 <button
-                  v-if="entry.kind === 'hr_answer'"
+                  v-if="entry.kind !== 'followup'"
                   class="feed-action"
                   :class="{ 'is-active': entry.liked }"
                   aria-label="点赞"
@@ -548,7 +553,7 @@ onBeforeUnmount(() => {
                   <FeedIcon name="like" :filled="entry.liked" />
                   <span>{{ entry.likeCount }}</span>
                 </button>
-                <div v-if="entry.kind === 'hr_answer' && !ownerMode" class="relative flex items-center">
+                <div v-if="entry.kind !== 'followup' && !ownerMode" class="relative flex items-center">
                   <button class="feed-action" aria-label="更多" @click.stop="toggleMenu(entry.key)">
                     <FeedIcon name="dots" />
                   </button>

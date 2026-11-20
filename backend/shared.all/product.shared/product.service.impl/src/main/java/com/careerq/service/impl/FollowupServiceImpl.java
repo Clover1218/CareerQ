@@ -12,7 +12,6 @@ import com.careerq.followup.FollowupDtos.CreateRequest;
 import com.careerq.followup.FollowupDtos.FollowupView;
 import com.careerq.security.AuthUser;
 import com.careerq.service.FollowupService;
-import com.careerq.service.ModerationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,14 +28,11 @@ public class FollowupServiceImpl implements FollowupService {
     private final FollowupDao followupDao;
     private final QuestionDao questionDao;
     private final UserDao userDao;
-    private final ModerationService moderationService;
 
-    public FollowupServiceImpl(FollowupDao followupDao, QuestionDao questionDao, UserDao userDao,
-                               ModerationService moderationService) {
+    public FollowupServiceImpl(FollowupDao followupDao, QuestionDao questionDao, UserDao userDao) {
         this.followupDao = followupDao;
         this.questionDao = questionDao;
         this.userDao = userDao;
-        this.moderationService = moderationService;
     }
 
 
@@ -48,12 +44,10 @@ public class FollowupServiceImpl implements FollowupService {
         }
         QuestionDO question = questionDao.findByIdForUpdate(questionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
-        requireVisible(sender, question);
-        boolean privateQuestion = "private".equals(question.getScope());
-        if (privateQuestion && (!"assigned".equals(question.getStatus())
-                || !(sender.getId().equals(question.getAuthorId()) || sender.getId().equals(question.getAssignedHrId())))) {
-            throw new BusinessException(ErrorCode.CONFLICT, "仅已认领且未结单的私密工单允许双方追问");
+        if (!"public".equals(question.getScope())) {
+            throw new BusinessException(ErrorCode.INVALID_PARAM, "私密问答已明确不做");
         }
+        requireVisible(sender, question);
 
         FollowupDO followup = new FollowupDO();
         followup.setQuestionId(questionId);
@@ -61,13 +55,9 @@ public class FollowupServiceImpl implements FollowupService {
         followup.setSenderRole(sender.getRole());
         followup.setBody(request.body());
         followup.setScope(question.getScope());
-        followup.setStatus(privateQuestion ? "pending_human" : PUBLISHED);
+        followup.setStatus(PUBLISHED);
         followupDao.insert(followup);
-        if (privateQuestion) {
-            moderationService.recordMachine("followup", followup.getId(), "pending_human");
-        } else {
-            questionDao.incrementFollowup(questionId);
-        }
+        questionDao.incrementFollowup(questionId);
         return toView(followup);
     }
 

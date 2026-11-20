@@ -55,6 +55,10 @@ public class FollowupDO {
         return body;
     }
 
+    public String getScope() {
+        return scope;
+    }
+
     public void setBody(String body) {
         this.body = body;
     }

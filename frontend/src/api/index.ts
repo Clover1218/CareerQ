@@ -35,6 +35,7 @@ export interface Question {
 
 export interface HrAnswerSummary {
   id: number;
+  followupId?: number | null;
   body: string;
   lengthType: string;
   status: string;
@@ -44,6 +45,11 @@ export interface HrAnswerSummary {
 export interface HrAnsweredQuestion {
   question: Question;
   myAnswer: HrAnswerSummary;
+}
+
+export interface HrAnsweredPublicQuestion {
+  question: Question;
+  hasPendingAnswer: boolean;
 }
 
 /** 公开 feed 卡片初始态：只有标题和摘要，不含作者与正文 */
@@ -105,8 +111,9 @@ export interface QuestionContent {
 
 export interface ThreadItem {
   key: string;
-  kind: "hr_answer" | "followup";
+  kind: "hr_answer" | "followup_answer" | "followup";
   id: number;
+  followupId?: number | null;
   body: string;
   author: UserBrief;
   hr: boolean;
@@ -127,6 +134,7 @@ export interface Thread {
 export interface Answer {
   id: number;
   questionId: number;
+  followupId?: number | null;
   body: string;
   lengthType: string;
   status: string;
@@ -265,6 +273,18 @@ export const api = {
     return request<PageResult<HrAnsweredQuestion>>(`/hr/answered-questions?${params.toString()}`);
   },
 
+  hrAnsweredPublicQuestions(cursor?: number | null, limit = 20): Promise<PageResult<HrAnsweredPublicQuestion>> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (cursor != null) params.set("cursor", String(cursor));
+    return request<PageResult<HrAnsweredPublicQuestion>>(`/hr/answered-public-questions?${params.toString()}`);
+  },
+
+  hrQuestionPool(cursor?: number | null, limit = 20): Promise<PageResult<Question>> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (cursor != null) params.set("cursor", String(cursor));
+    return request<PageResult<Question>>(`/hr/question-pool?${params.toString()}`);
+  },
+
   getProfile(): Promise<Profile> {
     return request<Profile>("/me/profile");
   },
@@ -273,11 +293,11 @@ export const api = {
     return request<Profile>("/me/profile", { method: "PATCH", body: payload });
   },
 
-  listQuestions(tag?: string, cursor?: number | null): Promise<PageResult<QuestionFeedItem>> {
+  listQuestions(tag?: string, cursor?: number | null, limit = 20): Promise<PageResult<QuestionFeedItem>> {
     const params = new URLSearchParams();
     if (tag) params.set("tag", tag);
-    if (cursor) params.set("cursor", String(cursor));
-    params.set("limit", "20");
+    if (cursor != null) params.set("cursor", String(cursor));
+    params.set("limit", String(limit));
     return request<PageResult<QuestionFeedItem>>(`/questions?${params.toString()}`);
   },
 
@@ -323,13 +343,20 @@ export const api = {
     title: string;
     body: string;
     tags: string[];
-    scope: "public" | "private";
+    scope: "public";
   }): Promise<Question> {
     return request<Question>("/questions", { method: "POST", body: payload });
   },
 
   answer(questionId: number, body: string, lengthType = "detailed"): Promise<Answer> {
     return request<Answer>(`/questions/${questionId}/answers`, {
+      method: "POST",
+      body: { body, lengthType },
+    });
+  },
+
+  answerFollowup(questionId: number, followupId: number, body: string, lengthType = "detailed"): Promise<Answer> {
+    return request<Answer>(`/questions/${questionId}/followups/${followupId}/answers`, {
       method: "POST",
       body: { body, lengthType },
     });
@@ -358,22 +385,6 @@ export const api = {
       method: "POST",
       body: { targetType, targetId, reason },
     });
-  },
-
-  privatePool(): Promise<PageResult<Question>> {
-    return request<PageResult<Question>>("/hr/private-pool?limit=20");
-  },
-
-  claim(questionId: number): Promise<Question> {
-    return request<Question>(`/hr/questions/${questionId}/claim`, { method: "POST" });
-  },
-
-  closeQuestion(questionId: number): Promise<Question> {
-    return request<Question>(`/questions/${questionId}/close`, { method: "POST" });
-  },
-
-  publishQuestion(questionId: number): Promise<Question> {
-    return request<Question>(`/questions/${questionId}/publish`, { method: "POST" });
   },
 
   posts(): Promise<PublicPost[]> {

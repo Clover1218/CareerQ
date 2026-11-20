@@ -63,8 +63,8 @@ careerq:
     dev-mode: true
     dev-code: "123456"
   cors:
-    # 前端本地开发地址（Vite 默认 5173）；生产同域反代时留空即可
-    allowed-origins: http://localhost:5173,http://127.0.0.1:5173
+    # 前端本地开发地址；生产同域反代时留空即可
+    allowed-origins: http://localhost:5173,http://127.0.0.1:5173,http://localhost:5176,http://127.0.0.1:5176
 
 ---
 spring:

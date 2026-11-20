@@ -14,10 +14,10 @@ public interface AnswerDao {
 
     @Insert("""
             insert into answers (
-                question_id, author_id, body, length_type, status, like_count, useful_count, created_at,
+                question_id, followup_id, author_id, body, length_type, status, like_count, useful_count, created_at,
                 updated_at
             ) values (
-                #{questionId}, #{authorId}, #{body}, #{lengthType}, #{status}, #{likeCount},
+                #{questionId}, #{followupId}, #{authorId}, #{body}, #{lengthType}, #{status}, #{likeCount},
                 #{usefulCount}, #{createdAt}, #{updatedAt}
             )
             """)

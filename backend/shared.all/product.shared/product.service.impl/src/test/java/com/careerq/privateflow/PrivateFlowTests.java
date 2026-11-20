@@ -96,5 +96,13 @@ class PrivateFlowTests {
         mockMvc.perform(post("/api/v1/hr/questions/1/claim").session(hr).with(csrf()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(40001));
+
+        MockHttpSession student = login("13800001004", "student");
+        mockMvc.perform(post("/api/v1/questions/1/close").session(student).with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40001));
+        mockMvc.perform(post("/api/v1/questions/1/publish").session(student).with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40001));
     }
 }

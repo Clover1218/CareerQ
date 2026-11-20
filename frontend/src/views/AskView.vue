@@ -8,7 +8,6 @@ const router = useRouter();
 const title = ref("");
 const body = ref("");
 const tags = ref<string[]>([]);
-const scope = ref<"public" | "private">("public");
 const error = ref("");
 const loading = ref(false);
 
@@ -24,7 +23,7 @@ async function submit() {
       title: title.value.trim(),
       body: body.value.trim(),
       tags: tags.value,
-      scope: scope.value,
+      scope: "public",
     });
     router.push(`/questions/${created.id}`);
   } catch (e: any) {
@@ -50,14 +49,6 @@ async function submit() {
       <label>文章标签（最多 5 个）</label>
       <TagPicker v-model="tags" :max="5" />
     </div>
-    <div class="field">
-      <label>可见性</label>
-      <div class="row">
-        <label><input v-model="scope" type="radio" value="public" style="width: auto" /> 公开提问</label>
-        <label><input v-model="scope" type="radio" value="private" style="width: auto" /> 私密工单</label>
-      </div>
-    </div>
-    <p v-if="scope === 'private'" class="muted">每条发言审核通过后才向对方展示。结单后，问题与回答经脱敏审核公开。</p>
     <p v-if="error" class="error">{{ error }}</p>
     <button class="primary" :disabled="loading" @click="submit">{{ loading ? "提交中…" : "提交" }}</button>
   </div>

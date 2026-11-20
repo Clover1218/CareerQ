@@ -7,12 +7,10 @@ import com.careerq.common.PageResult;
 import com.careerq.common.UserBrief;
 import com.careerq.dao.AnswerDao;
 import com.careerq.dao.InteractionDao;
-import com.careerq.dao.PublicPostDao;
 import com.careerq.dao.QuestionDao;
 import com.careerq.dao.TagDao;
 import com.careerq.dao.UserDao;
 import com.careerq.dataobject.AnswerDO;
-import com.careerq.dataobject.PublicPostDO;
 import com.careerq.dataobject.QuestionDO;
 import com.careerq.dataobject.QuestionTagDO;
 import com.careerq.dataobject.TagDO;
@@ -27,6 +25,7 @@ import com.careerq.question.QuestionDtos.FeedQuery;
 import com.careerq.question.QuestionDtos.FeedSort;
 import com.careerq.question.QuestionDtos.HrAnswerSummary;
 import com.careerq.question.QuestionDtos.HrAnsweredQuestionView;
+import com.careerq.question.QuestionDtos.HrAnsweredPublicQuestionView;
 import com.careerq.question.QuestionDtos.QuestionContentView;
 import com.careerq.question.QuestionDtos.QuestionDetail;
 import com.careerq.question.QuestionDtos.QuestionFeedItem;
@@ -61,7 +60,6 @@ public class QuestionServiceImpl implements QuestionService {
     private static final String PUBLIC = "public";
     private static final String PRIVATE = "private";
     private static final String PUBLISHED = "published";
-    private static final String OPEN = "open";
     private static final String ASSIGNED = "assigned";
     private static final String CLOSED = "closed";
     private static final String PUBLIC_PENDING = "public_pending";
@@ -76,7 +74,6 @@ public class QuestionServiceImpl implements QuestionService {
     private final UserDao userDao;
     private final ModerationService moderationService;
     private final FollowupService followupService;
-    private final PublicPostDao publicPostDao;
     private final InteractionDao interactionDao;
     private final TagAffinityService tagAffinityService;
 
@@ -86,7 +83,6 @@ public class QuestionServiceImpl implements QuestionService {
                                UserDao userDao,
                                ModerationService moderationService,
                                FollowupService followupService,
-                               PublicPostDao publicPostDao,
                                InteractionDao interactionDao,
                                TagAffinityService tagAffinityService) {
         this.questionDao = questionDao;
@@ -95,7 +91,6 @@ public class QuestionServiceImpl implements QuestionService {
         this.userDao = userDao;
         this.moderationService = moderationService;
         this.followupService = followupService;
-        this.publicPostDao = publicPostDao;
         this.interactionDao = interactionDao;
         this.tagAffinityService = tagAffinityService;
     }
@@ -509,8 +504,7 @@ public class QuestionServiceImpl implements QuestionService {
         }
 
         Long viewerId = current == null ? null : current.getId();
-        Long ownAnswerAuthor = PRIVATE.equals(question.getScope()) ? viewerId : null;
-        List<AnswerView> answers = answerDao.findVisible(question.getId(), ownAnswerAuthor)
+        List<AnswerView> answers = answerDao.findVisible(question.getId(), viewerId)
                 .stream().map(answer -> toAnswerView(answer, viewerId)).toList();
         List<FollowupView> followups = followupService.list(current, question.getId());
         return new QuestionDetail(toView(question, maskAuthor), answers, followups,
@@ -531,13 +525,14 @@ public class QuestionServiceImpl implements QuestionService {
         Long viewerId = current == null ? null : current.getId();
         List<ThreadItemView> items = new ArrayList<>();
 
-        for (AnswerDO answer : answerDao.findVisible(question.getId(), null)) {
+        for (AnswerDO answer : answerDao.findVisible(question.getId(), viewerId)) {
             boolean liked = viewerId != null
                     && interactionDao.exists(viewerId, "answer", answer.getId(), "like");
             items.add(new ThreadItemView(
-                    "answer-" + answer.getId(),
-                    "hr_answer",
+                    (answer.getFollowupId() == null ? "answer-" : "followup-answer-") + answer.getId(),
+                    answer.getFollowupId() == null ? "hr_answer" : "followup_answer",
                     answer.getId(),
+                    answer.getFollowupId(),
                     answer.getBody(),
                     authorOf(answer.getAuthorId()),
                     true,
@@ -552,6 +547,7 @@ public class QuestionServiceImpl implements QuestionService {
                     "followup-" + followup.id(),
                     "followup",
                     followup.id(),
+                    null,
                     followup.body(),
                     followup.author(),
                     followup.hr(),
@@ -563,7 +559,11 @@ public class QuestionServiceImpl implements QuestionService {
 
         items.sort(Comparator
                 .comparing(ThreadItemView::createdAt, Comparator.nullsLast(Comparator.naturalOrder()))
-                .thenComparingInt(item -> "hr_answer".equals(item.kind()) ? 0 : 1)
+                .thenComparingInt(item -> switch (item.kind()) {
+                    case "followup" -> 0;
+                    case "hr_answer" -> 1;
+                    default -> 2;
+                })
                 .thenComparing(ThreadItemView::id));
 
         int answerCount = question.getAnswerCount();
@@ -598,6 +598,21 @@ public class QuestionServiceImpl implements QuestionService {
 
     @Override
     @Transactional(readOnly = true)
+    public PageResult<HrAnsweredPublicQuestionView> hrAnsweredPublicQuestions(Long cursor, int limit) {
+        int size = Math.clamp(limit, 1, 50);
+        List<QuestionDO> rows = questionDao.listPublicWithAnyAnswer(cursor, size + 1);
+        boolean hasMore = rows.size() > size;
+        List<HrAnsweredPublicQuestionView> items = rows.stream()
+                .limit(size)
+                .map(question -> new HrAnsweredPublicQuestionView(
+                        toView(question, false), Boolean.TRUE.equals(question.getHasPendingAnswer())))
+                .toList();
+        Long nextCursor = hasMore ? rows.get(size - 1).getId() : null;
+        return new PageResult<>(items, nextCursor);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public PageResult<HrAnsweredQuestionView> hrAnsweredQuestions(AuthUser hr, Long cursor, int limit) {
         int size = Math.clamp(limit, 1, 50);
         List<QuestionDO> rows = questionDao.listPublicAnsweredByHr(hr.getId(), cursor, size + 1);
@@ -616,100 +631,13 @@ public class QuestionServiceImpl implements QuestionService {
                         return null;
                     }
                     return new HrAnsweredQuestionView(toView(question, false),
-                            new HrAnswerSummary(answer.getId(), answer.getBody(), answer.getLengthType(),
+                            new HrAnswerSummary(answer.getId(), answer.getFollowupId(), answer.getBody(), answer.getLengthType(),
                                     answer.getStatus(), answer.getCreatedAt()));
                 })
                 .filter(java.util.Objects::nonNull)
                 .toList();
         Long nextCursor = hasMore ? page.get(page.size() - 1).getId() : null;
         return new PageResult<>(items, nextCursor);
-    }
-
-    /** HR 私密待认领池：只返回 open 状态的私密问题，作者信息匿名化。 */
-    @Override
-    @Transactional(readOnly = true)
-    public PageResult<QuestionView> hrPrivatePool(Long cursor, int limit) {
-        throw new BusinessException(ErrorCode.INVALID_PARAM, "私密问答已明确不做");
-    }
-
-    @Override
-    @Transactional
-    public QuestionView claim(AuthUser hr, Long id) {
-        throw new BusinessException(ErrorCode.INVALID_PARAM, "私密问答已明确不做");
-    }
-
-    @Override
-    @Transactional
-    public QuestionView close(AuthUser author, Long id) {
-        return submitPublicPost(author, id, true);
-    }
-
-    @Override
-    @Transactional
-    public QuestionView publish(AuthUser author, Long id) {
-        return submitPublicPost(author, id, false);
-    }
-
-    private QuestionView submitPublicPost(AuthUser author, Long id, boolean closing) {
-        QuestionDO question = requireOwnedPrivate(id);
-        if (!author.getId().equals(question.getAuthorId())) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "只有提问者可以结单或提交公开复审");
-        }
-        String status = question.getStatus();
-        if (PUBLIC_PENDING.equals(status) || "public_archived".equals(status)) {
-            return toView(question, false);
-        }
-        if ("public_rejected".equals(status)) {
-            if (closing) {
-                return toView(question, false);
-            }
-            PublicPostDO rejected = publicPostDao.findByOriginalQuestionId(id)
-                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "公开稿不存在"));
-            publicPostDao.updateStatus(rejected.getId(), "pending_human", null);
-        } else {
-            if (!CLOSED.equals(status) && !(closing && ASSIGNED.equals(status))) {
-                throw new BusinessException(ErrorCode.CONFLICT, "问题认领并产生审核通过的回答后才能结单");
-            }
-            createPublicPost(question);
-        }
-
-        if (ASSIGNED.equals(status)) {
-            question.setClosedAt(LocalDateTime.now());
-        }
-        question.setStatus(PUBLIC_PENDING);
-        questionDao.updatePrivateState(question);
-        return toView(question, false);
-    }
-
-    private void createPublicPost(QuestionDO question) {
-        if (answerDao.hasPending(question.getId())) {
-            throw new BusinessException(ErrorCode.CONFLICT, "请等待回答审核完成后再结单");
-        }
-        List<AnswerDO> answers = answerDao
-                .findByQuestionIdAndStatusOrderByIdAsc(question.getId(), PUBLISHED);
-        if (answers.isEmpty()) {
-            throw new BusinessException(ErrorCode.CONFLICT, "该问题还没有回答，无法公开");
-        }
-        String hrAnswer = answers.get(answers.size() - 1).getBody();
-
-        PublicPostDO post = new PublicPostDO();
-        post.setOriginalQuestionId(question.getId());
-        post.setTitle(question.getTitle());
-        post.setQuestionBody(question.getBody());
-        post.setHrAnswer(hrAnswer);
-        post.setAnonymized(true);
-        post.setStatus("pending_human");
-        publicPostDao.insert(post);
-        moderationService.recordMachine("public_post", post.getId(), "pending_human");
-    }
-
-    private QuestionDO requireOwnedPrivate(Long id) {
-        QuestionDO question = questionDao.findByIdForUpdate(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
-        if (!PRIVATE.equals(question.getScope())) {
-            throw new BusinessException(ErrorCode.CONFLICT, "该接口只适用于私密问题");
-        }
-        return question;
     }
 
     private PageResult<QuestionView> listPage(String scope, String status, String tag,
@@ -809,6 +737,7 @@ public class QuestionServiceImpl implements QuestionService {
         return new AnswerView(
                 answer.getId(),
                 answer.getQuestionId(),
+                answer.getFollowupId(),
                 answer.getBody(),
                 answer.getLengthType(),
                 answer.getStatus(),
