@@ -4,6 +4,7 @@ import com.careerq.dataobject.HrProfileDO;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import java.util.Optional;
 
@@ -18,4 +19,11 @@ public interface HrProfileDao {
 
     @Select("select * from hr_profiles where user_id = #{userId}")
     Optional<HrProfileDO> findByUserId(Long userId);
+
+    @Update("""
+            update hr_profiles set company_display = #{companyDisplay}, industry = #{industry},
+                position = #{position}, bio = #{bio}, specialties_json = #{specialtiesJson}
+            where user_id = #{userId}
+            """)
+    int updatePersonal(HrProfileDO profile);
 }

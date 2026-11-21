@@ -98,7 +98,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                 准备方法上，用 STAR 结构整理 2—3 个项目案例，每个案例写清楚背景、任务、动作、结果。
                 面试官不一定问原题，但会反复验证你是不是真的做过。
                 """, "detailed", 6);
-        FollowupDO q1f1 = askFollowup(q1, chen, student,
+        FollowupDO q1f1 = askFollowup(q1, chen, student, q1a1,
                 "我的项目都是课程作业，没有线上数据。面试官问“讲一个你最有成就感的项目”，我该选功能最多的，还是技术上最难的？");
         reply(q1, chen, q1f1, """
                 选“你参与最深、能讲清楚取舍”的那个，而不是功能最多或技术最难的。
@@ -113,7 +113,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                 建议按岗位 JD 准备 3 个案例：一个技术难点、一个协作问题、一个失败复盘。
                 每个控制在 2 分钟以内，先给结论再展开。
                 """, "detailed", 4);
-        FollowupDO q1f2 = askFollowup(q1, wang, student,
+        FollowupDO q1f2 = askFollowup(q1, wang, student, q1a2,
                 "面试最后问“你还有什么想问我的”，问什么比较加分？问薪资和转正会不会不太合适？");
         reply(q1, wang, q1f2, """
                 可以在二面或 HR 面再问薪资与转正，技术面优先问业务和团队。
@@ -129,7 +129,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                 另外，简历上写的每个技术点都要能被追问三层，比如写了 Redis，
                 就要能说清缓存了什么、怎么保证一致性、失效了会怎样。
                 """, "detailed", 5);
-        FollowupDO q1f3 = askFollowup(q1, li, student,
+        FollowupDO q1f3 = askFollowup(q1, li, student, q1a3,
                 "如果八股真的不会，直接说“不会”是不是就凉了？");
         reply(q1, li, q1f3, """
                 不会本身不减分，硬编才会。比较好的接法是：先承认这块了解不深，再说你的推理路径，
@@ -151,7 +151,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                 引入 Redis 缓存热点列表并加随机过期；接口平均响应从 800ms 降到 120ms。
                 没有业务指标没关系，技术指标同样能证明你做过。
                 """, "detailed", 7);
-        FollowupDO q2f1 = askFollowup(q2, wang, student,
+        FollowupDO q2f1 = askFollowup(q2, wang, student, q2a1,
                 "项目确实没做过压测，也没有量化结果，这种情况还要硬写数字吗？");
         reply(q2, wang, q2f1, """
                 不要编数字，但可以补做一次简单压测。用 JMeter 或 wrk 跑一遍核心接口，记录 QPS 和响应时间，
@@ -174,7 +174,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                 用一周时间读这个行业的 5 份年报或深度报道；投 5 个相关岗位，看面试官关心什么。
                 实验做完，你的感受会比空想可靠得多。
                 """, "detailed", 8);
-        FollowupDO q3f1 = askFollowup(q3, zhang, student,
+        FollowupDO q3f1 = askFollowup(q3, zhang, student, q3a1,
                 "怎么找到愿意聊的从业者？直接私信会不会很冒犯？");
         reply(q3, zhang, q3f1, """
                 优先找校友和二级人脉，说明来意和时间成本，比如“想请教 15 分钟，主要问三个问题”，回复率会高很多。
@@ -189,7 +189,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                 可以列一张表：左边写这个行业 3 年后可能需要的核心能力，右边写你现在具备什么、还缺什么。
                 如果缺口能在 1—2 年内补上，就值得试；如果缺口依赖平台或资源，而你短期拿不到，就要谨慎。
                 """, "detailed", 3);
-        FollowupDO q3f2 = askFollowup(q3, li, student,
+        FollowupDO q3f2 = askFollowup(q3, li, student, q3a2,
                 "技术岗跨行业，之前积累的经验会浪费吗？");
         reply(q3, li, q3f2, """
                 底层能力不会浪费，比如系统设计、排查问题、协作方式；浪费的是只绑定某个业务名词的经验。
@@ -248,7 +248,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                 你的三次失败不是白挂的，把每次面试的问题回忆出来，它们就是你最真实的题库。
                 """, "detailed", 12);
 
-        FollowupDO q4f1 = askFollowup(q4, chen, student,
+        FollowupDO q4f1 = askFollowup(q4, chen, student, q4a1,
                 """
                         追问一下：我的两个项目都是课程作业量级，确实没有高并发场景，
                         按"决策清单"讲取舍会不会显得很假？如果面试官追问数据，我该如实说没有压测过吗？
@@ -259,7 +259,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                 重点不是数据多大，而是你有没有观测、定位、验证的闭环。面试官追问数据，往往是在验证你是不是真的做过。
                 """, 4);
 
-        FollowupDO q4f2 = askFollowup(q4, chen, student,
+        FollowupDO q4f2 = askFollowup(q4, chen, student, q4a1,
                 "再补充一个：面试官问“你最大的缺点是什么”，我回答“太追求完美”，他说这是套路答案。这种题到底想听什么？");
         reply(q4, chen, q4f2, """
                 这道题想听的是一个真实、具体、可改进的缺点，而不是完美人设。
@@ -314,7 +314,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                 把简历发给你信得过的学长学姐看一遍，比你自己改十版都有用。
                 """, "detailed", 9);
 
-        FollowupDO q5f1 = askFollowup(q5, li, student,
+        FollowupDO q5f1 = askFollowup(q5, li, student, q5a1,
                 """
                         感谢，结构很清晰。再问一个细节：课程项目是小组作业，有三个人一起做的，
                         简历里要不要写清楚自己负责的部分？如果只写我负责的模块，会不会显得项目很单薄？
@@ -326,7 +326,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                 这样既不贪功，也不会显得单薄。面试官更在意你是否清楚边界和协作。
                 """, 5);
 
-        FollowupDO q5f2 = askFollowup(q5, li, student,
+        FollowupDO q5f2 = askFollowup(q5, li, student, q5a1,
                 "再补充一个：简历上要不要写期望薪资？我问了同学，有人说写了会被压价，有人说写了显得有底气。");
         reply(q5, li, q5f2, """
                 实习简历一般不建议写期望薪资，校招简历更不需要。薪资是面试通过后谈的，提前写容易给自己设限，
@@ -342,7 +342,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                 而是挑“商品列表的分页与缓存”讲清楚：数据量多大、慢查询怎么发现、索引怎么加、缓存怎么失效。
                 一个讲透的点，比五个功能名更有说服力。
                 """, "detailed", 6);
-        FollowupDO q5f3 = askFollowup(q5, chen, student,
+        FollowupDO q5f3 = askFollowup(q5, chen, student, q5a2,
                 "小组项目里我只负责一个模块，写深了会不会让面试官觉得项目很小？");
         reply(q5, chen, q5f3, """
                 不会。项目大小由业务目标决定，不由你负责的模块数量决定。
@@ -398,7 +398,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                 而是某个具体的细节。
                 """, "detailed", 15);
 
-        FollowupDO q6f1 = askFollowup(q6, wang, student,
+        FollowupDO q6f1 = askFollowup(q6, wang, student, q6a1,
                 """
                         谢谢，最后那段"找在职员工聊 20 分钟"很实用。但我不认识这两个团队的人，
                         在社交平台上直接私信会不会很冒犯？有没有更自然的方式？比如问 HR 能不能安排和未来 mentor 聊一次？
@@ -418,7 +418,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                 稳定和平台不是对立面，真正的差别是反馈速度和不确定性。
                 你可以接受多快的学习节奏、多大的不确定性，这两个问题只有你自己能回答。
                 """, "detailed", 7);
-        FollowupDO q6f2 = askFollowup(q6, zhang, student,
+        FollowupDO q6f2 = askFollowup(q6, zhang, student, q6a2,
                 "大厂实习转正率不确定，怎么在入职前降低这个风险？");
         reply(q6, zhang, q6f2, """
                 入职前把三件事问清楚：这个部门过去两届实习生的留用比例、转正评估看哪些指标、
@@ -466,10 +466,11 @@ public class DemoDataSeeder implements CommandLineRunner {
         return answer;
     }
 
-    private FollowupDO askFollowup(QuestionDO question, UserDO hr, UserDO student, String body) {
+    private FollowupDO askFollowup(QuestionDO question, UserDO hr, UserDO student, AnswerDO rootAnswer, String body) {
         FollowupDO followup = new FollowupDO();
         followup.setQuestionId(question.getId());
         followup.setHrId(hr.getId());
+        followup.setRootAnswerId(rootAnswer.getId());
         followup.setSenderId(student.getId());
         followup.setSenderRole("student");
         followup.setBody(body);

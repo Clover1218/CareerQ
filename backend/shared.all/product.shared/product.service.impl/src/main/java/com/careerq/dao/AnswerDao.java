@@ -7,10 +7,19 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 public interface AnswerDao {
+
+    @Update("""
+            update answers set status = 'removed', removal_source = #{source},
+                removed_by = #{actorId}, removed_at = #{removedAt}, updated_at = #{removedAt}
+            where id = #{id} and status <> 'removed'
+            """)
+    int markRemoved(@Param("id") Long id, @Param("source") String source,
+                    @Param("actorId") Long actorId, @Param("removedAt") LocalDateTime removedAt);
 
     @Insert("""
             insert into answers (
@@ -52,6 +61,9 @@ public interface AnswerDao {
                 <foreach collection="questionIds" item="questionId" open="(" separator="," close=")">
                     #{questionId}
                 </foreach>
+                and (followup_id is null or exists (select 1 from followups f
+                     where f.id = answers.followup_id and f.question_id = answers.question_id
+                       and f.scope = 'public' and f.root_answer_id is not null))
                 group by question_id
             ) latest on latest.answer_id = a.id
             order by a.question_id
@@ -65,9 +77,18 @@ public interface AnswerDao {
                                                         @Param("status") String status);
 
     @Select("""
-            select * from answers where question_id = #{questionId}
-            and (status = 'published' or author_id = #{authorId} and status in ('pending_human', 'rejected'))
-            order by id
+            select a.* from answers a where a.question_id = #{questionId}
+            and (a.followup_id is null or exists (select 1 from followups f
+                 where f.id = a.followup_id and f.question_id = a.question_id
+                   and f.scope = 'public' and f.root_answer_id is not null))
+            and (a.status = 'published' or a.author_id = #{authorId} and a.status in ('pending_machine', 'pending_human', 'rejected')
+                 or a.followup_id is null and a.status = 'removed' and exists (
+                    select 1 from followups f where f.question_id = a.question_id and f.root_answer_id = a.id and f.scope = 'public'
+                      and (f.status = 'published' or f.status = 'removed' and exists (
+                        select 1 from answers child where child.followup_id = f.id and child.question_id = f.question_id
+                          and (child.status = 'published' or child.author_id = #{authorId}
+                               and child.status in ('pending_machine', 'pending_human', 'rejected'))))))
+            order by a.created_at, a.id
             """)
     List<AnswerDO> findVisible(@Param("questionId") Long questionId, @Param("authorId") Long authorId);
 

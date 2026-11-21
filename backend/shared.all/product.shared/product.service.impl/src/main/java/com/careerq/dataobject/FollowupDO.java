@@ -14,6 +14,12 @@ public class FollowupDO {
     /** 追问目标 HR：会话线程按 (questionId, hrId) 划分。 */
     private Long hrId;
 
+    private Long rootAnswerId;
+
+    public Long getRootAnswerId() { return rootAnswerId; }
+
+    public void setRootAnswerId(Long rootAnswerId) { this.rootAnswerId = rootAnswerId; }
+
     private Long senderId;
 
     private String senderRole;

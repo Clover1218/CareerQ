@@ -12,6 +12,306 @@
         }
     ],
     "paths":  {
+    "/api/v1/hr/notifications": {
+        "get": {
+            "tags": [
+                "hr-notification-controller"
+            ],
+            "operationId": "list_4",
+            "parameters": [
+                {
+                    "name": "category",
+                    "in": "query",
+                    "required": false,
+                    "schema": {
+                        "type": "string",
+                        "default": "all"
+                    }
+                },
+                {
+                    "name": "unreadOnly",
+                    "in": "query",
+                    "required": false,
+                    "schema": {
+                        "type": "boolean",
+                        "default": false
+                    }
+                },
+                {
+                    "name": "cursor",
+                    "in": "query",
+                    "required": false,
+                    "schema": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                {
+                    "name": "limit",
+                    "in": "query",
+                    "required": false,
+                    "schema": {
+                        "type": "integer",
+                        "format": "int32",
+                        "default": 5
+                    }
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "OK",
+                    "content": {
+                        "*/*": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ApiResponseHrNotificationPage"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/api/v1/hr/notifications/unread-count": {
+        "get": {
+            "tags": [
+                "hr-notification-controller"
+            ],
+            "operationId": "unread",
+            "responses": {
+                "200": {
+                    "description": "OK",
+                    "content": {
+                        "*/*": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ApiResponseHrUnreadCounts"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/api/v1/hr/notifications/{id}/read": {
+        "post": {
+            "tags": [
+                "hr-notification-controller"
+            ],
+            "operationId": "read",
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "OK",
+                    "content": {
+                        "*/*": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ApiResponseHrNotification"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/api/v1/hr/notifications/read-all": {
+        "post": {
+            "tags": [
+                "hr-notification-controller"
+            ],
+            "operationId": "readAll",
+            "requestBody": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/ReadAllRequest"
+                        }
+                    }
+                },
+                "required": true
+            },
+            "responses": {
+                "200": {
+                    "description": "OK",
+                    "content": {
+                        "*/*": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ApiResponseVoid"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/api/v1/hr/answers/{id}": {
+        "get": {
+            "tags": [
+                "hr-personal-controller"
+            ],
+            "operationId": "answer_1",
+            "parameters": [
+                {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "OK",
+                    "content": {
+                        "*/*": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ApiResponseHrAnswerRecord"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+
+    "/api/v1/hr/profile": {
+        "get": {
+            "tags": [
+                "hr-personal-controller"
+            ],
+            "operationId": "profile",
+            "responses": {
+                "200": {
+                    "description": "OK",
+                    "content": {
+                        "*/*": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ApiResponseHrProfileView"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "patch": {
+            "tags": [
+                "hr-personal-controller"
+            ],
+            "operationId": "patch_1",
+            "requestBody": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/HrProfilePatch"
+                        }
+                    }
+                },
+                "required": true
+            },
+            "responses": {
+                "200": {
+                    "description": "OK",
+                    "content": {
+                        "*/*": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ApiResponseHrProfileView"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/api/v1/hr/stats": {
+        "get": {
+            "tags": [
+                "hr-personal-controller"
+            ],
+            "operationId": "stats_1",
+            "responses": {
+                "200": {
+                    "description": "OK",
+                    "content": {
+                        "*/*": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ApiResponseHrContributionStats"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "/api/v1/hr/answers": {
+        "get": {
+            "tags": [
+                "hr-personal-controller"
+            ],
+            "operationId": "answers",
+            "parameters": [
+                {
+                    "name": "kind",
+                    "in": "query",
+                    "required": false,
+                    "schema": {
+                        "type": "string",
+                        "default": "all"
+                    }
+                },
+                {
+                    "name": "status",
+                    "in": "query",
+                    "required": false,
+                    "schema": {
+                        "type": "string",
+                        "default": "all"
+                    }
+                },
+                {
+                    "name": "cursor",
+                    "in": "query",
+                    "required": false,
+                    "schema": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                {
+                    "name": "limit",
+                    "in": "query",
+                    "required": false,
+                    "schema": {
+                        "type": "integer",
+                        "format": "int32",
+                        "default": 5
+                    }
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "OK",
+                    "content": {
+                        "*/*": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ApiResponsePageResultHrAnswerRecord"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+
                   "/api/v1/me/profile":  {
                                              "get":  {
                                                          "tags":  [
@@ -1110,45 +1410,62 @@
                                                            }
                                                },
                   "/api/v1/hr/answered-questions":  {
-                                                        "get":  {
-                                                                    "tags":  [
-                                                                                 "hr-controller"
-                                                                             ],
-                                                                    "operationId":  "answeredQuestions",
-                                                                    "parameters":  [
-                                                                                       {
-                                                                                           "name":  "cursor",
-                                                                                           "in":  "query",
-                                                                                           "required":  false,
-                                                                                           "schema":  {
-                                                                                                          "type":  "integer",
-                                                                                                          "format":  "int64"
-                                                                                                      }
-                                                                                       },
-                                                                                       {
-                                                                                           "name":  "limit",
-                                                                                           "in":  "query",
-                                                                                           "required":  false,
-                                                                                           "schema":  {
-                                                                                                          "type":  "integer",
-                                                                                                          "format":  "int32",
-                                                                                                          "default":  20
-                                                                                                      }
-                                                                                       }
-                                                                                   ],
-                                                                    "responses":  {
-                                                                                      "200":  {
-                                                                                                  "description":  "OK",
-                                                                                                  "content":  {
-                                                                                                                  "*/*":  {
-                                                                                                                              "schema":  {
-                                                                                                                                             "$ref":  "#/components/schemas/ApiResponsePageResultHrAnsweredQuestionView"
-                                                                                                                                         }
-                                                                                                                          }
-                                                                                                              }
-                                                                                              }
-                                                                                  }
+                                                        "get": {
+                                                            "tags": [
+                                                                "hr-controller"
+                                                            ],
+                                                            "operationId": "answeredQuestions",
+                                                            "parameters": [
+                                                                {
+                                                                    "name": "cursor",
+                                                                    "in": "query",
+                                                                    "required": false,
+                                                                    "schema": {
+                                                                        "type": "integer",
+                                                                        "format": "int64"
+                                                                    }
+                                                                },
+                                                                {
+                                                                    "name": "cursorAt",
+                                                                    "in": "query",
+                                                                    "required": false,
+                                                                    "schema": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                {
+                                                                    "name": "pendingFollowupsOnly",
+                                                                    "in": "query",
+                                                                    "required": false,
+                                                                    "schema": {
+                                                                        "type": "boolean",
+                                                                        "default": false
+                                                                    }
+                                                                },
+                                                                {
+                                                                    "name": "limit",
+                                                                    "in": "query",
+                                                                    "required": false,
+                                                                    "schema": {
+                                                                        "type": "integer",
+                                                                        "format": "int32",
+                                                                        "default": 20
+                                                                    }
                                                                 }
+                                                            ],
+                                                            "responses": {
+                                                                "200": {
+                                                                    "description": "OK",
+                                                                    "content": {
+                                                                        "*/*": {
+                                                                            "schema": {
+                                                                                "$ref": "#/components/schemas/ApiResponseHrAnsweredQuestionPage"
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
                                                     },
                   "/api/v1/hr/answered-public-questions":  {
                                                                "get":  {
@@ -1525,6 +1842,370 @@
               },
     "components":  {
                        "schemas":  {
+    "ApiResponseHrAnswerRecord": {
+        "type": "object",
+        "properties": {
+            "code": {
+                "type": "integer",
+                "format": "int32"
+            },
+            "message": {
+                "type": "string"
+            },
+            "data": {
+                "$ref": "#/components/schemas/HrAnswerRecord"
+            }
+        }
+    },
+    "ApiResponseHrNotification": {
+        "type": "object",
+        "properties": {
+            "code": {
+                "type": "integer",
+                "format": "int32"
+            },
+            "message": {
+                "type": "string"
+            },
+            "data": {
+                "$ref": "#/components/schemas/HrNotification"
+            }
+        }
+    },
+    "ApiResponseHrNotificationPage": {
+        "type": "object",
+        "properties": {
+            "code": {
+                "type": "integer",
+                "format": "int32"
+            },
+            "message": {
+                "type": "string"
+            },
+            "data": {
+                "$ref": "#/components/schemas/HrNotificationPage"
+            }
+        }
+    },
+    "ApiResponseHrUnreadCounts": {
+        "type": "object",
+        "properties": {
+            "code": {
+                "type": "integer",
+                "format": "int32"
+            },
+            "message": {
+                "type": "string"
+            },
+            "data": {
+                "$ref": "#/components/schemas/HrUnreadCounts"
+            }
+        }
+    },
+    "HrNotification": {
+        "type": "object",
+        "properties": {
+            "id": {
+                "type": "integer",
+                "format": "int64"
+            },
+            "type": {
+                "type": "string"
+            },
+            "category": {
+                "type": "string"
+            },
+            "title": {
+                "type": "string"
+            },
+            "message": {
+                "type": "string"
+            },
+            "questionTitle": {
+                "type": "string"
+            },
+            "questionId": {
+                "type": "integer",
+                "format": "int64"
+            },
+            "answerId": {
+                "type": "integer",
+                "format": "int64"
+            },
+            "followupId": {
+                "type": "integer",
+                "format": "int64"
+            },
+            "destination": {
+                "type": "string"
+            },
+            "createdAt": {
+                "type": "string",
+                "format": "date-time"
+            },
+            "readAt": {
+                "type": "string",
+                "format": "date-time"
+            }
+        }
+    },
+    "HrNotificationPage": {
+        "type": "object",
+        "properties": {
+            "items": {
+                "type": "array",
+                "items": {
+                    "$ref": "#/components/schemas/HrNotification"
+                }
+            },
+            "nextCursor": {
+                "type": "integer",
+                "format": "int64"
+            },
+            "snapshotId": {
+                "type": "integer",
+                "format": "int64"
+            }
+        }
+    },
+    "HrUnreadCounts": {
+        "type": "object",
+        "properties": {
+            "total": {
+                "type": "integer",
+                "format": "int64"
+            },
+            "followup": {
+                "type": "integer",
+                "format": "int64"
+            },
+            "system": {
+                "type": "integer",
+                "format": "int64"
+            },
+            "snapshotId": {
+                "type": "integer",
+                "format": "int64"
+            }
+        }
+    },
+    "ReadAllRequest": {
+        "required": [
+            "throughId"
+        ],
+        "type": "object",
+        "properties": {
+            "throughId": {
+                "type": "integer",
+                "format": "int64"
+            }
+        }
+    },
+
+    "ApiResponseHrContributionStats": {
+        "type": "object",
+        "properties": {
+            "code": {
+                "type": "integer",
+                "format": "int32"
+            },
+            "message": {
+                "type": "string"
+            },
+            "data": {
+                "$ref": "#/components/schemas/HrContributionStats"
+            }
+        }
+    },
+    "ApiResponseHrProfileView": {
+        "type": "object",
+        "properties": {
+            "code": {
+                "type": "integer",
+                "format": "int32"
+            },
+            "message": {
+                "type": "string"
+            },
+            "data": {
+                "$ref": "#/components/schemas/HrProfileView"
+            }
+        }
+    },
+    "ApiResponsePageResultHrAnswerRecord": {
+        "type": "object",
+        "properties": {
+            "code": {
+                "type": "integer",
+                "format": "int32"
+            },
+            "message": {
+                "type": "string"
+            },
+            "data": {
+                "$ref": "#/components/schemas/PageResultHrAnswerRecord"
+            }
+        }
+    },
+    "HrAnswerRecord": {
+        "type": "object",
+        "properties": {
+            "id": {
+                "type": "integer",
+                "format": "int64"
+            },
+            "questionId": {
+                "type": "integer",
+                "format": "int64"
+            },
+            "questionTitle": {
+                "type": "string"
+            },
+            "canViewQuestion": {
+                "type": "boolean"
+            },
+            "rootAnswerId": {
+                "type": "integer",
+                "format": "int64"
+            },
+            "followupId": {
+                "type": "integer",
+                "format": "int64"
+            },
+            "body": {
+                "type": "string"
+            },
+            "status": {
+                "type": "string"
+            },
+            "removalSource": {
+                "type": "string"
+            },
+            "likeCount": {
+                "type": "integer",
+                "format": "int32"
+            },
+            "usefulCount": {
+                "type": "integer",
+                "format": "int32"
+            },
+            "createdAt": {
+                "type": "string",
+                "format": "date-time"
+            }
+        }
+    },
+    "HrContributionStats": {
+        "type": "object",
+        "properties": {
+            "rootAnswerCount": {
+                "type": "integer",
+                "format": "int64"
+            },
+            "followupReplyCount": {
+                "type": "integer",
+                "format": "int64"
+            },
+            "likeCount": {
+                "type": "integer",
+                "format": "int64"
+            },
+            "usefulCount": {
+                "type": "integer",
+                "format": "int64"
+            }
+        }
+    },
+    "HrProfilePatch": {
+        "type": "object",
+        "properties": {
+            "nickname": {
+                "maxLength": 64,
+                "minLength": 0,
+                "type": "string"
+            },
+            "companyDisplay": {
+                "maxLength": 128,
+                "minLength": 0,
+                "type": "string"
+            },
+            "industry": {
+                "maxLength": 64,
+                "minLength": 0,
+                "type": "string"
+            },
+            "position": {
+                "maxLength": 64,
+                "minLength": 0,
+                "type": "string"
+            },
+            "bio": {
+                "maxLength": 500,
+                "minLength": 0,
+                "type": "string"
+            },
+            "specialties": {
+                "maxItems": 6,
+                "minItems": 0,
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "HrProfileView": {
+        "type": "object",
+        "properties": {
+            "id": {
+                "type": "integer",
+                "format": "int64"
+            },
+            "nickname": {
+                "type": "string"
+            },
+            "avatarUrl": {
+                "type": "string"
+            },
+            "companyDisplay": {
+                "type": "string"
+            },
+            "industry": {
+                "type": "string"
+            },
+            "position": {
+                "type": "string"
+            },
+            "bio": {
+                "type": "string"
+            },
+            "specialties": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "verifyStatus": {
+                "type": "string"
+            }
+        }
+    },
+    "PageResultHrAnswerRecord": {
+        "type": "object",
+        "properties": {
+            "items": {
+                "type": "array",
+                "items": {
+                    "$ref": "#/components/schemas/HrAnswerRecord"
+                }
+            },
+            "nextCursor": {
+                "type": "integer",
+                "format": "int64"
+            }
+        }
+    },
+
                                        "ExperienceItem":  {
                                                               "required":  [
                                                                                "title",
@@ -1795,16 +2476,22 @@
                                                                            }
                                                         },
                                        "UserBrief":  {
-                                                         "type":  "object",
-                                                         "properties":  {
-                                                                            "id":  {
-                                                                                       "type":  "integer",
-                                                                                       "format":  "int64"
-                                                                                   },
-                                                                            "nickname":  {
-                                                                                             "type":  "string"
-                                                                                         }
-                                                                        }
+                                                         "type": "object",
+                                                         "properties": {
+                                                             "id": {
+                                                                 "type": "integer",
+                                                                 "format": "int64"
+                                                             },
+                                                             "nickname": {
+                                                                 "type": "string"
+                                                             },
+                                                             "company": {
+                                                                 "type": "string"
+                                                             },
+                                                             "position": {
+                                                                 "type": "string"
+                                                             }
+                                                         }
                                                      },
                                        "ApiResponseFollowupView":  {
                                                                        "type":  "object",
@@ -1822,36 +2509,44 @@
                                                                                       }
                                                                    },
                                        "FollowupView":  {
-                                                            "type":  "object",
-                                                            "properties":  {
-                                                                               "id":  {
-                                                                                          "type":  "integer",
-                                                                                          "format":  "int64"
-                                                                                      },
-                                                                               "questionId":  {
-                                                                                                  "type":  "integer",
-                                                                                                  "format":  "int64"
-                                                                                              },
-                                                                               "senderRole":  {
-                                                                                                  "type":  "string"
-                                                                                              },
-                                                                               "body":  {
-                                                                                            "type":  "string"
-                                                                                        },
-                                                                               "status":  {
-                                                                                              "type":  "string"
-                                                                                          },
-                                                                               "createdAt":  {
-                                                                                                 "type":  "string",
-                                                                                                 "format":  "date-time"
-                                                                                             },
-                                                                               "author":  {
-                                                                                              "$ref":  "#/components/schemas/UserBrief"
-                                                                                          },
-                                                                               "hr":  {
-                                                                                          "type":  "boolean"
-                                                                                      }
-                                                                           }
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "id": {
+                                                                    "type": "integer",
+                                                                    "format": "int64"
+                                                                },
+                                                                "questionId": {
+                                                                    "type": "integer",
+                                                                    "format": "int64"
+                                                                },
+                                                                "hrId": {
+                                                                    "type": "integer",
+                                                                    "format": "int64"
+                                                                },
+                                                                "rootAnswerId": {
+                                                                    "type": "integer",
+                                                                    "format": "int64"
+                                                                },
+                                                                "senderRole": {
+                                                                    "type": "string"
+                                                                },
+                                                                "body": {
+                                                                    "type": "string"
+                                                                },
+                                                                "status": {
+                                                                    "type": "string"
+                                                                },
+                                                                "createdAt": {
+                                                                    "type": "string",
+                                                                    "format": "date-time"
+                                                                },
+                                                                "author": {
+                                                                    "$ref": "#/components/schemas/UserBrief"
+                                                                },
+                                                                "hr": {
+                                                                    "type": "boolean"
+                                                                }
+                                                            }
                                                         },
                                        "AnswerView":  {
                                                           "type":  "object",
@@ -1877,6 +2572,12 @@
                                                                              "status":  {
                                                                                             "type":  "string"
                                                                                         },
+                                                                             "removalSource": {
+                                                                                 "type": "string",
+                                                                                 "nullable": true,
+                                                                                 "enum": ["author", "operator", "unknown"],
+                                                                                 "description": "回答或追问回复的移除来源；旧来源不明为 unknown，未移除时为空"
+                                                                             },
                                                                              "author":  {
                                                                                             "$ref":  "#/components/schemas/UserBrief"
                                                                                         },
@@ -2415,46 +3116,60 @@
                                                                                     }
                                                                  },
                                        "ThreadItemView":  {
-                                                              "type":  "object",
-                                                              "properties":  {
-                                                                                 "key":  {
-                                                                                             "type":  "string"
-                                                                                         },
-                                                                                 "kind":  {
-                                                                                              "type":  "string"
-                                                                                          },
-                                                                                 "id":  {
-                                                                                            "type":  "integer",
-                                                                                            "format":  "int64"
-                                                                                        },
-                                                                                 "followupId":  {
-                                                                                                    "type":  "integer",
-                                                                                                    "format":  "int64"
-                                                                                                },
-                                                                                 "body":  {
-                                                                                              "type":  "string"
-                                                                                          },
-                                                                                 "author":  {
-                                                                                                "$ref":  "#/components/schemas/UserBrief"
-                                                                                            },
-                                                                                 "hr":  {
-                                                                                            "type":  "boolean"
-                                                                                        },
-                                                                                 "status":  {
-                                                                                                "type":  "string"
-                                                                                            },
-                                                                                 "likeCount":  {
-                                                                                                   "type":  "integer",
-                                                                                                   "format":  "int32"
-                                                                                               },
-                                                                                 "liked":  {
-                                                                                               "type":  "boolean"
-                                                                                           },
-                                                                                 "createdAt":  {
-                                                                                                   "type":  "string",
-                                                                                                   "format":  "date-time"
-                                                                                               }
-                                                                             }
+                                                              "type": "object",
+                                                              "properties": {
+                                                                  "key": {
+                                                                      "type": "string"
+                                                                  },
+                                                                  "kind": {
+                                                                      "type": "string"
+                                                                  },
+                                                                  "id": {
+                                                                      "type": "integer",
+                                                                      "format": "int64"
+                                                                  },
+                                                                  "followupId": {
+                                                                      "type": "integer",
+                                                                      "format": "int64"
+                                                                  },
+                                                                  "hrId": {
+                                                                      "type": "integer",
+                                                                      "format": "int64"
+                                                                  },
+                                                                  "rootAnswerId": {
+                                                                      "type": "integer",
+                                                                      "format": "int64"
+                                                                  },
+                                                                  "body": {
+                                                                      "type": "string"
+                                                                  },
+                                                                  "author": {
+                                                                      "$ref": "#/components/schemas/UserBrief"
+                                                                  },
+                                                                  "hr": {
+                                                                      "type": "boolean"
+                                                                  },
+                                                                  "status": {
+                                                                      "type": "string"
+                                                                  },
+                                                                  "removalSource": {
+                                                                      "type": "string",
+                                                                      "nullable": true,
+                                                                      "enum": ["author", "operator", "unknown"],
+                                                                      "description": "回答或追问回复的移除来源；旧来源不明为 unknown，未移除时为空"
+                                                                  },
+                                                                  "likeCount": {
+                                                                      "type": "integer",
+                                                                      "format": "int32"
+                                                                  },
+                                                                  "liked": {
+                                                                      "type": "boolean"
+                                                                  },
+                                                                  "createdAt": {
+                                                                      "type": "string",
+                                                                      "format": "date-time"
+                                                                  }
+                                                              }
                                                           },
                                        "ThreadView":  {
                                                           "type":  "object",
@@ -2659,21 +3374,6 @@
                                                                                                         }
                                                                                      }
                                                                   },
-                                       "ApiResponsePageResultHrAnsweredQuestionView":  {
-                                                                                           "type":  "object",
-                                                                                           "properties":  {
-                                                                                                              "code":  {
-                                                                                                                           "type":  "integer",
-                                                                                                                           "format":  "int32"
-                                                                                                                       },
-                                                                                                              "message":  {
-                                                                                                                              "type":  "string"
-                                                                                                                          },
-                                                                                                              "data":  {
-                                                                                                                           "$ref":  "#/components/schemas/PageResultHrAnsweredQuestionView"
-                                                                                                                       }
-                                                                                                          }
-                                                                                       },
                                        "HrAnswerSummary":  {
                                                                "type":  "object",
                                                                "properties":  {
@@ -2694,6 +3394,12 @@
                                                                                   "status":  {
                                                                                                  "type":  "string"
                                                                                              },
+                                                                                  "removalSource": {
+                                                                                      "type": "string",
+                                                                                      "nullable": true,
+                                                                                      "enum": ["author", "operator", "unknown"],
+                                                                                      "description": "回答或追问回复的移除来源；旧来源不明为 unknown，未移除时为空"
+                                                                                  },
                                                                                   "createdAt":  {
                                                                                                     "type":  "string",
                                                                                                     "format":  "date-time"
@@ -2701,31 +3407,19 @@
                                                                               }
                                                            },
                                        "HrAnsweredQuestionView":  {
-                                                                      "type":  "object",
-                                                                      "properties":  {
-                                                                                         "question":  {
-                                                                                                          "$ref":  "#/components/schemas/QuestionView"
-                                                                                                      },
-                                                                                         "myAnswer":  {
-                                                                                                          "$ref":  "#/components/schemas/HrAnswerSummary"
-                                                                                                      }
-                                                                                     }
+                                                                      "type": "object",
+                                                                      "properties": {
+                                                                          "question": {
+                                                                              "$ref": "#/components/schemas/QuestionView"
+                                                                          },
+                                                                          "myAnswer": {
+                                                                              "$ref": "#/components/schemas/HrAnswerSummary"
+                                                                          },
+                                                                          "followups": {
+                                                                              "$ref": "#/components/schemas/HrFollowupSummary"
+                                                                          }
+                                                                      }
                                                                   },
-                                       "PageResultHrAnsweredQuestionView":  {
-                                                                                "type":  "object",
-                                                                                "properties":  {
-                                                                                                   "items":  {
-                                                                                                                 "type":  "array",
-                                                                                                                 "items":  {
-                                                                                                                               "$ref":  "#/components/schemas/HrAnsweredQuestionView"
-                                                                                                                           }
-                                                                                                             },
-                                                                                                   "nextCursor":  {
-                                                                                                                      "type":  "integer",
-                                                                                                                      "format":  "int64"
-                                                                                                                  }
-                                                                                               }
-                                                                            },
                                        "ApiResponsePageResultHrAnsweredPublicQuestionView":  {
                                                                                                  "type":  "object",
                                                                                                  "properties":  {
@@ -2930,47 +3624,118 @@
                                                                                        }
                                                                     },
                                        "QueueItem":  {
-                                                         "type":  "object",
-                                                         "properties":  {
-                                                                            "targetType":  {
-                                                                                               "type":  "string"
-                                                                                           },
-                                                                            "targetId":  {
-                                                                                             "type":  "integer",
-                                                                                             "format":  "int64"
-                                                                                         },
-                                                                            "title":  {
-                                                                                          "type":  "string"
-                                                                                      },
-                                                                            "snippet":  {
-                                                                                            "type":  "string"
-                                                                                        },
-                                                                            "status":  {
-                                                                                           "type":  "string"
-                                                                                       },
-                                                                            "createdAt":  {
-                                                                                              "type":  "string",
-                                                                                              "format":  "date-time"
-                                                                                          },
-                                                                            "body":  {
-                                                                                         "type":  "string"
-                                                                                     },
-                                                                            "questionId":  {
-                                                                                               "type":  "integer",
-                                                                                               "format":  "int64"
-                                                                                           },
-                                                                            "questionTitle":  {
-                                                                                                  "type":  "string"
-                                                                                              },
-                                                                            "authorId":  {
-                                                                                             "type":  "integer",
-                                                                                             "format":  "int64"
-                                                                                         },
-                                                                            "authorNickname":  {
-                                                                                                   "type":  "string"
-                                                                                               }
+                                                         "type": "object",
+                                                         "properties": {
+                                                             "targetType": {
+                                                                 "type": "string"
+                                                             },
+                                                             "targetId": {
+                                                                 "type": "integer",
+                                                                 "format": "int64"
+                                                             },
+                                                             "title": {
+                                                                 "type": "string"
+                                                             },
+                                                             "snippet": {
+                                                                 "type": "string"
+                                                             },
+                                                             "status": {
+                                                                 "type": "string"
+                                                             },
+                                                             "createdAt": {
+                                                                 "type": "string",
+                                                                 "format": "date-time"
+                                                             },
+                                                             "body": {
+                                                                 "type": "string"
+                                                             },
+                                                             "questionId": {
+                                                                 "type": "integer",
+                                                                 "format": "int64"
+                                                             },
+                                                             "questionTitle": {
+                                                                 "type": "string"
+                                                             },
+                                                             "authorId": {
+                                                                 "type": "integer",
+                                                                 "format": "int64"
+                                                             },
+                                                             "authorNickname": {
+                                                                 "type": "string"
+                                                             },
+                                                             "rootAnswerId": {
+                                                                 "type": "integer",
+                                                                 "format": "int64"
+                                                             },
+                                                             "followupId": {
+                                                                 "type": "integer",
+                                                                 "format": "int64"
+                                                             }
+                                                         }
+                                                     },
+                           "ApiResponseHrAnsweredQuestionPage": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "code": {
+                                                                            "type": "integer",
+                                                                            "format": "int32"
+                                                                        },
+                                                                        "message": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "data": {
+                                                                            "$ref": "#/components/schemas/HrAnsweredQuestionPage"
                                                                         }
-                                                     }
-                                   }
+                                                                    }
+                                                                },
+                           "HrAnsweredQuestionPage": {
+                                                         "type": "object",
+                                                         "properties": {
+                                                             "items": {
+                                                                 "type": "array",
+                                                                 "items": {
+                                                                     "$ref": "#/components/schemas/HrAnsweredQuestionView"
+                                                                 }
+                                                             },
+                                                             "nextCursor": {
+                                                                 "type": "integer",
+                                                                 "format": "int64"
+                                                             },
+                                                             "nextCursorAt": {
+                                                                 "type": "string",
+                                                                 "format": "date-time"
+                                                             },
+                                                             "pendingQuestionCount": {
+                                                                 "type": "integer",
+                                                                 "format": "int64"
+                                                             },
+                                                             "pendingFollowupCount": {
+                                                                 "type": "integer",
+                                                                 "format": "int64"
+                                                             }
+                                                         }
+                                                     },
+                           "HrFollowupSummary": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "pendingCount": {
+                                                            "type": "integer",
+                                                            "format": "int32"
+                                                        },
+                                                        "reviewingCount": {
+                                                            "type": "integer",
+                                                            "format": "int32"
+                                                        },
+                                                        "firstPendingFollowupId": {
+                                                            "type": "integer",
+                                                            "format": "int64"
+                                                        },
+                                                        "latestPendingAt": {
+                                                            "type": "string",
+                                                            "format": "date-time"
+                                                        }
+                                                    }
+                                                }
+                       }
                    }
 }

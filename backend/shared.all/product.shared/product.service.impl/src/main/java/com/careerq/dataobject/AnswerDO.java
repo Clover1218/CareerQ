@@ -18,6 +18,12 @@ public class AnswerDO {
 
     private String status;
 
+    private String removalSource;
+
+    private Long removedBy;
+
+    private LocalDateTime removedAt;
+
     private int likeCount;
 
     private int usefulCount;
@@ -76,6 +82,30 @@ public class AnswerDO {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getRemovalSource() {
+        return removalSource;
+    }
+
+    public void setRemovalSource(String removalSource) {
+        this.removalSource = removalSource;
+    }
+
+    public Long getRemovedBy() {
+        return removedBy;
+    }
+
+    public void setRemovedBy(Long removedBy) {
+        this.removedBy = removedBy;
+    }
+
+    public LocalDateTime getRemovedAt() {
+        return removedAt;
+    }
+
+    public void setRemovedAt(LocalDateTime removedAt) {
+        this.removedAt = removedAt;
     }
 
     public int getLikeCount() {

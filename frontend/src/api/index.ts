@@ -42,12 +42,25 @@ export interface HrAnswerSummary {
   body: string;
   lengthType: string;
   status: string;
+  removalSource?: AnswerRemovalSource | null;
   createdAt: string;
 }
 
 export interface HrAnsweredQuestion {
   question: Question;
   myAnswer: HrAnswerSummary;
+  followups: {
+    pendingCount: number;
+    reviewingCount: number;
+    firstPendingFollowupId?: number | null;
+    latestPendingAt?: string | null;
+  };
+}
+
+export interface HrAnsweredQuestionPage extends PageResult<HrAnsweredQuestion> {
+  nextCursorAt?: string | null;
+  pendingQuestionCount: number;
+  pendingFollowupCount: number;
 }
 
 export interface HrAnsweredPublicQuestion {
@@ -112,6 +125,8 @@ export interface QuestionContent {
   viewer: ViewerState;
 }
 
+export type AnswerRemovalSource = "author" | "operator" | "unknown";
+
 export interface ThreadItem {
   key: string;
   kind: "hr_answer" | "followup_answer" | "followup";
@@ -119,10 +134,13 @@ export interface ThreadItem {
   followupId?: number | null;
   /** 追问的目标 HR；回答类消息为空 */
   hrId?: number | null;
+  rootAnswerId?: number | null;
   body: string;
   author: UserBrief;
   hr: boolean;
   status: string;
+  /** 仅回答和追问回复使用，学生追问为空。 */
+  removalSource?: AnswerRemovalSource | null;
   likeCount: number;
   liked: boolean;
   createdAt: string;
@@ -143,6 +161,7 @@ export interface Answer {
   body: string;
   lengthType: string;
   status: string;
+  removalSource?: AnswerRemovalSource | null;
   author: UserBrief;
   likeCount: number;
   usefulCount: number;
@@ -188,10 +207,65 @@ export interface MeStats {
   likeCount: number;
 }
 
+export interface HrProfile {
+  id: number;
+  nickname: string;
+  avatarUrl?: string | null;
+  companyDisplay: string;
+  industry?: string | null;
+  position?: string | null;
+  bio?: string | null;
+  specialties: string[];
+  verifyStatus: string;
+}
+
+export type HrProfilePatch = Partial<Pick<HrProfile, "nickname" | "companyDisplay" | "industry" | "position" | "bio" | "specialties">>;
+export interface HrContributionStats {
+  rootAnswerCount: number;
+  followupReplyCount: number;
+  likeCount: number;
+  usefulCount: number;
+}
+export type HrAnswerKind = "all" | "root" | "reply";
+export type HrAnswerStatus = "all" | "published" | "reviewing" | "rejected" | "withdrawn" | "downlisted" | "removed";
+export interface HrAnswerRecord {
+  id: number;
+  questionId: number;
+  questionTitle: string;
+  canViewQuestion: boolean;
+  rootAnswerId: number;
+  followupId?: number | null;
+  body: string;
+  status: string;
+  removalSource?: AnswerRemovalSource | null;
+  likeCount: number;
+  usefulCount: number;
+  createdAt: string;
+}
+
+export type HrMessageCategory = "all" | "followup" | "system";
+export interface HrNotification {
+  id: number;
+  type: "followup_published" | "answer_approved" | "answer_rejected" | "answer_removed";
+  category: "followup" | "system";
+  title: string;
+  message: string;
+  questionTitle?: string | null;
+  questionId: number;
+  answerId?: number | null;
+  followupId?: number | null;
+  destination: "question" | "answer_record" | "unavailable";
+  createdAt: string;
+  readAt?: string | null;
+}
+export interface HrUnreadCounts { total: number; followup: number; system: number; snapshotId: number }
+export interface HrNotificationPage extends PageResult<HrNotification> { snapshotId: number }
+
 export interface Followup {
   id: number;
   questionId: number;
-  hrId?: number | null;
+  hrId: number;
+  rootAnswerId: number;
   senderRole: string;
   body: string;
   status: string;
@@ -267,10 +341,18 @@ export const api = {
     return request<PageResult<Question>>(`/me/questions?${params.toString()}`);
   },
 
-  hrAnsweredQuestions(cursor?: number | null, limit = 20): Promise<PageResult<HrAnsweredQuestion>> {
+  hrAnsweredQuestions(
+    cursor?: number | null,
+    limit = 20,
+    options: { pendingFollowupsOnly?: boolean; cursorAt?: string | null } = {},
+  ): Promise<HrAnsweredQuestionPage> {
     const params = new URLSearchParams({ limit: String(limit) });
     if (cursor != null) params.set("cursor", String(cursor));
-    return request<PageResult<HrAnsweredQuestion>>(`/hr/answered-questions?${params.toString()}`);
+    if (options.pendingFollowupsOnly) {
+      params.set("pendingFollowupsOnly", "true");
+      if (cursor != null && options.cursorAt) params.set("cursorAt", options.cursorAt);
+    }
+    return request<HrAnsweredQuestionPage>(`/hr/answered-questions?${params.toString()}`);
   },
 
   hrAnsweredPublicQuestions(cursor?: number | null, limit = 20): Promise<PageResult<HrAnsweredPublicQuestion>> {
@@ -287,6 +369,46 @@ export const api = {
 
   getProfile(): Promise<Profile> {
     return request<Profile>("/me/profile");
+  },
+
+  hrProfile(): Promise<HrProfile> {
+    return request<HrProfile>("/hr/profile");
+  },
+
+  patchHrProfile(payload: HrProfilePatch): Promise<HrProfile> {
+    return request<HrProfile>("/hr/profile", { method: "PATCH", body: payload });
+  },
+
+  hrStats(): Promise<HrContributionStats> {
+    return request<HrContributionStats>("/hr/stats");
+  },
+
+  hrAnswers(kind: HrAnswerKind = "all", status: HrAnswerStatus = "all", cursor?: number | null, limit = 5): Promise<PageResult<HrAnswerRecord>> {
+    const params = new URLSearchParams({ kind, status, limit: String(limit) });
+    if (cursor != null) params.set("cursor", String(cursor));
+    return request<PageResult<HrAnswerRecord>>(`/hr/answers?${params}`);
+  },
+
+  hrAnswer(id: number): Promise<HrAnswerRecord> {
+    return request<HrAnswerRecord>(`/hr/answers/${id}`);
+  },
+
+  hrNotifications(category: HrMessageCategory = "all", unreadOnly = false, cursor?: number | null, limit = 5): Promise<HrNotificationPage> {
+    const params = new URLSearchParams({ category, unreadOnly: String(unreadOnly), limit: String(limit) });
+    if (cursor != null) params.set("cursor", String(cursor));
+    return request<HrNotificationPage>(`/hr/notifications?${params}`);
+  },
+
+  hrUnreadCounts(): Promise<HrUnreadCounts> {
+    return request<HrUnreadCounts>("/hr/notifications/unread-count");
+  },
+
+  readHrNotification(id: number): Promise<HrNotification> {
+    return request<HrNotification>(`/hr/notifications/${id}/read`, { method: "POST" });
+  },
+
+  readAllHrNotifications(throughId: number): Promise<void> {
+    return request<void>("/hr/notifications/read-all", { method: "POST", body: { throughId } });
   },
 
   patchProfile(payload: ProfilePatch): Promise<Profile> {
@@ -367,11 +489,11 @@ export const api = {
     });
   },
 
-  followup(questionId: number, body: string, hrId: number): Promise<Followup> {
-    return request<Followup>(`/questions/${questionId}/followups`, { method: "POST", body: { body, hrId } });
+  followup(questionId: number, body: string, hrId: number, rootAnswerId: number): Promise<Followup> {
+    return request<Followup>(`/questions/${questionId}/followups`, { method: "POST", body: { body, hrId, rootAnswerId } });
   },
-  withdrawAnswer(answerId: number): Promise<void> {
-    return request<void>(`/answers/${answerId}/withdraw`, { method: "POST" });
+  withdrawAnswer(answerId: number): Promise<Answer> {
+    return request<Answer>(`/answers/${answerId}/withdraw`, { method: "POST" });
   },
 
   withdrawFollowup(questionId: number, followupId: number): Promise<void> {

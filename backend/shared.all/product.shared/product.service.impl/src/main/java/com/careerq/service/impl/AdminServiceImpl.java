@@ -23,6 +23,7 @@ import com.careerq.service.AdminService.ReportView;
 import com.careerq.service.AdminService.WordRequest;
 import com.careerq.service.AdminService.WordView;
 import com.careerq.service.ModerationService;
+import com.careerq.service.HrNotificationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +48,8 @@ public class AdminServiceImpl implements AdminService {
     private final ModerationWordDao wordDao;
     private final ModerationService moderationService;
     private final UserDao userDao;
+    private final AnswerRemovalService answerRemovalService;
+    private final HrNotificationService notifications;
 
     public AdminServiceImpl(QuestionDao questionDao,
                             AnswerDao answerDao,
@@ -54,7 +57,9 @@ public class AdminServiceImpl implements AdminService {
                             ReportDao reportDao,
                             ModerationWordDao wordDao,
                             ModerationService moderationService,
-                            UserDao userDao) {
+                            UserDao userDao,
+                            AnswerRemovalService answerRemovalService,
+                            HrNotificationService notifications) {
         this.questionDao = questionDao;
         this.answerDao = answerDao;
         this.followupDao = followupDao;
@@ -62,6 +67,8 @@ public class AdminServiceImpl implements AdminService {
         this.wordDao = wordDao;
         this.moderationService = moderationService;
         this.userDao = userDao;
+        this.answerRemovalService = answerRemovalService;
+        this.notifications = notifications;
     }
 
 
@@ -74,17 +81,19 @@ public class AdminServiceImpl implements AdminService {
                     snippet(question.getBody()), question.getStatus(), question.getCreatedAt(),
                     question.getBody(),
                     question.getId(), question.getTitle(),
-                    question.getAuthorId(), nicknameOf(question.getAuthorId())));
+                    question.getAuthorId(), nicknameOf(question.getAuthorId()), null, null));
         }
         for (AnswerDO answer : answerDao.findByStatusOrderByIdAsc(PENDING_HUMAN)) {
             QuestionDO question = questionDao.findById(answer.getQuestionId()).orElse(null);
             if (question == null) continue;
+            Long rootAnswerId = answer.getFollowupId() == null ? answer.getId()
+                    : followupDao.findById(answer.getFollowupId()).map(FollowupDO::getRootAnswerId).orElse(null);
             items.add(new QueueItem("answer", answer.getId(),
                     question == null ? null : question.getTitle(),
                     snippet(answer.getBody()), answer.getStatus(), answer.getCreatedAt(),
                     answer.getBody(),
                     answer.getQuestionId(), question == null ? null : question.getTitle(),
-                    answer.getAuthorId(), nicknameOf(answer.getAuthorId())));
+                    answer.getAuthorId(), nicknameOf(answer.getAuthorId()), rootAnswerId, answer.getFollowupId()));
         }
         for (FollowupDO followup : followupDao.findPending()) {
             QuestionDO question = questionDao.findById(followup.getQuestionId()).orElse(null);
@@ -94,7 +103,7 @@ public class AdminServiceImpl implements AdminService {
                     snippet(followup.getBody()), followup.getStatus(), followup.getCreatedAt(),
                     followup.getBody(),
                     followup.getQuestionId(), question == null ? null : question.getTitle(),
-                    followup.getSenderId(), nicknameOf(followup.getSenderId())));
+                    followup.getSenderId(), nicknameOf(followup.getSenderId()), followup.getRootAnswerId(), followup.getId()));
         }
 
         items.sort(Comparator.comparing(QueueItem::createdAt));
@@ -123,12 +132,14 @@ public class AdminServiceImpl implements AdminService {
                 questionDao.updateStatus(targetId, status);
             }
             case "answer" -> {
-                AnswerDO answer = answerDao.findByIdForUpdate(targetId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "回答不存在"));
-                requirePending(answer.getStatus(), status);
-                answerDao.updateStatus(targetId, status);
-                if (approved) {
-                    questionDao.recordAnswer(answer.getQuestionId());
+                if ("removed".equals(status)) {
+                    answerRemovalService.removeByOperator(operator, targetId);
+                } else {
+                    AnswerDO answer = answerRemovalService.lockAnswer(targetId);
+                    requirePending(answer.getStatus(), status);
+                    answerDao.updateStatus(targetId, status);
+                    if (approved) questionDao.recordAnswer(answer.getQuestionId());
+                    notifications.answerReviewed(targetId, normalized);
                 }
             }
             case "followup" -> {
@@ -136,6 +147,7 @@ public class AdminServiceImpl implements AdminService {
                         .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "追问不存在"));
                 requirePending(followup.getStatus(), status);
                 followupDao.updateStatus(targetId, status);
+                if (approved) notifications.followupPublished(targetId);
             }
             default -> throw new BusinessException(ErrorCode.INVALID_PARAM, "targetType 不合法");
         }
@@ -171,7 +183,9 @@ public class AdminServiceImpl implements AdminService {
             throw new BusinessException(ErrorCode.INVALID_PARAM, "decision 只能是 dismiss/remove");
         }
         if ("remove".equals(normalized)) {
-            updateTargetStatus(report.getTargetType(), report.getTargetId(), "removed");
+            removeReportedTarget(operator, report.getTargetType(), report.getTargetId());
+            moderationService.recordHuman(report.getTargetType(), report.getTargetId(), "remove",
+                    operator.getId(), note);
         }
         report.setStatus("dismiss".equals(normalized) ? "dismissed" : "resolved");
         report.setHandledBy(operator.getId());
@@ -179,12 +193,12 @@ public class AdminServiceImpl implements AdminService {
         reportDao.updateResolution(report);
     }
 
-    private int updateTargetStatus(String targetType, Long targetId, String status) {
-        return switch (targetType) {
-            case "question" -> questionDao.updateStatus(targetId, status);
-            case "answer" -> answerDao.updateStatus(targetId, status);
+    private void removeReportedTarget(AuthUser operator, String targetType, Long targetId) {
+        switch (targetType) {
+            case "question" -> questionDao.updateStatus(targetId, "removed");
+            case "answer" -> answerRemovalService.removeByOperator(operator, targetId);
             default -> throw new BusinessException(ErrorCode.INVALID_PARAM, "targetType 不合法");
-        };
+        }
     }
 
     @Override

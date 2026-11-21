@@ -1,4 +1,4 @@
-﻿# 职问桥全链路冒烟测试
+# 职问桥全链路冒烟测试
 # 用法：powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-test.ps1 [-Port 18080] [-SkipBuild]
 # 依赖：JDK 21（JAVA_HOME 指向 JDK 21）、Maven、可构建的后端 jar。
 param(
@@ -152,6 +152,7 @@ try {
 
     Write-Host "== 2. HR 工作台 + 回复学生追问 ==" -ForegroundColor Cyan
     $studentFollowup = Invoke-Api POST "/api/v1/questions/$($risky.data.id)/followups" $student @{
+        hrId = $answer.data.author.id; rootAnswerId = $answer.data.id
         body = "准备简历时，应该怎样突出岗位匹配度？"
     }
     $followupAnswer = Invoke-Api POST "/api/v1/questions/$($risky.data.id)/followups/$($studentFollowup.data.id)/answers" $hr @{

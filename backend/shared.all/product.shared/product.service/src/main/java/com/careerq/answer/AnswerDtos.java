@@ -25,6 +25,8 @@ public final class AnswerDtos {
             String body,
             String lengthType,
             String status,
+            /** removed 时为 author / operator / unknown，其他状态为空。 */
+            String removalSource,
             UserBrief author,
             int likeCount,
             int usefulCount,

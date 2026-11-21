@@ -7,6 +7,8 @@ import QuestionDetailView from "./views/QuestionDetailView.vue";
 import AskView from "./views/AskView.vue";
 import MyQaView from "./views/MyQaView.vue";
 import HrWorkspaceView from "./views/HrWorkspaceView.vue";
+import HrProfileView from "./views/HrProfileView.vue";
+import HrMessagesView from "./views/HrMessagesView.vue";
 
 export const router = createRouter({
   history: createWebHistory("/careerq/"),
@@ -24,6 +26,8 @@ export const router = createRouter({
     { path: "/me", name: "my-qa", component: MyQaView, meta: { requiresAuth: true } },
     { path: "/ask", component: AskView, meta: { requiresAuth: true, role: "student" } },
     { path: "/hr", name: "hr-workbench", component: HrWorkspaceView, meta: { requiresAuth: true, role: "hr" } },
+    { path: "/hr/profile", name: "hr-profile", component: HrProfileView, meta: { requiresAuth: true, role: "hr" } },
+    { path: "/hr/messages", name: "hr-messages", component: HrMessagesView, meta: { requiresAuth: true, role: "hr" } },
     { path: "/:pathMatch(.*)*", redirect: "/" },
   ],
 });
@@ -41,6 +45,9 @@ router.beforeEach(async (to) => {
   const user = userStore.isAuthenticated ? userStore.user : await userStore.fetchUserInfo(true);
   if (!user) {
     return { path: "/login", query: { redirect: to.fullPath } };
+  }
+  if (user.role === "hr" && to.path === "/me") {
+    return { path: "/hr/profile", replace: true };
   }
   if (to.meta.role && user.role !== to.meta.role) {
     return "/";

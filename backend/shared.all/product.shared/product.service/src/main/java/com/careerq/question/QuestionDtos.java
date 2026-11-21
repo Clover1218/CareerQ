@@ -48,10 +48,20 @@ public final class QuestionDtos {
             String body,
             String lengthType,
             String status,
+            String removalSource,
             LocalDateTime createdAt) {
     }
 
-    public record HrAnsweredQuestionView(QuestionView question, HrAnswerSummary myAnswer) {
+    public record HrFollowupSummary(int pendingCount, int reviewingCount, Long firstPendingFollowupId,
+                                    LocalDateTime latestPendingAt) {
+    }
+
+    public record HrAnsweredQuestionView(QuestionView question, HrAnswerSummary myAnswer, HrFollowupSummary followups) {
+    }
+
+    public record HrAnsweredQuestionPage(List<HrAnsweredQuestionView> items, Long nextCursor,
+                                         LocalDateTime nextCursorAt, long pendingQuestionCount,
+                                         long pendingFollowupCount) {
     }
 
     public record HrAnsweredPublicQuestionView(QuestionView question, boolean hasPendingAnswer) {
@@ -111,12 +121,16 @@ public final class QuestionDtos {
             String kind,
             Long id,
             Long followupId,
-            /** 追问的目标 HR；回答类消息为空，前端按它归属线程。 */
+            /** 追问的目标 HR，用于答主标注与权限判断。 */
             Long hrId,
+            /** 对应主回答；为空表示尚不能确定归属的旧追问。 */
+            Long rootAnswerId,
             String body,
             UserBrief author,
             boolean hr,
             String status,
+            /** 仅 HR 回答/回复的移除来源；学生追问为空。 */
+            String removalSource,
             int likeCount,
             boolean liked,
             LocalDateTime createdAt) {

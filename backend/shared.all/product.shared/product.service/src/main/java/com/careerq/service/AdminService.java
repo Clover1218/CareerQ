@@ -26,7 +26,8 @@ public interface AdminService {
 
     record QueueItem(String targetType, Long targetId, String title, String snippet,
                      String status, LocalDateTime createdAt, String body,
-                     Long questionId, String questionTitle, Long authorId, String authorNickname) {
+                     Long questionId, String questionTitle, Long authorId, String authorNickname,
+                     Long rootAnswerId, Long followupId) {
     }
 
     record DecideRequest(@NotBlank String decision, @Size(max = 500) String note) {
