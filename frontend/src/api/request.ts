@@ -4,6 +4,10 @@
  */
 
 const BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
+import { SESSION_REFRESH_EVENT } from "@/utils/sessionSync";
+
+let studentIdentity: number | null = null;
+export function setStudentRequestIdentity(id: number | null) { studentIdentity = id; }
 
 /** 后端统一响应结构：{ code, message, data } */
 export interface ApiEnvelope<T> {
@@ -56,6 +60,8 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const { method: rawMethod = "GET", body, rawBody, skipCsrf = false, headers: rawHeaders, ...rest } = options;
   const method = rawMethod.toUpperCase();
   const needsCsrf = !skipCsrf && method !== "GET" && method !== "HEAD";
+  // 固定发起操作时看到的学生身份，重试 CSRF 时也不能悄悄改成另一个账号。
+  const expectedStudent = needsCsrf && !path.startsWith("/auth/") ? studentIdentity : null;
   const payload = rawBody ?? (body === undefined ? undefined : JSON.stringify(body));
 
   const send = async (): Promise<Response> => {
@@ -68,6 +74,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     if (needsCsrf) {
       headers.set("X-XSRF-TOKEN", csrfToken ?? (await fetchCsrfToken()));
     }
+    if (expectedStudent != null) headers.set("X-CareerQ-Student-Id", String(expectedStudent));
     return fetch(`${BASE}${path}`, {
       ...rest,
       method,
@@ -96,6 +103,8 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   }
 
   const envelope = (await res.json().catch(() => null)) as ApiEnvelope<T> | null;
+
+  if (envelope?.code === 40902) window.dispatchEvent(new Event(SESSION_REFRESH_EVENT));
 
   if (!res.ok || !envelope || envelope.code !== 0) {
     throw new ApiError(envelope?.message ?? `HTTP ${res.status}`, envelope?.code ?? -1, res.status);

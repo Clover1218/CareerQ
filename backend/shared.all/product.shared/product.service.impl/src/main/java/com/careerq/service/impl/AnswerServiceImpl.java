@@ -17,6 +17,7 @@ import com.careerq.dataobject.QuestionDO;
 import com.careerq.security.AuthUser;
 import com.careerq.service.AnswerService;
 import com.careerq.service.ModerationService;
+import com.careerq.service.StudentNotificationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +33,7 @@ public class AnswerServiceImpl implements AnswerService {
     private final ModerationService moderationService;
     private final HrProfileDao hrProfileDao;
     private final AnswerRemovalService answerRemovalService;
+    private final StudentNotificationService studentNotifications;
 
     public AnswerServiceImpl(AnswerDao answerDao,
                              FollowupDao followupDao,
@@ -39,7 +41,8 @@ public class AnswerServiceImpl implements AnswerService {
                              UserDao userDao,
                              ModerationService moderationService,
                              HrProfileDao hrProfileDao,
-                             AnswerRemovalService answerRemovalService) {
+                             AnswerRemovalService answerRemovalService,
+                             StudentNotificationService studentNotifications) {
         this.answerDao = answerDao;
         this.followupDao = followupDao;
         this.questionDao = questionDao;
@@ -47,6 +50,7 @@ public class AnswerServiceImpl implements AnswerService {
         this.moderationService = moderationService;
         this.hrProfileDao = hrProfileDao;
         this.answerRemovalService = answerRemovalService;
+        this.studentNotifications = studentNotifications;
     }
 
     @Override
@@ -110,6 +114,7 @@ public class AnswerServiceImpl implements AnswerService {
 
         if (PUBLISHED.equals(answer.getStatus())) {
             questionDao.recordAnswer(questionId);
+            studentNotifications.answerPublished(answer.getId());
         }
         return toView(answer);
     }

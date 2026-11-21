@@ -1,4 +1,5 @@
 import { request, resetCsrfToken } from "./request";
+import { announceSessionChange } from "@/utils/sessionSync";
 
 export { ApiError, resetCsrfToken, request, type ApiEnvelope, type RequestOptions } from "./request";
 
@@ -82,6 +83,8 @@ export interface QuestionFeedItem {
   createdAt: string;
   /** 推荐理由：命中的正向偏好标签；时间序列表为空数组 */
   matchedTags: string[];
+  /** 当前会话的互动状态；旧摘要或本人列表可能不提供，由卡片读取内容接口。 */
+  viewer?: ViewerState;
 }
 
 /** 推荐流分页：游标是不透明字符串，同一快照内翻页 */
@@ -261,6 +264,20 @@ export interface HrNotification {
 export interface HrUnreadCounts { total: number; followup: number; system: number; snapshotId: number }
 export interface HrNotificationPage extends PageResult<HrNotification> { snapshotId: number }
 
+export type StudentMessageCategory = "all" | "reply" | "like" | "system";
+export interface StudentNotification {
+  id: number; type: string; category: "reply" | "like" | "system";
+  title: string; message: string; questionTitle?: string | null; questionId: number;
+  answerId?: number | null; followupId?: number | null;
+  destination: "question" | "unavailable"; createdAt: string; readAt?: string | null;
+}
+export interface StudentUnreadCounts { total: number; reply: number; like: number; system: number; snapshotId: number }
+export interface StudentNotificationPage extends PageResult<StudentNotification> { snapshotId: number }
+export interface Favorite {
+  targetType: "question" | "answer"; targetId: number; questionId: number; followupId?: number | null;
+  title: string; excerpt: string; createdAt: string;
+}
+
 export interface Followup {
   id: number;
   questionId: number;
@@ -299,6 +316,23 @@ export interface PageResult<T> {
 }
 
 export const api = {
+  studentNotifications(category: StudentMessageCategory = "all", unreadOnly = false, cursor?: number | null): Promise<StudentNotificationPage> {
+    const params = new URLSearchParams({ category, unreadOnly: String(unreadOnly), limit: "5" });
+    if (cursor != null) params.set("cursor", String(cursor));
+    return request<StudentNotificationPage>(`/student/notifications?${params}`);
+  },
+  studentUnreadCounts(): Promise<StudentUnreadCounts> { return request("/student/notifications/unread-count"); },
+  readStudentNotification(id: number): Promise<StudentNotification> {
+    return request(`/student/notifications/${id}/read`, { method: "POST" });
+  },
+  readAllStudentNotifications(throughId: number): Promise<void> {
+    return request("/student/notifications/read-all", { method: "POST", body: { throughId } });
+  },
+  myFavorites(cursor?: number | null): Promise<PageResult<Favorite>> {
+    const params = new URLSearchParams({ limit: "5" });
+    if (cursor != null) params.set("cursor", String(cursor));
+    return request(`/me/favorites?${params}`);
+  },
   async sendCode(phone: string): Promise<void> {
     await request<void>("/auth/sms-code", { method: "POST", body: { phone } });
   },
@@ -314,16 +348,19 @@ export const api = {
     await request<{ user: User }>("/auth/register", { method: "POST", body: payload });
     // 注册成功即建立会话，旧 CSRF token 失效
     resetCsrfToken();
+    announceSessionChange();
   },
 
   async login(phone: string, code: string): Promise<void> {
     await request<{ user: User }>("/auth/login", { method: "POST", body: { phone, code } });
     resetCsrfToken();
+    announceSessionChange();
   },
 
   async logout(): Promise<void> {
     await request<void>("/auth/logout", { method: "POST" });
     resetCsrfToken();
+    announceSessionChange();
   },
 
   me(): Promise<User> {
@@ -496,8 +533,8 @@ export const api = {
     return request<Answer>(`/answers/${answerId}/withdraw`, { method: "POST" });
   },
 
-  withdrawFollowup(questionId: number, followupId: number): Promise<void> {
-    return request<void>(`/questions/${questionId}/followups/${followupId}/withdraw`, {
+  withdrawFollowup(questionId: number, followupId: number): Promise<Followup> {
+    return request<Followup>(`/questions/${questionId}/followups/${followupId}/withdraw`, {
       method: "POST",
     });
   },

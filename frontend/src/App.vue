@@ -6,6 +6,7 @@ import { dateZhCN, zhCN, type GlobalThemeOverrides } from "naive-ui";
 import { useUserStore } from "@/stores/user";
 import MessageMenu from "@/components/MessageMenu.vue";
 import ProfileDrawer from "@/components/ProfileDrawer.vue";
+import { SESSION_SIGNAL_KEY, SESSION_REFRESH_EVENT } from "@/utils/sessionSync";
 
 // Naive UI 主题与 Figma token 对齐，避免组件库默认蓝与设计稿脱节
 const themeOverrides: GlobalThemeOverrides = {
@@ -50,7 +51,16 @@ function goProfile() {
 }
 
 async function refresh() {
-  await userStore.fetchUserInfo();
+  await userStore.fetchUserInfo(user.value?.role === "student");
+}
+
+function syncStudentSession() {
+  if (document.visibilityState === "visible" && (!user.value || user.value.role === "student")) {
+    void userStore.syncSession();
+  }
+}
+function onSessionStorage(event: StorageEvent) {
+  if (event.key === SESSION_SIGNAL_KEY) syncStudentSession();
 }
 
 async function logout() {
@@ -101,10 +111,18 @@ watch(showLogoutConfirm, (open) => {
 
 onMounted(() => {
   window.addEventListener("keydown", onKeydown);
+  window.addEventListener("focus", syncStudentSession);
+  window.addEventListener("storage", onSessionStorage);
+  window.addEventListener(SESSION_REFRESH_EVENT, syncStudentSession);
+  document.addEventListener("visibilitychange", syncStudentSession);
 });
 
 onUnmounted(() => {
   window.removeEventListener("keydown", onKeydown);
+  window.removeEventListener("focus", syncStudentSession);
+  window.removeEventListener("storage", onSessionStorage);
+  window.removeEventListener(SESSION_REFRESH_EVENT, syncStudentSession);
+  document.removeEventListener("visibilitychange", syncStudentSession);
   document.body.style.overflow = "";
 });
 
@@ -158,12 +176,12 @@ watch(() => route.fullPath, refresh);
                 </template>
               </div>
             </header>
-            <main :class="['my-qa', 'hr-workbench', 'hr-profile', 'hr-messages'].includes(String(route.name)) ? 'wide-shell' : 'container'">
+            <main :class="['my-qa', 'student-messages', 'hr-workbench', 'hr-profile', 'hr-messages'].includes(String(route.name)) ? 'wide-shell' : 'container'">
               <router-view v-slot="{ Component, route: currentRoute }">
                 <keep-alive include="HrWorkspaceView,HrProfileView,HrMessagesView">
                   <component
                     :is="Component"
-                    :key="['hr-profile', 'hr-messages'].includes(String(currentRoute.name)) ? `${String(currentRoute.name)}-${user?.id}` : currentRoute.name === 'hr-workbench' ? 'hr-workbench' : currentRoute.fullPath"
+                    :key="user?.role === 'student' ? `student-${user.id}-${currentRoute.fullPath}` : ['hr-profile', 'hr-messages'].includes(String(currentRoute.name)) ? `${String(currentRoute.name)}-${user?.id}` : currentRoute.name === 'hr-workbench' ? 'hr-workbench' : currentRoute.fullPath"
                   />
                 </keep-alive>
               </router-view>

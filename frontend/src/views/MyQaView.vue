@@ -1,17 +1,19 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useDialog, useMessage } from "naive-ui";
 import { api, type MeStats, type Profile, type Question, type QuestionFeedItem } from "@/api";
 import { useUserStore } from "@/stores/user";
 import { clearViewHistory, getViewHistory, removeViewHistoryEntry, type ViewHistoryEntry } from "@/utils/history";
 import FeedCard from "@/components/FeedCard.vue";
 import FeedIcon from "@/components/FeedIcon.vue";
+import StudentFavorites from "@/components/StudentFavorites.vue";
 
 const userStore = useUserStore();
 const { user } = storeToRefs(userStore);
 const route = useRoute();
+const router = useRouter();
 const message = useMessage();
 const dialog = useDialog();
 
@@ -28,16 +30,17 @@ const loading = ref(false);
 const error = ref("");
 
 // 「我的提问 / 历史浏览」两个标签页；历史浏览暂用本地存储，后端接口后续再接
-type MyQaTab = "questions" | "history";
-const activeTab = ref<MyQaTab>("questions");
-const historyEntries = ref<ViewHistoryEntry[]>(getViewHistory());
+type MyQaTab = "questions" | "history" | "favorites";
+const activeTab = ref<MyQaTab>(route.query.tab === "history" || route.query.tab === "favorites" ? route.query.tab : "questions");
+const historyEntries = ref<ViewHistoryEntry[]>(getViewHistory(user.value?.id ?? null));
 const tabRowRef = ref<HTMLElement | null>(null);
 
 function switchTab(tab: MyQaTab) {
   if (activeTab.value === tab) return;
   activeTab.value = tab;
+  void router.replace({ path: "/me", query: tab === "questions" ? {} : { tab } });
   if (tab === "history") {
-    historyEntries.value = getViewHistory();
+    historyEntries.value = getViewHistory(user.value?.id ?? null);
   }
   // 若已经滚动到标签栏下方，切页时平滑回到标签栏，避免高度差造成的跳动
   void nextTick(() => {
@@ -51,13 +54,13 @@ function switchTab(tab: MyQaTab) {
 }
 
 function clearHistory() {
-  clearViewHistory();
+  clearViewHistory(user.value?.id ?? null);
   historyEntries.value = [];
 }
 
 function deleteHistory(id: number) {
-  removeViewHistoryEntry(id);
-  historyEntries.value = getViewHistory();
+  removeViewHistoryEntry(id, user.value?.id ?? null);
+  historyEntries.value = getViewHistory(user.value?.id ?? null);
 }
 
 function formatVisitedAt(iso: string): string {
@@ -150,7 +153,9 @@ async function expandAll() {
   expanding.value = true;
   try {
     while (cursor.value) {
-      await loadQuestions(false);
+      const previous = cursor.value;
+      if (!await loadQuestions(false)) break;
+      if (cursor.value === previous) { error.value = "分页暂时无法继续，请稍后重试。"; break; }
     }
   } finally {
     expanding.value = false;
@@ -207,16 +212,18 @@ function confirmWithdraw(question: Question) {
   });
 }
 
-async function loadQuestions(reset = false) {
-  if (loading.value) return;
+async function loadQuestions(reset = false): Promise<boolean> {
+  if (loading.value) return false;
   loading.value = true;
   error.value = "";
   try {
     const page = await api.myQuestions(reset ? null : cursor.value);
     questions.value = reset ? page.items : [...questions.value, ...page.items];
-    cursor.value = page.nextCursor;
+    cursor.value = page.nextCursor ?? null;
+    return true;
   } catch (e) {
     error.value = errorText(e, "提问列表加载失败");
+    return false;
   } finally {
     loading.value = false;
   }
@@ -284,7 +291,7 @@ onMounted(() => {
   // 从个人信息弹窗点「历史浏览」会带 ?tab=history，进来直接切到历史标签
   if (route.query.tab === "history") {
     activeTab.value = "history";
-    historyEntries.value = getViewHistory();
+    historyEntries.value = getViewHistory(user.value?.id ?? null);
   }
   void loadProfile();
   void loadStats();
@@ -296,7 +303,7 @@ watch(
   (tab) => {
     if (tab === "history") {
       activeTab.value = "history";
-      historyEntries.value = getViewHistory();
+      historyEntries.value = getViewHistory(user.value?.id ?? null);
     }
   },
 );
@@ -346,7 +353,7 @@ watch(
         accept="image/png,image/jpeg,image/webp"
         @change="onAvatarChange"
       />
-      <p class="m-0 text-14 text-muted">占位</p>
+      <div class="flex flex-wrap items-center gap-4 text-14 text-muted"><span>我的求职问答与学习记录</span><router-link to="/messages" class="text-brand">查看消息 →</router-link></div>
     </div>
   </section>
 
@@ -362,6 +369,7 @@ watch(
           <FeedIcon name="clock" :size="18" />
           <span>我的提问</span>
         </button>
+        <button class="myqa-tab" :class="{ 'is-active': activeTab === 'favorites' }" type="button" @click="switchTab('favorites')"><FeedIcon name="star" :size="18" /><span>我的收藏</span></button>
         <button
           class="myqa-tab"
           :class="{ 'is-active': activeTab === 'history' }"
@@ -378,7 +386,7 @@ watch(
           <p class="m-0 text-14 font-medium text-ink">{{ stats.likeCount }}</p>
         </div>
         <div class="text-center">
-          <p class="m-0 text-14 text-muted">回答数</p>
+          <p class="m-0 text-14 text-muted" title="包含 HR 对你的问题的回答和追问回复">收到回答</p>
           <p class="m-0 text-14 font-medium text-ink">{{ stats.receivedAnswerCount }}</p>
         </div>
       </div>
@@ -403,15 +411,19 @@ watch(
             还没有提问，去提出第一个问题吧。
           </p>
 
-          <div v-if="hiddenCount > 0 || expanded" class="text-center">
-            <button v-if="!expanded" class="aux-btn" :disabled="expanding" @click="expandAll">
+          <div v-if="hiddenCount > 0 || expanded || cursor" class="text-center">
+            <button v-if="!expanded" class="aux-btn" :disabled="expanding || loading" @click="expandAll">
               {{ expanding ? "加载中…" : `展开全部（共 ${feedEntries.length} 条）` }}
             </button>
-            <button v-else class="aux-btn" @click="collapseAll">收起</button>
+            <template v-else>
+              <button v-if="cursor" class="aux-btn" :disabled="expanding || loading" @click="expandAll">{{ expanding ? '加载中…' : error ? '重试加载剩余提问' : '加载剩余提问' }}</button>
+              <button class="aux-btn" :disabled="expanding" @click="collapseAll">收起</button>
+            </template>
           </div>
         </template>
 
-        <!-- 历史浏览：暂存本地，后端接口后续接入 -->
+        <StudentFavorites v-else-if="activeTab === 'favorites'" />
+        <!-- 历史浏览：按账号暂存本地 -->
         <template v-else>
           <p class="m-0 text-14 text-muted">最近浏览过的问题（保存在本机，最多 50 条）。</p>
 

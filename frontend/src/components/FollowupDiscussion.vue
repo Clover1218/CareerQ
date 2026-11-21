@@ -12,8 +12,9 @@ defineProps<{
   highlighted: boolean;
   withdrawingAnswerId: number | null;
   highlightedAnswerId?: number | null;
+  withdrawingFollowupId?: number | null;
 }>();
-defineEmits<{ reply: [id: number]; useful: [id: number]; withdraw: [answer: Answer] }>();
+defineEmits<{ reply: [id: number]; useful: [id: number]; withdraw: [answer: Answer]; withdrawFollowup: [followup: Followup] }>();
 
 const statusLabels: Record<string, string> = {
   pending_machine: "待审核", pending_human: "待审核", rejected: "审核未通过",
@@ -30,6 +31,11 @@ const statusLabels: Record<string, string> = {
       </div>
       <p class="followup-body">{{ followup.status === 'removed' ? '这条追问已撤销或下架。' : followup.body }}</p>
       <span v-if="statusLabels[followup.status]" class="tag">{{ statusLabels[followup.status] }}</span>
+      <button
+        v-if="viewer?.role === 'student' && viewer.id === followup.author.id && ['published', 'pending_machine', 'pending_human'].includes(followup.status)"
+        type="button" class="withdraw-answer" :disabled="withdrawingFollowupId != null"
+        @click="$emit('withdrawFollowup', followup)"
+      >{{ withdrawingFollowupId === followup.id ? '撤销中…' : '撤销追问' }}</button>
       <button v-if="canReply" type="button" class="link muted" @click="$emit('reply', followup.id)">回答这条追问</button>
     </div>
     <div v-for="reply in replies" :id="`reply-${reply.id}`" :key="reply.id" class="followup-answer" :class="{ highlighted: highlightedAnswerId === reply.id }">

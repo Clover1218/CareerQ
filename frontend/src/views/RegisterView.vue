@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ApiError, api } from "../api";
 import { useUserStore } from "@/stores/user";
+import { authRedirect } from "@/utils/authRedirect";
 
 const router = useRouter();
 const route = useRoute();
 const userStore = useUserStore();
+const returnTo = computed(() => authRedirect(route.query.redirect));
 const phone = ref(String(route.query.phone ?? ""));
 const code = ref("123456");
 const nickname = ref("");
@@ -41,7 +43,7 @@ async function submit() {
     });
     // 注册即登录：同步 store，保证顶部栏立刻显示用户
     await userStore.fetchUserInfo(true);
-    router.push(String(route.query.redirect ?? "/"));
+    router.replace(returnTo.value);
   } catch (e: any) {
     if (e instanceof ApiError && e.code === 40901) {
       error.value = "该手机号已注册，请直接登录";
@@ -92,7 +94,7 @@ async function submit() {
       {{ loading ? "注册中…" : "注册并登录" }}
     </button>
     <p class="muted" style="text-align: center; margin-top: 12px">
-      已有账号？<router-link to="/login">去登录</router-link>
+      已有账号？<router-link :to="{ path: '/login', query: { redirect: returnTo } }">去登录</router-link>
       <span> · </span>
       <router-link to="/">先随便逛逛</router-link>
     </p>

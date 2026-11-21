@@ -79,7 +79,8 @@ public final class QuestionDtos {
             int likeCount,
             int favoriteCount,
             LocalDateTime createdAt,
-            List<String> matchedTags) {
+            List<String> matchedTags,
+            ViewerState viewer) {
     }
 
     /** 推荐流分页：游标不透明，使用字符串而不是公共 PageResult 的 Long。 */

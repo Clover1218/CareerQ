@@ -9,6 +9,7 @@ import MyQaView from "./views/MyQaView.vue";
 import HrWorkspaceView from "./views/HrWorkspaceView.vue";
 import HrProfileView from "./views/HrProfileView.vue";
 import HrMessagesView from "./views/HrMessagesView.vue";
+import StudentMessagesView from "./views/StudentMessagesView.vue";
 
 export const router = createRouter({
   history: createWebHistory("/careerq/"),
@@ -25,6 +26,7 @@ export const router = createRouter({
     // 需要登录：学生问答 / 提问 / HR 工作台
     { path: "/me", name: "my-qa", component: MyQaView, meta: { requiresAuth: true } },
     { path: "/ask", component: AskView, meta: { requiresAuth: true, role: "student" } },
+    { path: "/messages", name: "student-messages", component: StudentMessagesView, meta: { requiresAuth: true, role: "student" } },
     { path: "/hr", name: "hr-workbench", component: HrWorkspaceView, meta: { requiresAuth: true, role: "hr" } },
     { path: "/hr/profile", name: "hr-profile", component: HrProfileView, meta: { requiresAuth: true, role: "hr" } },
     { path: "/hr/messages", name: "hr-messages", component: HrMessagesView, meta: { requiresAuth: true, role: "hr" } },
@@ -42,7 +44,8 @@ router.beforeEach(async (to) => {
 
   // 未登录时强制向后端确认一次，避免退出登录后仍停留在受保护页面
   const userStore = useUserStore();
-  const user = userStore.isAuthenticated ? userStore.user : await userStore.fetchUserInfo(true);
+  const user = userStore.user?.role === "student" || !userStore.isAuthenticated
+    ? await userStore.fetchUserInfo(true) : userStore.user;
   if (!user) {
     return { path: "/login", query: { redirect: to.fullPath } };
   }

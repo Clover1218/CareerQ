@@ -30,6 +30,7 @@ declare module 'vue' {
     ProfileDrawer: typeof import('./components/ProfileDrawer.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    StudentFavorites: typeof import('./components/StudentFavorites.vue')['default']
     TagPicker: typeof import('./components/TagPicker.vue')['default']
   }
 }

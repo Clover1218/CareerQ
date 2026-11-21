@@ -147,6 +147,8 @@ function go(path: string) {
               <span>历史浏览</span>
               <span class="drawer-arrow">›</span>
             </button>
+            <button v-if="user?.role === 'student'" type="button" class="drawer-menu-item" @click="go('/me?tab=favorites')"><span>我的收藏</span><span class="drawer-arrow">›</span></button>
+            <button v-if="user?.role === 'student'" type="button" class="drawer-menu-item" @click="go('/messages')"><span>消息中心</span><span class="drawer-arrow">›</span></button>
             <button type="button" class="drawer-menu-item" @click="go('/me')">
               <span>个人资料</span>
               <span class="drawer-arrow">›</span>

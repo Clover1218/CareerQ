@@ -43,6 +43,39 @@ public interface InteractionDao {
                    @Param("targetId") Long targetId,
                    @Param("type") String type);
 
+    /** 一页问题一次查询，仅返回当前会话用户本人的互动。 */
+    @Select("""
+            <script>
+            select target_id, type from interactions
+            where user_id = #{userId} and target_type = 'question'
+            <choose>
+              <when test="questionIds != null and !questionIds.isEmpty()">
+                and target_id in
+                <foreach collection="questionIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+              </when>
+              <otherwise>and 1 = 0</otherwise>
+            </choose>
+            </script>
+            """)
+    List<InteractionDO> findQuestionInteractions(@Param("userId") Long userId,
+                                                @Param("questionIds") List<Long> questionIds);
+
+    @Select("""
+            <script>
+            select i.* from interactions i
+            left join answers a on i.target_type = 'answer' and a.id = i.target_id
+            join questions q on q.id = case when i.target_type = 'question' then i.target_id else a.question_id end
+            where i.user_id = #{userId} and i.type = 'favorite' and i.target_type in ('question', 'answer')
+              and q.scope = 'public' and q.status = 'published'
+              and (i.target_type = 'question' or a.status = 'published')
+            <if test="targetType != null">and i.target_type = #{targetType}</if>
+            <if test="cursor != null">and i.id &lt; #{cursor}</if>
+            order by i.id desc limit #{limit}
+            </script>
+            """)
+    List<InteractionDO> findVisibleFavorites(@Param("userId") Long userId, @Param("targetType") String targetType,
+                                            @Param("cursor") Long cursor, @Param("limit") int limit);
+
     @Select("""
             select count(*) from interactions i
             where i.type = 'like' and (
