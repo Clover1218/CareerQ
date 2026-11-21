@@ -10,6 +10,8 @@ public final class FavoriteDtos {
     public record FavoriteView(
             String targetType,
             Long targetId,
+            Long questionId,
+            Long followupId,
             String title,
             String excerpt,
             LocalDateTime createdAt) {

@@ -13,6 +13,7 @@ public enum ErrorCode {
     NOT_FOUND(40400, HttpStatus.NOT_FOUND, "资源不存在"),
     USER_NOT_REGISTERED(40401, HttpStatus.NOT_FOUND, "该手机号未注册，请先注册"),
     CONFLICT(40900, HttpStatus.CONFLICT, "状态冲突"),
+    SESSION_CHANGED(40902, HttpStatus.CONFLICT, "登录身份已变化，请确认当前账号后重新操作"),
     PHONE_ALREADY_REGISTERED(40901, HttpStatus.CONFLICT, "该手机号已注册，请直接登录"),
     RATE_LIMITED(42900, HttpStatus.TOO_MANY_REQUESTS, "请求过于频繁"),
     INTERNAL_ERROR(50000, HttpStatus.INTERNAL_SERVER_ERROR, "服务异常"),

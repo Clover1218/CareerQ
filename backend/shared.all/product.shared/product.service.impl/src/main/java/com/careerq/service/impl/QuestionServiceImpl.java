@@ -175,7 +175,7 @@ public class QuestionServiceImpl implements QuestionService {
             QuestionDO last = pageRows.get(pageRows.size() - 1);
             nextCursor = new FeedSeekCursor("latest", filter.hash(), last.getCreatedAt(), last.getId()).encode();
         }
-        return new FeedPage(toFeedItems(pageRows), nextCursor);
+        return new FeedPage(toFeedItems(pageRows, viewer), nextCursor);
     }
 
     private FeedPage feedScored(AuthUser viewer, FeedFilter filter, String cursor, int size) {
@@ -207,9 +207,12 @@ public class QuestionServiceImpl implements QuestionService {
             return new FeedPage(List.of(), null);
         }
         int end = Math.min(start + size, ordered.size());
-        List<QuestionFeedItem> items = ordered.subList(start, end).stream()
+        var pageRows = ordered.subList(start, end);
+        var viewerStates = loadViewerStates(viewer, pageRows.stream().map(ScoredQuestion::question).toList());
+        List<QuestionFeedItem> items = pageRows.stream()
                 .map(item -> toFeedItem(item.question(),
-                        item.tags().stream().map(QuestionTagDO::getName).toList(), item.matchedTags()))
+                        item.tags().stream().map(QuestionTagDO::getName).toList(), item.matchedTags(),
+                        viewerStates.get(item.question().getId())))
                 .toList();
         boolean hasMore = end < ordered.size() && page.page() + 1 < FeedTuning.MAX_PAGE;
         return new FeedPage(items, hasMore ? page.next().encode() : null);
@@ -393,17 +396,34 @@ public class QuestionServiceImpl implements QuestionService {
         return diversify(filterNegatives(scored, size));
     }
 
-    private List<QuestionFeedItem> toFeedItems(List<QuestionDO> rows) {
+    private List<QuestionFeedItem> toFeedItems(List<QuestionDO> rows, AuthUser viewer) {
         if (rows.isEmpty()) {
             return List.of();
         }
         Map<Long, List<QuestionTagDO>> tagsByQuestion = loadQuestionTags(rows);
+        Map<Long, ViewerState> viewerStates = loadViewerStates(viewer, rows);
         return rows.stream()
                 .map(question -> toFeedItem(question,
                         tagsByQuestion.getOrDefault(question.getId(), List.of()).stream()
                                 .map(QuestionTagDO::getName).toList(),
-                        List.of()))
+                        List.of(), viewerStates.get(question.getId())))
                 .toList();
+    }
+
+    private Map<Long, ViewerState> loadViewerStates(AuthUser viewer, List<QuestionDO> rows) {
+        Map<Long, Set<String>> types = new LinkedHashMap<>();
+        if (viewer != null && !rows.isEmpty()) {
+            for (var interaction : interactionDao.findQuestionInteractions(viewer.getId(), rows.stream().map(QuestionDO::getId).toList())) {
+                types.computeIfAbsent(interaction.getTargetId(), id -> new LinkedHashSet<>()).add(interaction.getType());
+            }
+        }
+        Map<Long, ViewerState> result = new LinkedHashMap<>();
+        for (var question : rows) {
+            Set<String> values = types.getOrDefault(question.getId(), Set.of());
+            result.put(question.getId(), new ViewerState(values.contains("like"), values.contains("useful"),
+                    values.contains("favorite"), values.contains("dislike")));
+        }
+        return result;
     }
 
     private Map<Long, List<QuestionTagDO>> loadQuestionTags(List<QuestionDO> questions) {
@@ -760,6 +780,10 @@ public class QuestionServiceImpl implements QuestionService {
     }
 
     private QuestionFeedItem toFeedItem(QuestionDO question, List<String> tags, List<String> matchedTags) {
+        return toFeedItem(question, tags, matchedTags, null);
+    }
+
+    private QuestionFeedItem toFeedItem(QuestionDO question, List<String> tags, List<String> matchedTags, ViewerState viewer) {
         int answerCount = question.getAnswerCount();
         int followupCount = question.getFollowupCount();
         return new QuestionFeedItem(
@@ -773,7 +797,8 @@ public class QuestionServiceImpl implements QuestionService {
                 question.getLikeCount(),
                 question.getFavoriteCount(),
                 question.getCreatedAt(),
-                matchedTags);
+                matchedTags,
+                viewer);
     }
 
     private QuestionView toView(QuestionDO question) {

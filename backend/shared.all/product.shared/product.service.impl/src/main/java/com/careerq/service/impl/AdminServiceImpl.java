@@ -24,6 +24,7 @@ import com.careerq.service.AdminService.WordRequest;
 import com.careerq.service.AdminService.WordView;
 import com.careerq.service.ModerationService;
 import com.careerq.service.HrNotificationService;
+import com.careerq.service.StudentNotificationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,6 +51,7 @@ public class AdminServiceImpl implements AdminService {
     private final UserDao userDao;
     private final AnswerRemovalService answerRemovalService;
     private final HrNotificationService notifications;
+    private final StudentNotificationService studentNotifications;
 
     public AdminServiceImpl(QuestionDao questionDao,
                             AnswerDao answerDao,
@@ -59,7 +61,8 @@ public class AdminServiceImpl implements AdminService {
                             ModerationService moderationService,
                             UserDao userDao,
                             AnswerRemovalService answerRemovalService,
-                            HrNotificationService notifications) {
+                            HrNotificationService notifications,
+                            StudentNotificationService studentNotifications) {
         this.questionDao = questionDao;
         this.answerDao = answerDao;
         this.followupDao = followupDao;
@@ -69,6 +72,7 @@ public class AdminServiceImpl implements AdminService {
         this.userDao = userDao;
         this.answerRemovalService = answerRemovalService;
         this.notifications = notifications;
+        this.studentNotifications = studentNotifications;
     }
 
 
@@ -130,6 +134,7 @@ public class AdminServiceImpl implements AdminService {
                         .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
                 requirePending(question.getStatus(), status);
                 questionDao.updateStatus(targetId, status);
+                studentNotifications.contentReviewed("question", targetId, normalized);
             }
             case "answer" -> {
                 if ("removed".equals(status)) {
@@ -138,16 +143,26 @@ public class AdminServiceImpl implements AdminService {
                     AnswerDO answer = answerRemovalService.lockAnswer(targetId);
                     requirePending(answer.getStatus(), status);
                     answerDao.updateStatus(targetId, status);
-                    if (approved) questionDao.recordAnswer(answer.getQuestionId());
+                    if (approved) {
+                        questionDao.recordAnswer(answer.getQuestionId());
+                        studentNotifications.answerPublished(targetId);
+                    }
                     notifications.answerReviewed(targetId, normalized);
                 }
             }
             case "followup" -> {
+                FollowupDO reference = followupDao.findById(targetId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "追问不存在"));
+                questionDao.findByIdForUpdate(reference.getQuestionId())
+                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
                 FollowupDO followup = followupDao.findByIdForUpdate(targetId)
                         .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "追问不存在"));
                 requirePending(followup.getStatus(), status);
                 followupDao.updateStatus(targetId, status);
+                if (approved) questionDao.incrementFollowup(followup.getQuestionId());
+                else if ("published".equals(followup.getStatus())) questionDao.decrementFollowup(followup.getQuestionId());
                 if (approved) notifications.followupPublished(targetId);
+                studentNotifications.contentReviewed("followup", targetId, normalized);
             }
             default -> throw new BusinessException(ErrorCode.INVALID_PARAM, "targetType 不合法");
         }
@@ -195,7 +210,14 @@ public class AdminServiceImpl implements AdminService {
 
     private void removeReportedTarget(AuthUser operator, String targetType, Long targetId) {
         switch (targetType) {
-            case "question" -> questionDao.updateStatus(targetId, "removed");
+            case "question" -> {
+                QuestionDO question = questionDao.findByIdForUpdate(targetId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
+                if (!"removed".equals(question.getStatus())) {
+                    questionDao.updateStatus(targetId, "removed");
+                    studentNotifications.contentReviewed("question", targetId, "remove");
+                }
+            }
             case "answer" -> answerRemovalService.removeByOperator(operator, targetId);
             default -> throw new BusinessException(ErrorCode.INVALID_PARAM, "targetType 不合法");
         }

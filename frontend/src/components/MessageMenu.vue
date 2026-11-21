@@ -1,40 +1,48 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useUserStore } from "@/stores/user";
 import { useHrNotificationStore } from "@/stores/hrNotifications";
+import { useStudentNotificationStore } from "@/stores/studentNotifications";
 
 const router = useRouter();
 const route = useRoute();
 const user = useUserStore();
 const notifications = useHrNotificationStore();
+const studentNotifications = useStudentNotificationStore();
 const isHr = computed(() => user.user?.role === "hr");
+const isStudent = computed(() => user.user?.role === "student");
 
-// HR 使用站内通知接口；学生分支保留现有示例，待学生模块负责人接入。
+// 两类消息从各自的收件人接口读取，不共用未读状态。
 interface MessageCategory {
   key: string;
   label: string;
   count?: number;
 }
 
-const studentCategories = ref<MessageCategory[]>([
-  { key: "reply", label: "回复我的", count: 2 },
-  { key: "like", label: "收到的赞" },
-  { key: "system", label: "系统消息" },
+const studentCategories = computed<MessageCategory[]>(() => [
+  { key: "reply", label: "回复我的", count: studentNotifications.counts?.reply },
+  { key: "like", label: "收到的赞", count: studentNotifications.counts?.like },
+  { key: "system", label: "审核与系统通知", count: studentNotifications.counts?.system },
+  { key: "all", label: "查看全部消息" },
 ]);
 
 const categories = computed<MessageCategory[]>(() => isHr.value ? [
   { key: "followup", label: "学生追问", count: notifications.counts?.followup },
   { key: "system", label: "审核与系统通知", count: notifications.counts?.system },
   { key: "all", label: "查看全部消息" },
-] : studentCategories.value);
+] : isStudent.value ? studentCategories.value : []);
 const unreadTotal = computed(() => isHr.value ? notifications.counts?.total ?? 0
-  : studentCategories.value.reduce((sum, item) => sum + (item.count ?? 0), 0));
+  : isStudent.value ? studentNotifications.counts?.total ?? 0 : 0);
+const notificationError = computed(() => isHr.value ? notifications.error : isStudent.value ? studentNotifications.error : "");
 
 function refreshUnread() {
-  if (isHr.value && document.visibilityState === "visible") void notifications.refresh();
+  if (document.visibilityState !== "visible") return;
+  if (isHr.value) void notifications.refresh();
+  else if (isStudent.value) void studentNotifications.refresh();
 }
-watch(() => [user.user?.id, user.user?.role], () => { notifications.reset(); refreshUnread(); }, { immediate: true });
+function retryUnread() { if (isHr.value) void notifications.refresh(true); else if (isStudent.value) void studentNotifications.refresh(true); }
+watch([() => user.user?.id, () => user.user?.role], () => { notifications.reset(); studentNotifications.reset(); refreshUnread(); }, { immediate: true });
 watch(() => route.fullPath, refreshUnread);
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 onMounted(() => {
@@ -53,14 +61,13 @@ function open(category: MessageCategory) {
     void router.push({ path: "/hr/messages", query: category.key === "all" ? {} : { category: category.key } });
     return;
   }
-  // 消息页尚未开发：先跳转到「我的问答」，后续换成 /messages?tab=xxx
-  router.push({ path: "/me", query: { tab: category.key } });
+  if (isStudent.value) void router.push({ path: "/messages", query: category.key === "all" ? {} : { category: category.key } });
 }
 </script>
 
 <template>
-  <div class="msg-menu" @mouseenter="refreshUnread" @focusin="refreshUnread">
-    <button class="msg-trigger" type="button" aria-label="消息" @click="isHr && open({ key: 'all', label: '查看全部消息' })">
+  <div v-if="isHr || isStudent" class="msg-menu" @mouseenter="refreshUnread" @focusin="refreshUnread">
+    <button class="msg-trigger" type="button" aria-label="消息" @click="open({ key: 'all', label: '查看全部消息' })">
       <svg
         width="18"
         height="18"
@@ -79,7 +86,7 @@ function open(category: MessageCategory) {
     </button>
 
     <div class="msg-panel" role="menu">
-      <button v-if="isHr && notifications.error" class="msg-item" type="button" @click="notifications.refresh(true)">消息加载失败，点击重试</button>
+      <button v-if="notificationError" class="msg-item" type="button" @click="retryUnread">消息加载失败，点击重试</button>
       <button
         v-for="item in categories"
         :key="item.key"

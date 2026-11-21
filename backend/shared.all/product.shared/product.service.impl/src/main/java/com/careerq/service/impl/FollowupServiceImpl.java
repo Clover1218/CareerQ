@@ -15,6 +15,7 @@ import com.careerq.followup.FollowupDtos.FollowupView;
 import com.careerq.security.AuthUser;
 import com.careerq.service.FollowupService;
 import com.careerq.service.HrNotificationService;
+import com.careerq.service.ModerationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,14 +32,17 @@ public class FollowupServiceImpl implements FollowupService {
     private final UserDao userDao;
     private final AnswerDao answerDao;
     private final HrNotificationService notifications;
+    private final ModerationService moderationService;
 
     public FollowupServiceImpl(FollowupDao followupDao, QuestionDao questionDao, UserDao userDao,
-                               AnswerDao answerDao, HrNotificationService notifications) {
+                               AnswerDao answerDao, HrNotificationService notifications,
+                               ModerationService moderationService) {
         this.followupDao = followupDao;
         this.questionDao = questionDao;
         this.userDao = userDao;
         this.answerDao = answerDao;
         this.notifications = notifications;
+        this.moderationService = moderationService;
     }
 
 
@@ -76,10 +80,14 @@ public class FollowupServiceImpl implements FollowupService {
         followup.setSenderRole(sender.getRole());
         followup.setBody(request.body());
         followup.setScope(question.getScope());
-        followup.setStatus(PUBLISHED);
+        followup.setStatus(moderationService.decide(request.body()));
         followupDao.insert(followup);
-        questionDao.incrementFollowup(questionId);
-        notifications.followupPublished(followup.getId());
+        if (PUBLISHED.equals(followup.getStatus())) {
+            questionDao.incrementFollowup(questionId);
+            notifications.followupPublished(followup.getId());
+        } else {
+            moderationService.recordMachine("followup", followup.getId(), followup.getStatus());
+        }
         return toView(followup);
     }
 
@@ -102,6 +110,10 @@ public class FollowupServiceImpl implements FollowupService {
     @Override
     @Transactional
     public FollowupView withdraw(AuthUser sender, Long followupId) {
+        FollowupDO reference = followupDao.findById(followupId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "追问不存在"));
+        questionDao.findByIdForUpdate(reference.getQuestionId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
         FollowupDO followup = followupDao.findByIdForUpdate(followupId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "追问不存在"));
         if (!sender.getId().equals(followup.getSenderId())) {

@@ -10,6 +10,7 @@ import {
   type QuestionFeedItem,
   type Thread,
   type ThreadItem,
+  type ViewerState,
 } from "@/api";
 import { useUserStore } from "@/stores/user";
 import FeedIcon from "./FeedIcon.vue";
@@ -58,8 +59,17 @@ const counts = reactive({
   favoriteCount: props.item.favoriteCount,
   replyCount: props.item.replyCount,
 });
-const liked = ref(false);
-const favorited = ref(false);
+const liked = ref(props.item.viewer?.liked ?? false);
+const favorited = ref(props.item.viewer?.favorited ?? false);
+const interacting = ref(false);
+let interactionVersion = 0;
+let contentRequest: Promise<void> | null = null;
+
+function applyViewer(viewer: ViewerState, version: number) {
+  if (version !== interactionVersion) return;
+  liked.value = viewer.liked;
+  favorited.value = viewer.favorited;
+}
 
 watch(
   () => props.item,
@@ -67,6 +77,7 @@ watch(
     counts.likeCount = next.likeCount;
     counts.favoriteCount = next.favoriteCount;
     counts.replyCount = next.replyCount;
+    if (next.viewer && !interacting.value) applyViewer(next.viewer, interactionVersion);
   },
 );
 
@@ -119,40 +130,40 @@ function reportError(e: unknown, fallback: string) {
 }
 
 async function ensureContent() {
-  if (content.value || loadingContent.value) return;
+  if (content.value) return;
+  if (contentRequest) return contentRequest;
+  const viewerId = user.value?.id;
+  const version = interactionVersion;
   loadingContent.value = true;
   error.value = "";
-  try {
-    if (props.ownerMode) {
+  contentRequest = (async () => {
+    try {
       // 作者视角走 detail，允许查看自己审核中的问题正文与回答。
-      const data = await api.getQuestion(props.item.id);
-      detail.value = data;
+      const ownDetail = props.ownerMode ? await api.getQuestion(props.item.id) : null;
+      const data = ownDetail ?? await api.getQuestionContent(props.item.id);
+      if (viewerId !== user.value?.id) return;
+      if (ownDetail) detail.value = ownDetail;
       content.value = { question: data.question, viewer: data.viewer };
-      liked.value = data.viewer.liked;
-      favorited.value = data.viewer.favorited;
+      applyViewer(data.viewer, version);
       counts.likeCount = data.question.likeCount;
       counts.favoriteCount = data.question.favoriteCount;
       counts.replyCount = data.question.answerCount + data.question.followupCount;
-      return;
+    } catch (e) {
+      reportError(e, "加载全文失败");
+    } finally {
+      loadingContent.value = false;
+      contentRequest = null;
     }
-    const data = await api.getQuestionContent(props.item.id);
-    content.value = data;
-    liked.value = data.viewer.liked;
-    favorited.value = data.viewer.favorited;
-    counts.likeCount = data.question.likeCount;
-    counts.favoriteCount = data.question.favoriteCount;
-    counts.replyCount = data.question.answerCount + data.question.followupCount;
-  } catch (e) {
-    reportError(e, "加载全文失败");
-  } finally {
-    loadingContent.value = false;
-  }
+  })();
+  return contentRequest;
 }
 
 async function loadThread() {
   if (loadingThread.value) return;
   loadingThread.value = true;
   error.value = "";
+  const viewerId = user.value?.id;
+  const version = interactionVersion;
   try {
     if (props.ownerMode) {
       await ensureContent();
@@ -169,9 +180,9 @@ async function loadThread() {
       return;
     }
     const data = await api.getQuestionThread(props.item.id);
+    if (viewerId !== user.value?.id) return;
     thread.value = data;
-    liked.value = data.viewer.liked;
-    favorited.value = data.viewer.favorited;
+    applyViewer(data.viewer, version);
     counts.replyCount = data.replyCount;
   } catch (e) {
     reportError(e, "加载回答失败");
@@ -209,40 +220,43 @@ async function toggleThread() {
 }
 
 async function toggleLike() {
-  if (!interactive.value || !requireLogin()) return;
-  await ensureContent();
-  if (!content.value) return;
-  const next = !liked.value;
-  try {
-    if (next) {
-      await api.interact("question", props.item.id, "like");
-    } else {
-      await api.uninteract("question", props.item.id, "like");
-    }
-    liked.value = next;
-    counts.likeCount = Math.max(0, counts.likeCount + (next ? 1 : -1));
-    content.value.question.likeCount = counts.likeCount;
-  } catch (e) {
-    reportError(e, "操作失败");
-  }
+  await toggleQuestionInteraction("like");
 }
 
 async function toggleFavorite() {
-  if (!interactive.value || !requireLogin()) return;
-  await ensureContent();
-  if (!content.value) return;
-  const next = !favorited.value;
+  await toggleQuestionInteraction("favorite");
+}
+
+async function toggleQuestionInteraction(type: "like" | "favorite") {
+  if (!interactive.value || interacting.value || !requireLogin()) return;
+  interacting.value = true;
+  ++interactionVersion;
   try {
+    await ensureContent();
+    if (!content.value) return;
+    const next = !(type === "like" ? liked.value : favorited.value);
     if (next) {
-      await api.interact("question", props.item.id, "favorite");
+      await api.interact("question", props.item.id, type);
     } else {
-      await api.uninteract("question", props.item.id, "favorite");
+      await api.uninteract("question", props.item.id, type);
     }
-    favorited.value = next;
-    counts.favoriteCount = Math.max(0, counts.favoriteCount + (next ? 1 : -1));
-    content.value.question.favoriteCount = counts.favoriteCount;
+    // 早于本次写入发起的全文/讨论请求不能覆盖刚更新的选中状态。
+    ++interactionVersion;
+    if (type === "like") {
+      liked.value = next;
+      counts.likeCount = Math.max(0, counts.likeCount + (next ? 1 : -1));
+      content.value.question.likeCount = counts.likeCount;
+      content.value.viewer.liked = next;
+    } else {
+      favorited.value = next;
+      counts.favoriteCount = Math.max(0, counts.favoriteCount + (next ? 1 : -1));
+      content.value.question.favoriteCount = counts.favoriteCount;
+      content.value.viewer.favorited = next;
+    }
   } catch (e) {
     reportError(e, "操作失败");
+  } finally {
+    interacting.value = false;
   }
 }
 
@@ -409,7 +423,14 @@ async function submitThread(conversation: Conversation) {
       if (!showSubmission(answer.status)) { await loadThread(); return; }
     } else {
       if (conversation.hrId == null || conversation.rootAnswer?.status !== "published") return;
-      await api.followup(props.item.id, body, conversation.hrId, conversation.rootAnswer.id);
+      const followup = await api.followup(props.item.id, body, conversation.hrId, conversation.rootAnswer.id);
+      if (followup.status === "rejected") {
+        message.error("追问未通过审核，请修改内容后重新提交。");
+        openThread(conversation.key);
+        await loadThread();
+        return;
+      }
+      if (followup.status !== "published") message.info("追问已提交，正在等待审核；通过后才会公开。");
     }
     threadDrafts[conversation.key] = "";
     openThread(conversation.key);
@@ -447,7 +468,11 @@ function onComposerBlur() {
   }, 150);
 }
 
-onMounted(() => document.addEventListener("click", closeMenu));
+onMounted(() => {
+  document.addEventListener("click", closeMenu);
+  // 本人列表及旧摘要没有 viewer，显示时读取服务端状态。
+  if (user.value && props.item.viewer == null && interactive.value) void ensureContent();
+});
 onBeforeUnmount(() => {
   document.removeEventListener("click", closeMenu);
   if (blurTimer) clearTimeout(blurTimer);
@@ -520,7 +545,8 @@ onBeforeUnmount(() => {
           <button
             class="feed-action"
             :class="{ 'is-active': liked, 'is-disabled': !interactive }"
-            :disabled="!interactive"
+            :disabled="!interactive || interacting"
+            :aria-pressed="liked"
             aria-label="点赞"
             @click="toggleLike"
           >
@@ -530,7 +556,8 @@ onBeforeUnmount(() => {
           <button
             class="feed-action"
             :class="{ 'is-active': favorited, 'is-disabled': !interactive }"
-            :disabled="!interactive"
+            :disabled="!interactive || interacting"
+            :aria-pressed="favorited"
             aria-label="收藏"
             @click="toggleFavorite"
           >

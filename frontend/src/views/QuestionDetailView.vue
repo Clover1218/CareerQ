@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
+import { useDialog, useMessage } from "naive-ui";
 import { api, type Followup, type QuestionDetail } from "../api";
 import { useUserStore } from "@/stores/user";
 import { addViewHistory } from "@/utils/history";
@@ -12,7 +13,12 @@ import { removedAnswerText } from "@/utils/answerRemoval";
 
 const route = useRoute();
 const router = useRouter();
-const { user: me } = storeToRefs(useUserStore());
+const dialog = useDialog();
+const message = useMessage();
+const userStore = useUserStore();
+const { user: me } = storeToRefs(userStore);
+let active = true;
+onBeforeUnmount(() => { active = false; });
 const detail = ref<QuestionDetail | null>(null);
 const error = ref("");
 const answerError = ref("");
@@ -26,6 +32,8 @@ const answerFormRef = ref<HTMLElement | null>(null);
 const followupFormRef = ref<HTMLElement | null>(null);
 const followupSubmitting = ref(false);
 const followupError = ref("");
+const followupNotice = ref("");
+const withdrawingFollowupId = ref<number | null>(null);
 const highlightedFollowupId = ref<number | null>(null);
 let appliedFollowupLink: string | null = null;
 
@@ -33,6 +41,14 @@ const questionId = Number(route.params.id);
 const openedFromHr = computed(() => route.query.from === "hr");
 const openedFromHrProfile = computed(() => route.query.from === "hr-profile");
 const openedFromHrMessages = computed(() => route.query.from === "hr-messages");
+const studentReturnTo = computed(() => {
+  if (me.value?.role !== "student" || typeof route.query.returnTo !== "string") return null;
+  const value = route.query.returnTo;
+  if (route.query.from === "student-messages" && (value === "/messages" || value.startsWith("/messages?"))) return value;
+  if (route.query.from === "student-favorites" && value.startsWith("/me?tab=favorites")) return value;
+  return null;
+});
+const studentReturnLabel = computed(() => route.query.from === "student-messages" ? "返回消息中心" : "返回我的收藏");
 const highlightedAnswerId = ref<number | null>(null);
 const hrFollowups = computed(() => detail.value?.followups.filter(
   canReplyFollowup,
@@ -139,10 +155,11 @@ watch([hrFollowups, () => route.query.followup], async ([followups, requested]) 
 
 // HR 个人记录只定位对应内容，不自动进入“回复追问”模式。
 watch([detail, () => route.query.answer], async ([current, requested]) => {
-  if ((!openedFromHrProfile.value && !openedFromHrMessages.value) || me.value?.role !== "hr" || !current || typeof requested !== "string") return;
+  const studentEntry = studentReturnTo.value !== null;
+  if ((!openedFromHrProfile.value && !openedFromHrMessages.value && !studentEntry) || (!studentEntry && me.value?.role !== "hr") || !current || typeof requested !== "string") return;
   const id = Number(requested);
   if (!Number.isSafeInteger(id) || id <= 0) return;
-  const answer = current.answers.find(item => item.id === id && item.author.id === me.value?.id);
+  const answer = current.answers.find(item => item.id === id && (studentEntry ? item.status === "published" : item.author.id === me.value?.id));
   if (!answer) {
     answerNotice.value = "这条回答已移除，详情仅展示仍然可见的讨论。";
     return;
@@ -151,6 +168,15 @@ watch([detail, () => route.query.answer], async ([current, requested]) => {
   highlightedAnswerId.value = id;
   await nextTick();
   document.getElementById(answer.followupId == null ? `answer-${id}` : `reply-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+}, { flush: "post" });
+
+watch([detail, () => route.query.followup], async ([current, requested]) => {
+  if (!studentReturnTo.value || !current || typeof requested !== "string") return;
+  const followup = current.followups.find(item => item.id === Number(requested));
+  if (!followup) return;
+  highlightedFollowupId.value = followup.id; openFollowupThread(followup.id);
+  await nextTick();
+  document.getElementById(`followup-${followup.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
 }, { flush: "post" });
 
 function followupOptionLabel(body: string) {
@@ -199,6 +225,11 @@ function changeFollowupTarget(event: Event) {
 
 function returnToPreviousPage() {
   const previousRoute = window.history.state?.back;
+  if (studentReturnTo.value) {
+    if (previousRoute === studentReturnTo.value) router.back();
+    else void router.push(studentReturnTo.value);
+    return;
+  }
   if (openedFromHrMessages.value) {
     if (typeof previousRoute === "string" && previousRoute.startsWith("/hr/messages")) router.back();
     else void router.push("/hr/messages");
@@ -217,17 +248,53 @@ function returnToPreviousPage() {
 }
 
 async function load() {
+  // 直接打开详情时先确定会话，避免把已登录学生的首次浏览记入游客历史。
+  await userStore.fetchUserInfo();
+  if (!active) return;
+  const viewerId = me.value?.id ?? null;
+  error.value = "";
   try {
-    detail.value = await api.getQuestion(questionId);
+    const data = await api.getQuestion(questionId);
+    if (!active || viewerId !== (me.value?.id ?? null)) return;
+    detail.value = data;
     if (selectedRootAnswerId.value != null && !selectedRootAnswer.value) {
       selectedRootAnswerId.value = null;
       followupError.value = "原回答当前不可追问，请重新选择已发布的回答。";
     }
     // 记录浏览历史（本地存储，后端接口暂未实现）
-    addViewHistory({ id: detail.value.question.id, title: detail.value.question.title });
+    addViewHistory({ id: detail.value.question.id, title: detail.value.question.title }, viewerId);
   } catch (e: any) {
     error.value = openedFromHrMessages.value ? "相关内容已不可查看，可能已被撤销或下架。" : e.message;
   }
+}
+
+function requestFollowupWithdrawal(followup: Followup) {
+  if (withdrawingFollowupId.value !== null || me.value?.role !== "student"
+      || me.value.id !== followup.author.id || !["published", "pending_machine", "pending_human"].includes(followup.status)) return;
+  dialog.warning({
+    title: "撤销追问",
+    content: "撤销后这条追问将不再公开，已有 HR 回复按各自状态保留。确定撤销吗？",
+    positiveText: "确定撤销",
+    negativeText: "取消",
+    onPositiveClick: async () => {
+      if (withdrawingFollowupId.value !== null) return false;
+      withdrawingFollowupId.value = followup.id;
+      try {
+        const removed = await api.withdrawFollowup(questionId, followup.id);
+        followup.status = removed.status;
+        followup.body = removed.body;
+        await load();
+        if (error.value) message.warning("追问已撤销，请刷新页面查看最新状态。");
+        else message.success("追问已撤销。");
+        return true;
+      } catch (cause) {
+        message.error(cause instanceof Error ? cause.message : "撤销失败，请稍后重试。");
+        return false;
+      } finally {
+        withdrawingFollowupId.value = null;
+      }
+    },
+  });
 }
 
 async function submitAnswer() {
@@ -267,6 +334,7 @@ async function submitAnswer() {
 async function submitFollowup() {
   if (followupSubmitting.value) return;
   followupError.value = "";
+  followupNotice.value = "";
   if (!followupBody.value.trim()) { followupError.value = "请先填写追问内容。"; return; }
   const target = selectedRootAnswer.value;
   if (!canStudentFollowup.value || !target) {
@@ -276,7 +344,12 @@ async function submitFollowup() {
   followupSubmitting.value = true;
   try {
     const followup = await api.followup(questionId, followupBody.value.trim(), target.author.id, target.id);
-    followupBody.value = "";
+    if (followup.status === "rejected") {
+      followupError.value = "追问未通过审核，请修改内容后重新提交。";
+    } else {
+      followupBody.value = "";
+      followupNotice.value = followup.status === "published" ? "追问已发布。" : "追问已提交，正在等待审核；通过后才会公开。";
+    }
     await load();
     openFollowupThread(followup.id);
   } catch (e: any) {
@@ -312,7 +385,7 @@ onMounted(load);
     <div class="between">
       <h2 style="margin: 0">{{ detail.question.title }}</h2>
       <button type="button" class="link muted" @click="returnToPreviousPage">
-        {{ openedFromHrMessages ? "返回消息中心" : openedFromHrProfile ? "返回个人中心" : openedFromHr ? "返回 HR 工作台" : "返回列表" }}
+        {{ studentReturnTo ? studentReturnLabel : openedFromHrMessages ? "返回消息中心" : openedFromHrProfile ? "返回个人中心" : openedFromHr ? "返回 HR 工作台" : "返回列表" }}
       </button>
     </div>
     <div class="row" style="margin: 8px 0">
@@ -357,7 +430,9 @@ onMounted(load);
           :reply-state="followupReplyState(followup)" :highlighted="highlightedFollowupId === followup.id"
           :withdrawing-answer-id="withdrawingAnswerId"
           :highlighted-answer-id="highlightedAnswerId"
+          :withdrawing-followup-id="withdrawingFollowupId"
           @reply="selectFollowup" @useful="markUseful" @withdraw="requestWithdrawal"
+          @withdraw-followup="requestFollowupWithdrawal"
         />
       </div>
     </article>
@@ -373,6 +448,7 @@ onMounted(load);
     </template>
     <p v-else class="muted">点击上方某条回答下的“追问这条回答”，选择追问对象。</p>
     <p v-if="followupError" class="answer-error" role="alert">{{ followupError }}</p>
+    <p v-if="followupNotice" class="answer-notice" role="status">{{ followupNotice }}</p>
   </div>
 
   <div v-if="detail && me?.role === 'hr' && detail.question.scope === 'public'" ref="answerFormRef" class="card">

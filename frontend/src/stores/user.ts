@@ -1,6 +1,7 @@
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { defineStore } from "pinia";
 import { api, type User } from "@/api";
+import { resetCsrfToken, setStudentRequestIdentity } from "@/api/request";
 
 const ANONYMOUS_STORAGE_KEY = "careerq:anonymous-name";
 const ANONYMOUS_PREFIXES = ["匿名", "低调", "路过", "好奇", "热心"] as const;
@@ -39,6 +40,9 @@ export const useUserStore = defineStore("user", () => {
 
   // 是否已经从后端同步过状态，用于避免每次路由跳转都请求 /me
   let initialized = false;
+  let epoch = 0;
+  let pending: Promise<User | null> | null = null;
+  watch(user, value => setStudentRequestIdentity(value?.role === "student" ? value.id : null), { immediate: true, flush: "sync" });
 
   const userId = computed<number | null>(() => user.value?.id ?? null);
 
@@ -48,26 +52,41 @@ export const useUserStore = defineStore("user", () => {
   const nickname = computed(() => user.value?.nickname ?? anonymousName.value);
 
   async function fetchUserInfo(force = false): Promise<User | null> {
+    if (pending) return pending;
     if (!force && initialized) return user.value;
-
+    const current = epoch;
     loading.value = true;
-    try {
-      user.value = await api.me();
-      initialized = true;
-      return user.value;
-    } catch {
-      // 401 或网络异常都按未登录处理，由路由守卫决定是否跳登录页
-      user.value = null;
-      initialized = true;
-      return null;
-    } finally {
-      loading.value = false;
-    }
+    pending = (async () => {
+      try {
+        const result = await api.me();
+        if (current !== epoch) return user.value;
+        user.value = result;
+        initialized = true;
+        return result;
+      } catch {
+        if (current !== epoch) return user.value;
+        user.value = null;
+        initialized = true;
+        return null;
+      } finally {
+        if (current === epoch) { loading.value = false; pending = null; }
+      }
+    })();
+    return pending;
+  }
+
+  async function syncSession() {
+    ++epoch;
+    pending = null;
+    resetCsrfToken();
+    return fetchUserInfo(true);
   }
 
   async function login(phone: string, code: string): Promise<User | null> {
     loading.value = true;
     try {
+      ++epoch;
+      pending = null;
       await api.login(phone, code);
       // 登录会轮换会话 cookie，必须强制重新拉取用户信息
       return await fetchUserInfo(true);
@@ -81,6 +100,8 @@ export const useUserStore = defineStore("user", () => {
       await api.logout();
     } finally {
       // 即使服务端登出失败，本地也要清空登录态
+      ++epoch;
+      pending = null;
       user.value = null;
       initialized = true;
     }
@@ -95,6 +116,7 @@ export const useUserStore = defineStore("user", () => {
     nickname,
     loading,
     fetchUserInfo,
+    syncSession,
     login,
     logout,
   };

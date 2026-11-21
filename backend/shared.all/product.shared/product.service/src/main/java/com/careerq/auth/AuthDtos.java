@@ -43,7 +43,10 @@ public final class AuthDtos {
             @Size(max = 64, message = "职位不能超过 64 字")
             String position,
             /** 身份：student（默认）/ hr；HR 认证流程暂缓 */
-            String role) {
+            String role,
+            @Size(max = 128, message = "学校不能超过 128 字") String school,
+            @Size(max = 128, message = "专业不能超过 128 字") String major,
+            @Size(max = 32, message = "年级不能超过 32 字") String grade) {
     }
 
     public record UserView(
