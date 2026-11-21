@@ -11,6 +11,8 @@ public class HrProfileDO {
     private String companyDisplay;
     private String industry;
     private String position;
+    private String bio;
+    private String specialtiesJson;
     private String verifyStatus = "pending";
     private String verifyMaterialRef;
     private LocalDateTime verifiedAt;
@@ -50,6 +52,11 @@ public class HrProfileDO {
     public String getVerifyStatus() {
         return verifyStatus;
     }
+
+    public String getBio() { return bio; }
+    public void setBio(String bio) { this.bio = bio; }
+    public String getSpecialtiesJson() { return specialtiesJson; }
+    public void setSpecialtiesJson(String specialtiesJson) { this.specialtiesJson = specialtiesJson; }
 
     public void setVerifyStatus(String verifyStatus) {
         this.verifyStatus = verifyStatus;

@@ -5,6 +5,7 @@ import com.careerq.question.QuestionDtos.CreateRequest;
 import com.careerq.question.QuestionDtos.FeedPage;
 import com.careerq.question.QuestionDtos.FeedQuery;
 import com.careerq.question.QuestionDtos.HrAnsweredQuestionView;
+import com.careerq.question.QuestionDtos.HrAnsweredQuestionPage;
 import com.careerq.question.QuestionDtos.HrAnsweredPublicQuestionView;
 import com.careerq.question.QuestionDtos.QuestionContentView;
 import com.careerq.question.QuestionDtos.QuestionDetail;
@@ -12,6 +13,8 @@ import com.careerq.question.QuestionDtos.QuestionFeedItem;
 import com.careerq.question.QuestionDtos.QuestionView;
 import com.careerq.question.QuestionDtos.ThreadView;
 import com.careerq.security.AuthUser;
+
+import java.time.LocalDateTime;
 
 public interface QuestionService {
 
@@ -37,6 +40,9 @@ public interface QuestionService {
     PageResult<HrAnsweredPublicQuestionView> hrAnsweredPublicQuestions(Long cursor, int limit);
 
     PageResult<HrAnsweredQuestionView> hrAnsweredQuestions(AuthUser hr, Long cursor, int limit);
+
+    HrAnsweredQuestionPage hrAnsweredQuestions(AuthUser hr, Long cursor, LocalDateTime cursorAt,
+                                               int limit, boolean pendingFollowupsOnly);
 
     /** 提问者撤回自己的问题（仅未产生回答且状态允许时可用）。 */
     QuestionView withdraw(AuthUser author, Long id);

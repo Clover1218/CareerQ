@@ -15,6 +15,7 @@ declare module 'vue' {
     FeedCardSkeleton: typeof import('./components/FeedCardSkeleton.vue')['default']
     FeedFilterPanel: typeof import('./components/FeedFilterPanel.vue')['default']
     FeedIcon: typeof import('./components/FeedIcon.vue')['default']
+    FollowupDiscussion: typeof import('./components/FollowupDiscussion.vue')['default']
     MessageMenu: typeof import('./components/MessageMenu.vue')['default']
     NButton: typeof import('naive-ui')['NButton']
     NConfigProvider: typeof import('naive-ui')['NConfigProvider']

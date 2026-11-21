@@ -83,6 +83,17 @@ class HrAnsweredQuestionsFlowTests {
         return objectMapper.readTree(result.getResponse().getContentAsString()).path("data").path("id").asLong();
     }
 
+    private long rootAnswerId(MockHttpSession viewer, long questionId, long hrId) throws Exception {
+        JsonNode detail = objectMapper.readTree(mockMvc.perform(get("/api/v1/questions/{id}", questionId).session(viewer))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("data");
+        for (JsonNode answer : detail.path("answers")) {
+            if (answer.path("author").path("id").asLong() == hrId && answer.path("followupId").isMissingNode()) {
+                return answer.path("id").asLong();
+            }
+        }
+        throw new IllegalStateException("缺少目标主回答");
+    }
+
     private void answer(MockHttpSession hr, long questionId, String body) throws Exception {
         mockMvc.perform(post("/api/v1/questions/{id}/answers", questionId).session(hr).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -101,7 +112,7 @@ class HrAnsweredQuestionsFlowTests {
         long hrId = currentUserId(hr);
         mockMvc.perform(post("/api/v1/questions/{id}/followups", olderQuestion).session(hr).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("hrId", hrId, "body", "HR 不应提交追问"))))
+                        .content(objectMapper.writeValueAsString(Map.of("hrId", hrId, "rootAnswerId", 1, "body", "HR 不应提交追问"))))
                 .andExpect(status().isForbidden());
         answer(hr, olderQuestion, "这是 HR 对较早问题的回答。");
         answer(hr, newerQuestion, "这是 HR 对较新问题的回答。");
@@ -133,7 +144,7 @@ class HrAnsweredQuestionsFlowTests {
         mockMvc.perform(post("/api/v1/questions/{id}/followups", olderQuestion).session(student).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "hrId", hrId, "body", "能否再举一个例子？"))))
+                                "hrId", hrId, "rootAnswerId", rootAnswerId(student, olderQuestion, hrId), "body", "能否再举一个例子？"))))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/v1/hr/answered-questions").session(hr).param("limit", "1"))
@@ -191,7 +202,7 @@ class HrAnsweredQuestionsFlowTests {
                         .session(student).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "hrId", hrId, "body", "可以再解释一下第二点吗？"))))
+                                "hrId", hrId, "rootAnswerId", rootAnswerId(student, questionId, hrId), "body", "可以再解释一下第二点吗？"))))
                 .andExpect(status().isOk())
                 .andReturn();
         long followupId = objectMapper.readTree(followupResult.getResponse().getContentAsString())

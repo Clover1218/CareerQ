@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { api, type MeStats, type Profile, type User } from "@/api";
+import { api, type MeStats, type Profile, type User, type HrProfile, type HrContributionStats } from "@/api";
 
 const props = defineProps<{
   show: boolean;
@@ -17,6 +17,11 @@ const router = useRouter();
 const profile = ref<Profile | null>(null);
 const stats = ref<MeStats | null>(null);
 const loading = ref(false);
+const isHr = computed(() => props.user?.role === "hr");
+const hrProfile = ref<HrProfile | null>(null);
+const hrStats = ref<HrContributionStats | null>(null);
+const identityProfile = computed(() => isHr.value ? hrProfile.value : profile.value);
+let loadSequence = 0;
 
 const ROLE_LABEL: Record<string, string> = {
   student: "学生",
@@ -25,43 +30,65 @@ const ROLE_LABEL: Record<string, string> = {
   admin: "管理员",
 };
 
-const nickname = computed(() => profile.value?.nickname ?? props.user?.nickname ?? "同学");
+const nickname = computed(() => identityProfile.value?.nickname ?? props.user?.nickname ?? "同学");
 const roleLabel = computed(() => ROLE_LABEL[props.user?.role ?? "student"] ?? "学生");
-const avatarUrl = computed(() => profile.value?.avatarUrl ?? props.user?.avatarUrl ?? "");
+const avatarUrl = computed(() => identityProfile.value?.avatarUrl ?? props.user?.avatarUrl ?? "");
 const avatarInitial = computed(() => (nickname.value || "学").trim().slice(0, 1));
 
 /** 学校 / 专业 / 年级，没填的项不展示 */
 const profileLines = computed(() => {
+  if (isHr.value) return [hrProfile.value?.industry, hrProfile.value?.position].filter((value): value is string => !!value?.trim());
   const values = [profile.value?.school, profile.value?.major, profile.value?.grade];
   return values.filter((value): value is string => !!value && value.trim().length > 0);
 });
 
-const statItems = computed(() => [
+const statItems = computed(() => isHr.value ? [
+  { label: "主回答", value: hrStats.value?.rootAnswerCount ?? "—" },
+  { label: "追问回复", value: hrStats.value?.followupReplyCount ?? "—" },
+  { label: "获赞", value: hrStats.value?.likeCount ?? "—" },
+  { label: "有用", value: hrStats.value?.usefulCount ?? "—" },
+] : [
   { label: "提问", value: stats.value?.questionCount ?? 0 },
   { label: "收到回答", value: stats.value?.receivedAnswerCount ?? 0 },
   { label: "获赞", value: stats.value?.likeCount ?? 0 },
 ]);
 
 async function load() {
-  if (loading.value) return;
+  const sequence = ++loadSequence;
   loading.value = true;
+  if (isHr.value) {
+    const results = await Promise.allSettled([api.hrProfile(), api.hrStats()]);
+    if (sequence !== loadSequence) return;
+    hrProfile.value = results[0].status === "fulfilled" ? results[0].value : null;
+    hrStats.value = results[1].status === "fulfilled" ? results[1].value : null;
+    loading.value = false;
+    return;
+  }
   try {
-    profile.value = await api.getProfile();
+    const result = await api.getProfile();
+    if (sequence !== loadSequence) return;
+    profile.value = result;
   } catch {
     // 忽略：用户信息仍可从 store 兜底
   }
   try {
-    stats.value = await api.myStats();
+    const result = await api.myStats();
+    if (sequence !== loadSequence) return;
+    stats.value = result;
   } catch {
     // 忽略：统计不可用时显示 0
   } finally {
-    loading.value = false;
+    if (sequence === loadSequence) loading.value = false;
   }
 }
 
 watch(
-  () => props.show,
-  (open) => {
+  () => [props.show, props.user?.id] as const,
+  ([open], previous) => {
+    if (previous?.[1] !== props.user?.id) {
+      ++loadSequence;
+      profile.value = null; stats.value = null; hrProfile.value = null; hrStats.value = null;
+    }
     if (open) {
       void load();
       document.body.style.overflow = "hidden";
@@ -93,11 +120,11 @@ function go(path: string) {
             <h2 class="drawer-name">{{ nickname }}</h2>
             <span class="drawer-role">{{ roleLabel }}</span>
             <p v-if="profileLines.length" class="drawer-meta">{{ profileLines.join(" · ") }}</p>
-            <p v-else class="drawer-meta drawer-meta--muted">学校 / 专业 / 年级待完善</p>
+            <p v-else class="drawer-meta drawer-meta--muted">{{ isHr ? '职业资料待完善' : '学校 / 专业 / 年级待完善' }}</p>
           </div>
 
           <!-- 数据统计 -->
-          <div class="drawer-stats">
+          <div class="drawer-stats" :class="{ 'drawer-stats--hr': isHr }">
             <div v-for="item in statItems" :key="item.label" class="drawer-stat">
               <b>{{ item.value }}</b>
               <span>{{ item.label }}</span>
@@ -106,6 +133,12 @@ function go(path: string) {
 
           <!-- 快捷入口 -->
           <nav class="drawer-menu">
+            <template v-if="isHr">
+              <button type="button" class="drawer-menu-item" @click="go('/hr/profile')"><span>个人中心</span><span class="drawer-arrow">›</span></button>
+              <button type="button" class="drawer-menu-item" @click="go('/hr/profile#my-answers')"><span>我的回答</span><span class="drawer-arrow">›</span></button>
+              <button type="button" class="drawer-menu-item" @click="go('/hr')"><span>HR 工作台</span><span class="drawer-arrow">›</span></button>
+            </template>
+            <template v-else>
             <button type="button" class="drawer-menu-item" @click="go('/me')">
               <span>我的问答</span>
               <span class="drawer-arrow">›</span>
@@ -118,6 +151,7 @@ function go(path: string) {
               <span>个人资料</span>
               <span class="drawer-arrow">›</span>
             </button>
+            </template>
           </nav>
 
           <button class="drawer-logout" type="button" @click="emit('logout')">退出登录</button>
@@ -241,6 +275,8 @@ function go(path: string) {
 .drawer-stat {
   text-align: center;
 }
+
+.drawer-stats--hr { grid-template-columns: repeat(2, 1fr); row-gap: 15px; }
 
 .drawer-stat b {
   display: block;

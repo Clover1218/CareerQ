@@ -6,12 +6,14 @@ import com.careerq.common.ErrorCode;
 import com.careerq.common.PageResult;
 import com.careerq.common.UserBrief;
 import com.careerq.dao.AnswerDao;
+import com.careerq.dao.HrFollowupDao;
 import com.careerq.dao.HrProfileDao;
 import com.careerq.dao.InteractionDao;
 import com.careerq.dao.QuestionDao;
 import com.careerq.dao.TagDao;
 import com.careerq.dao.UserDao;
 import com.careerq.dataobject.AnswerDO;
+import com.careerq.dataobject.HrFollowupSummaryDO;
 import com.careerq.dataobject.HrProfileDO;
 import com.careerq.dataobject.QuestionDO;
 import com.careerq.dataobject.QuestionTagDO;
@@ -26,6 +28,8 @@ import com.careerq.question.QuestionDtos.FeedPage;
 import com.careerq.question.QuestionDtos.FeedQuery;
 import com.careerq.question.QuestionDtos.FeedSort;
 import com.careerq.question.QuestionDtos.HrAnswerSummary;
+import com.careerq.question.QuestionDtos.HrAnsweredQuestionPage;
+import com.careerq.question.QuestionDtos.HrFollowupSummary;
 import com.careerq.question.QuestionDtos.HrAnsweredQuestionView;
 import com.careerq.question.QuestionDtos.HrAnsweredPublicQuestionView;
 import com.careerq.question.QuestionDtos.QuestionContentView;
@@ -67,6 +71,7 @@ public class QuestionServiceImpl implements QuestionService {
 
     private final QuestionDao questionDao;
     private final AnswerDao answerDao;
+    private final HrFollowupDao hrFollowupDao;
     private final TagDao tagDao;
     private final UserDao userDao;
     private final ModerationService moderationService;
@@ -77,6 +82,7 @@ public class QuestionServiceImpl implements QuestionService {
 
     public QuestionServiceImpl(QuestionDao questionDao,
                                AnswerDao answerDao,
+                               HrFollowupDao hrFollowupDao,
                                TagDao tagDao,
                                UserDao userDao,
                                ModerationService moderationService,
@@ -86,6 +92,7 @@ public class QuestionServiceImpl implements QuestionService {
                                HrProfileDao hrProfileDao) {
         this.questionDao = questionDao;
         this.answerDao = answerDao;
+        this.hrFollowupDao = hrFollowupDao;
         this.tagDao = tagDao;
         this.userDao = userDao;
         this.moderationService = moderationService;
@@ -520,12 +527,14 @@ public class QuestionServiceImpl implements QuestionService {
                     answer.getId(),
                     answer.getFollowupId(),
                     null,
-                    answer.getBody(),
+                    null,
+                    "removed".equals(answer.getStatus()) ? "" : answer.getBody(),
                     authorOf(answer.getAuthorId()),
                     true,
                     answer.getStatus(),
-                    answer.getLikeCount(),
-                    liked,
+                    answer.getRemovalSource(),
+                    "removed".equals(answer.getStatus()) ? 0 : answer.getLikeCount(),
+                    !"removed".equals(answer.getStatus()) && liked,
                     answer.getCreatedAt()));
         }
 
@@ -536,10 +545,12 @@ public class QuestionServiceImpl implements QuestionService {
                     followup.id(),
                     null,
                     followup.hrId(),
+                    followup.rootAnswerId(),
                     followup.body(),
                     followup.author(),
                     followup.hr(),
                     followup.status(),
+                    null,
                     0,
                     false,
                     followup.createdAt()));
@@ -602,10 +613,45 @@ public class QuestionServiceImpl implements QuestionService {
     @Override
     @Transactional(readOnly = true)
     public PageResult<HrAnsweredQuestionView> hrAnsweredQuestions(AuthUser hr, Long cursor, int limit) {
+        HrAnsweredQuestionPage page = hrAnsweredQuestions(hr, cursor, null, limit, false);
+        return new PageResult<>(page.items(), page.nextCursor());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public HrAnsweredQuestionPage hrAnsweredQuestions(AuthUser hr, Long cursor, LocalDateTime cursorAt,
+                                                       int limit, boolean pendingFollowupsOnly) {
+        if (!"hr".equals(hr.getRole())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "只有 HR 可以查看追问待办");
+        }
+        if (cursor != null && cursor <= 0
+                || pendingFollowupsOnly && (cursor == null) != (cursorAt == null)
+                || !pendingFollowupsOnly && cursorAt != null) {
+            throw new BusinessException(ErrorCode.INVALID_PARAM, "翻页参数无效，请返回第一页重试");
+        }
         int size = Math.clamp(limit, 1, 50);
-        List<QuestionDO> rows = questionDao.listPublicAnsweredByHr(hr.getId(), cursor, size + 1);
-        boolean hasMore = rows.size() > size;
-        List<QuestionDO> page = hasMore ? rows.subList(0, size) : rows;
+        List<QuestionDO> page;
+        Map<Long, HrFollowupSummaryDO> summaries;
+        boolean hasMore;
+        if (pendingFollowupsOnly) {
+            List<HrFollowupSummaryDO> rows = hrFollowupDao.listPending(hr.getId(), cursor, cursorAt, size + 1);
+            hasMore = rows.size() > size;
+            List<HrFollowupSummaryDO> tasks = rows.stream().limit(size).toList();
+            List<Long> ids = tasks.stream().map(HrFollowupSummaryDO::getQuestionId).toList();
+            Map<Long, QuestionDO> questions = ids.isEmpty() ? Map.of()
+                    : hrFollowupDao.questions(hr.getId(), ids).stream()
+                        .collect(java.util.stream.Collectors.toMap(QuestionDO::getId, question -> question));
+            page = tasks.stream().map(task -> questions.get(task.getQuestionId())).filter(Objects::nonNull).toList();
+            summaries = tasks.stream().collect(java.util.stream.Collectors.toMap(
+                    HrFollowupSummaryDO::getQuestionId, summary -> summary));
+        } else {
+            List<QuestionDO> rows = questionDao.listPublicAnsweredByHr(hr.getId(), cursor, size + 1);
+            hasMore = rows.size() > size;
+            page = rows.stream().limit(size).toList();
+            List<Long> ids = page.stream().map(QuestionDO::getId).toList();
+            summaries = ids.isEmpty() ? Map.of() : hrFollowupDao.summarizeQuestions(hr.getId(), ids).stream()
+                    .collect(java.util.stream.Collectors.toMap(HrFollowupSummaryDO::getQuestionId, summary -> summary));
+        }
         List<Long> questionIds = page.stream().map(QuestionDO::getId).toList();
         Map<Long, AnswerDO> latestAnswers = questionIds.isEmpty()
                 ? Map.of()
@@ -618,14 +664,24 @@ public class QuestionServiceImpl implements QuestionService {
                     if (answer == null) {
                         return null;
                     }
+                    HrFollowupSummaryDO summary = summaries.get(question.getId());
+                    HrFollowupSummary followups = summary == null
+                            ? new HrFollowupSummary(0, 0, null, null)
+                            : new HrFollowupSummary(summary.getPendingCount(), summary.getReviewingCount(),
+                                summary.getFirstPendingFollowupId(), summary.getLatestPendingAt());
                     return new HrAnsweredQuestionView(toView(question),
-                            new HrAnswerSummary(answer.getId(), answer.getFollowupId(), answer.getBody(), answer.getLengthType(),
-                                    answer.getStatus(), answer.getCreatedAt()));
+                            new HrAnswerSummary(answer.getId(), answer.getFollowupId(),
+                                    "removed".equals(answer.getStatus()) ? "" : answer.getBody(), answer.getLengthType(),
+                                    answer.getStatus(), answer.getRemovalSource(), answer.getCreatedAt()), followups);
                 })
                 .filter(java.util.Objects::nonNull)
                 .toList();
-        Long nextCursor = hasMore ? page.get(page.size() - 1).getId() : null;
-        return new PageResult<>(items, nextCursor);
+        Long nextCursor = hasMore && !page.isEmpty() ? page.get(page.size() - 1).getId() : null;
+        LocalDateTime nextCursorAt = nextCursor != null && pendingFollowupsOnly
+                ? summaries.get(nextCursor).getLatestPendingAt() : null;
+        var totals = hrFollowupDao.totals(hr.getId());
+        return new HrAnsweredQuestionPage(items, nextCursor, nextCursorAt,
+                totals.getPendingQuestionCount(), totals.getPendingFollowupCount());
     }
 
     @Override
@@ -739,6 +795,7 @@ public class QuestionServiceImpl implements QuestionService {
     }
 
     private AnswerView toAnswerView(AnswerDO answer, Long viewerId) {
+        boolean hidden = "removed".equals(answer.getStatus());
         boolean liked = viewerId != null
                 && interactionDao.exists(viewerId, "answer", answer.getId(), "like");
         boolean usefuled = viewerId != null
@@ -747,14 +804,15 @@ public class QuestionServiceImpl implements QuestionService {
                 answer.getId(),
                 answer.getQuestionId(),
                 answer.getFollowupId(),
-                answer.getBody(),
+                hidden ? "" : answer.getBody(),
                 answer.getLengthType(),
                 answer.getStatus(),
+                answer.getRemovalSource(),
                 authorOf(answer.getAuthorId()),
-                answer.getLikeCount(),
-                answer.getUsefulCount(),
-                liked,
-                usefuled,
+                hidden ? 0 : answer.getLikeCount(),
+                hidden ? 0 : answer.getUsefulCount(),
+                !hidden && liked,
+                !hidden && usefuled,
                 answer.getCreatedAt());
     }
 

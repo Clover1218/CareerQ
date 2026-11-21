@@ -3,9 +3,11 @@ package com.careerq.controller;
 import com.careerq.service.QuestionService;
 
 import com.careerq.common.ApiResponse;
+import com.careerq.common.BusinessException;
+import com.careerq.common.ErrorCode;
 import com.careerq.common.PageResult;
 import com.careerq.question.QuestionDtos.QuestionView;
-import com.careerq.question.QuestionDtos.HrAnsweredQuestionView;
+import com.careerq.question.QuestionDtos.HrAnsweredQuestionPage;
 import com.careerq.question.QuestionDtos.HrAnsweredPublicQuestionView;
 
 import com.careerq.security.AuthUsers;
@@ -15,6 +17,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 
 @RestController
 @RequestMapping("/api/v1/hr")
@@ -43,11 +48,22 @@ public class HrController {
 
     @GetMapping("/answered-questions")
     @PreAuthorize("hasRole('HR')")
-    public ApiResponse<PageResult<HrAnsweredQuestionView>> answeredQuestions(
+    public ApiResponse<HrAnsweredQuestionPage> answeredQuestions(
             Authentication authentication,
             @RequestParam(required = false) Long cursor,
+            @RequestParam(required = false) String cursorAt,
+            @RequestParam(defaultValue = "false") boolean pendingFollowupsOnly,
             @RequestParam(defaultValue = "20") int limit) {
-        return ApiResponse.ok(questionService.hrAnsweredQuestions(AuthUsers.require(authentication), cursor, limit));
+        return ApiResponse.ok(questionService.hrAnsweredQuestions(
+                AuthUsers.require(authentication), cursor, parseCursorAt(cursorAt), limit, pendingFollowupsOnly));
     }
 
+    private LocalDateTime parseCursorAt(String cursorAt) {
+        if (cursorAt == null) return null;
+        try {
+            return LocalDateTime.parse(cursorAt);
+        } catch (DateTimeParseException ex) {
+            throw new BusinessException(ErrorCode.INVALID_PARAM, "翻页参数无效，请返回第一页重试");
+        }
+    }
 }

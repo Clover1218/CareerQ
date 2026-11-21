@@ -31,19 +31,22 @@ public class AnswerServiceImpl implements AnswerService {
     private final UserDao userDao;
     private final ModerationService moderationService;
     private final HrProfileDao hrProfileDao;
+    private final AnswerRemovalService answerRemovalService;
 
     public AnswerServiceImpl(AnswerDao answerDao,
                              FollowupDao followupDao,
                              QuestionDao questionDao,
                              UserDao userDao,
                              ModerationService moderationService,
-                             HrProfileDao hrProfileDao) {
+                             HrProfileDao hrProfileDao,
+                             AnswerRemovalService answerRemovalService) {
         this.answerDao = answerDao;
         this.followupDao = followupDao;
         this.questionDao = questionDao;
         this.userDao = userDao;
         this.moderationService = moderationService;
         this.hrProfileDao = hrProfileDao;
+        this.answerRemovalService = answerRemovalService;
     }
 
     @Override
@@ -82,6 +85,13 @@ public class AnswerServiceImpl implements AnswerService {
             if (!hr.getId().equals(followup.getHrId())) {
                 throw new BusinessException(ErrorCode.NOT_FOUND, "只能回复发给自己线程的追问");
             }
+            AnswerDO root = answerDao.findById(followup.getRootAnswerId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "原回答不存在"));
+            if (!questionId.equals(root.getQuestionId()) || root.getFollowupId() != null
+                    || !hr.getId().equals(root.getAuthorId())
+                    || !java.util.Set.of(PUBLISHED, "removed").contains(root.getStatus())) {
+                throw new BusinessException(ErrorCode.NOT_FOUND, "追问对应的主回答不可用");
+            }
         } else if (!PUBLISHED.equals(question.getStatus())) {
             throw new BusinessException(ErrorCode.CONFLICT, "问题当前不可回答");
         }
@@ -107,37 +117,22 @@ public class AnswerServiceImpl implements AnswerService {
     @Override
     @Transactional
     public AnswerView withdraw(AuthUser author, Long answerId) {
-        AnswerDO answer = answerDao.findByIdForUpdate(answerId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "回答不存在"));
-        if (!author.getId().equals(answer.getAuthorId())) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "只能撤销自己的回答");
-        }
-        if ("removed".equals(answer.getStatus())) {
-            throw new BusinessException(ErrorCode.CONFLICT, "回答已撤销");
-        }
-        if (!java.util.Set.of("published", "pending_human", "pending_machine").contains(answer.getStatus())) {
-            throw new BusinessException(ErrorCode.CONFLICT, "当前状态不可撤销");
-        }
-        boolean published = PUBLISHED.equals(answer.getStatus());
-        answerDao.updateStatus(answerId, "removed");
-        if (published) {
-            questionDao.decrementAnswer(answer.getQuestionId());
-        }
-        answer.setStatus("removed");
-        return toView(answer);
+        return toView(answerRemovalService.withdraw(author, answerId));
     }
 
     private AnswerView toView(AnswerDO answer) {
+        boolean hidden = "removed".equals(answer.getStatus());
         return new AnswerView(
                 answer.getId(),
                 answer.getQuestionId(),
                 answer.getFollowupId(),
-                answer.getBody(),
+                hidden ? "" : answer.getBody(),
                 answer.getLengthType(),
                 answer.getStatus(),
+                answer.getRemovalSource(),
                 authorOf(answer.getAuthorId()),
-                answer.getLikeCount(),
-                answer.getUsefulCount(),
+                hidden ? 0 : answer.getLikeCount(),
+                hidden ? 0 : answer.getUsefulCount(),
                 false,
                 false,
                 answer.getCreatedAt());

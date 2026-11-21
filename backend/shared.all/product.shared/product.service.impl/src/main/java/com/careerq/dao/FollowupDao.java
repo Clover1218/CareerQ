@@ -14,26 +14,34 @@ public interface FollowupDao {
 
     @Insert("""
             insert into followups (
-                question_id, hr_id, sender_id, sender_role, body, scope, status, created_at
+                question_id, hr_id, root_answer_id, sender_id, sender_role, body, scope, status, created_at
             ) values (
-                #{questionId}, #{hrId}, #{senderId}, #{senderRole}, #{body}, #{scope}, #{status}, #{createdAt}
+                #{questionId}, #{hrId}, #{rootAnswerId}, #{senderId}, #{senderRole}, #{body}, #{scope}, #{status}, #{createdAt}
             )
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(FollowupDO followup);
 
     @Select("""
-            select * from followups where scope = 'public' and question_id = #{questionId}
-            and (status = 'published' or sender_id = #{senderId} and status in ('pending_human', 'rejected'))
-            order by id
+            select f.* from followups f where f.scope = 'public' and f.question_id = #{questionId}
+            and f.root_answer_id is not null
+            and (f.status = 'published' or f.sender_id = #{senderId} and f.status in ('pending_machine', 'pending_human', 'rejected')
+                 or f.status = 'removed' and exists (
+                    select 1 from answers a where a.question_id = f.question_id and a.followup_id = f.id
+                      and (a.status = 'published' or a.author_id = #{senderId}
+                           and a.status in ('pending_machine', 'pending_human', 'rejected'))))
+            order by f.created_at, f.id
             """)
     List<FollowupDO> findVisible(@Param("questionId") Long questionId, @Param("senderId") Long senderId);
 
-    @Select("select * from followups where scope = 'public' and status = 'pending_human' order by id")
+    @Select("select * from followups where scope = 'public' and root_answer_id is not null and status = 'pending_human' order by id")
     List<FollowupDO> findPending();
 
-    @Select("select * from followups where id = #{id} and scope = 'public' for update")
+    @Select("select * from followups where id = #{id} and scope = 'public' and root_answer_id is not null for update")
     Optional<FollowupDO> findByIdForUpdate(Long id);
+
+    @Select("select * from followups where id = #{id} and scope = 'public' and root_answer_id is not null")
+    Optional<FollowupDO> findById(Long id);
 
     @Update("update followups set status = #{status} where id = #{id}")
     int updateStatus(@Param("id") Long id, @Param("status") String status);

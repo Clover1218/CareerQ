@@ -37,6 +37,7 @@ const roleLabel = computed(() => ROLE_LABEL[user.value?.role ?? "student"] ?? "�
 const avatarInitial = computed(() => (user.value?.nickname ?? "学").trim().slice(0, 1));
 // 悬停头像时展示的简要资料（学校 · 专业 · 年级）
 const profileSummary = computed(() =>
+  user.value?.role === "hr" ? "职业资料 · 我的回答" :
   [user.value?.school, user.value?.major, user.value?.grade]
     .filter((value): value is string => !!value && value.trim().length > 0)
     .join(" · "),
@@ -44,7 +45,7 @@ const profileSummary = computed(() =>
 
 function goProfile() {
   if (user.value) {
-    router.push("/me");
+    router.push(user.value.role === "hr" ? "/hr/profile" : "/me");
   }
 }
 
@@ -157,12 +158,12 @@ watch(() => route.fullPath, refresh);
                 </template>
               </div>
             </header>
-            <main :class="['my-qa', 'hr-workbench'].includes(String(route.name)) ? 'wide-shell' : 'container'">
+            <main :class="['my-qa', 'hr-workbench', 'hr-profile', 'hr-messages'].includes(String(route.name)) ? 'wide-shell' : 'container'">
               <router-view v-slot="{ Component, route: currentRoute }">
-                <keep-alive include="HrWorkspaceView">
+                <keep-alive include="HrWorkspaceView,HrProfileView,HrMessagesView">
                   <component
                     :is="Component"
-                    :key="currentRoute.name === 'hr-workbench' ? 'hr-workbench' : currentRoute.fullPath"
+                    :key="['hr-profile', 'hr-messages'].includes(String(currentRoute.name)) ? `${String(currentRoute.name)}-${user?.id}` : currentRoute.name === 'hr-workbench' ? 'hr-workbench' : currentRoute.fullPath"
                   />
                 </keep-alive>
               </router-view>

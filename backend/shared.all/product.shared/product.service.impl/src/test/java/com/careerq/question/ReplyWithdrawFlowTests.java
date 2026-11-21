@@ -86,12 +86,12 @@ class ReplyWithdrawFlowTests {
                 .path("data").path("id").asLong();
     }
 
-    private long followup(MockHttpSession student, long questionId, long hrId) throws Exception {
+    private long followup(MockHttpSession student, long questionId, long hrId, long rootAnswerId) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/questions/{id}/followups", questionId)
                         .session(student).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "hrId", hrId, "body", "追问：具体该怎么排序？"))))
+                                "hrId", hrId, "rootAnswerId", rootAnswerId, "body", "追问：具体该怎么排序？"))))
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString())
@@ -106,7 +106,7 @@ class ReplyWithdrawFlowTests {
 
         long hrId = currentUserId(hr);
         long answerId = answer(hr, questionId);
-        long followupId = followup(student, questionId, hrId);
+        long followupId = followup(student, questionId, hrId, answerId);
 
         mockMvc.perform(post("/api/v1/answers/{id}/withdraw", answerId).session(hr).with(csrf()))
                 .andExpect(status().isOk())
@@ -126,7 +126,7 @@ class ReplyWithdrawFlowTests {
 
         long hrId = currentUserId(hr);
         long answerId = answer(hr, questionId);
-        long followupId = followup(student, questionId, hrId);
+        long followupId = followup(student, questionId, hrId, answerId);
 
         mockMvc.perform(post("/api/v1/answers/{id}/withdraw", answerId).session(student).with(csrf()))
                 .andExpect(status().isForbidden());
