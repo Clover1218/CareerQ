@@ -65,11 +65,8 @@ public class ModerationServiceImpl implements ModerationService {
                     l1.reason(), l1, null);
         }
 
-        Visibility visibility = "pass".equals(l1.decision()) ? Visibility.VISIBLE : Visibility.HIDDEN;
         L2Result l2 = l2(targetType, title, body, questionTitle, authorRole, l1.labels());
-        if (!"allow".equals(l2.decision())) {
-            visibility = Visibility.HIDDEN;
-        }
+        Visibility visibility = "allow".equals(l2.decision()) ? Visibility.VISIBLE : Visibility.HIDDEN;
         String reason = l2.reason() != null && !l2.reason().isBlank()
                 ? l2.reason()
                 : l1.reason();

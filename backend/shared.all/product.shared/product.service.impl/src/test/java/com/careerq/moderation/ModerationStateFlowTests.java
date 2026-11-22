@@ -26,7 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 审核态与可见态解耦后的状态矩阵：L1 通过即可见、人工通过/拒绝/下架/恢复。
+ * 审核态与可见态解耦后的状态矩阵：L2 通过即可见、人工通过/拒绝/下架/恢复。
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -86,7 +86,7 @@ class ModerationStateFlowTests {
                                 "tags", List.of(),
                                 "scope", "public"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.displayStatus").value("REVIEWING"))
+                .andExpect(jsonPath("$.data.displayStatus").value("PUBLISHED"))
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString()).path("data").path("id").asLong();
     }
@@ -118,14 +118,14 @@ class ModerationStateFlowTests {
     }
 
     @Test
-    void l1PassKeepsContentVisibleThenApproveRemoveAndRestore() throws Exception {
+    void l2PassPublishesThenApproveRemoveAndRestore() throws Exception {
         MockHttpSession student = register("13800000941", "状态学生");
-        long questionId = createQuestion(student, "L1 通过即可见");
+        long questionId = createQuestion(student, "L2 通过即可见");
 
-        // L1 通过：复核中但仍对外可见
+        // L2 通过：进入人工复核队列，同时对外公开
         mockMvc.perform(get("/api/v1/questions/{id}", questionId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.question.displayStatus").value("REVIEWING"));
+                .andExpect(jsonPath("$.data.question.displayStatus").value("PUBLISHED"));
 
         MockHttpSession operator = loginAs("13800000942", "operator");
         decide(operator, "question", questionId, "approve");

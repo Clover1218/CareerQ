@@ -23,18 +23,30 @@ public enum DisplayStatus {
         if (moderation == ModerationStatus.REJECTED) {
             return REJECTED;
         }
-        if (moderation == ModerationStatus.APPROVED && visible == Visibility.VISIBLE) {
+        // L2 通过后内容即公开，人工复核（L3）不再影响公开侧展示。
+        if (visible == Visibility.VISIBLE
+                && (moderation == ModerationStatus.APPROVED || moderation == ModerationStatus.L3)) {
             return PUBLISHED;
         }
         return REVIEWING;
     }
 
-    /** 后台视角：L3 且人工裁定满 2 次为待仲裁；作者/公开侧继续用 2 参版本。 */
-    public static DisplayStatus of(String moderationStatus, String visibility, int reviewAttempts) {
-        DisplayStatus base = of(moderationStatus, visibility);
-        if (base == REVIEWING && reviewAttempts >= 2) {
-            return ARBITRATING;
+    /** 后台视角：L3 一律视为待审，满 2 次人工裁定为待仲裁；公开侧用 2 参版本。 */
+    public static DisplayStatus adminOf(String moderationStatus, String visibility, int reviewAttempts) {
+        ModerationStatus moderation = ModerationStatus.parse(moderationStatus);
+        Visibility visible = Visibility.parse(visibility);
+        if (moderation == ModerationStatus.WITHDRAWN) {
+            return WITHDRAWN;
         }
-        return base;
+        if (visible == Visibility.REMOVED) {
+            return REMOVED;
+        }
+        if (moderation == ModerationStatus.REJECTED) {
+            return REJECTED;
+        }
+        if (moderation == ModerationStatus.APPROVED && visible == Visibility.VISIBLE) {
+            return PUBLISHED;
+        }
+        return reviewAttempts >= 2 ? ARBITRATING : REVIEWING;
     }
 }

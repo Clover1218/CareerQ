@@ -70,7 +70,7 @@ class HrPersonalFlowTests {
         write(hr, base + "/followups/" + f + "/answers", Map.of("body", "追问回复正文"));
         for (String type : new String[]{"like", "useful"}) write(student, "/interactions", Map.of("targetType", "answer", "targetId", root, "type", type));
         var stats = read(hr, "/hr/stats");
-        assertEquals(5, stats.path("rootAnswerCount").asInt());
+        assertEquals(6, stats.path("rootAnswerCount").asInt());
         assertEquals(1, stats.path("followupReplyCount").asInt());
         assertEquals(1, stats.path("likeCount").asInt());
         assertEquals(1, stats.path("usefulCount").asInt());
@@ -87,7 +87,8 @@ class HrPersonalFlowTests {
         assertEquals(1, removed.size());
         assertEquals("", removed.get(0).path("body").asText());
         assertEquals("author", removed.get(0).path("removalSource").asText());
-        assertEquals(1, read(hr, "/hr/answers?status=reviewing").path("items").size());
+        assertEquals(0, read(hr, "/hr/answers?status=reviewing").path("items").size());
+        assertEquals(6, read(hr, "/hr/answers?status=published&kind=root&limit=50").path("items").size());
         assertEquals(1, read(hr, "/hr/answers?kind=reply").path("items").size());
         assertEquals(1, read(other, "/hr/answers?hrId=" + hrId).path("items").size());
     }

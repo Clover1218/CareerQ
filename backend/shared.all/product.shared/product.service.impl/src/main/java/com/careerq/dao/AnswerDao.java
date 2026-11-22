@@ -198,11 +198,12 @@ public interface AnswerDao {
     int restoreOperatorRemoval(@Param("id") Long id, @Param("reason") String reason);
 
     @Update("""
-            update answers set moderation_status = 'L3', visibility = 'HIDDEN',
+            update answers set moderation_status = 'L3', visibility = #{visibility},
                 moderation_reason = #{reason}, moderated_at = current_timestamp, updated_at = current_timestamp
             where id = #{id} and moderation_status in ('APPROVED', 'REJECTED')
             """)
-    int undoModerationIf(@Param("id") Long id, @Param("reason") String reason);
+    int undoModerationIf(@Param("id") Long id, @Param("visibility") String visibility,
+                         @Param("reason") String reason);
 
     @Select("""
             select count(*) from answers a

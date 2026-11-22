@@ -485,8 +485,10 @@ applyQuestion(question, operator, decision, note);
     private void undoQuestion(Long targetId, AuthUser operator, String note) {
         QuestionDO question = questionDao.findByIdForUpdate(targetId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
+        requireNotRemoved(question.getVisibility());
         requireUndoable("question", targetId, operator, question.getModerationStatus());
-        requireUpdated(questionDao.undoModerationIf(targetId, note));
+        requireUpdated(questionDao.undoModerationIf(targetId,
+                restoreVisibility("question", targetId), note));
         moderationService.recordManual("question", targetId, STAGE_HUMAN, "undo",
                 question.getModerationStatus(), "L3", question.getRiskLevel(), operator.getId(), note);
     }
@@ -494,10 +496,16 @@ applyQuestion(question, operator, decision, note);
     private void undoAnswer(Long targetId, AuthUser operator, String note) {
         AnswerDO answer = answerDao.findByIdForUpdate(targetId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "回答不存在"));
+        requireNotRemoved(answer.getVisibility());
         requireUndoable("answer", targetId, operator, answer.getModerationStatus());
         boolean wasVisible = "VISIBLE".equals(answer.getVisibility());
-        requireUpdated(answerDao.undoModerationIf(targetId, note));
-        if (wasVisible) {
+        String visibility = restoreVisibility("answer", targetId);
+        requireUpdated(answerDao.undoModerationIf(targetId, visibility, note));
+        if ("VISIBLE".equals(visibility)) {
+            if (!wasVisible) {
+                questionDao.recordAnswer(answer.getQuestionId());
+            }
+        } else if (wasVisible) {
             questionDao.decrementAnswer(answer.getQuestionId());
         }
         moderationService.recordManual("answer", targetId, STAGE_HUMAN, "undo",
@@ -507,14 +515,30 @@ applyQuestion(question, operator, decision, note);
     private void undoFollowup(Long targetId, AuthUser operator, String note) {
         FollowupDO followup = followupDao.findByIdForUpdate(targetId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "追问不存在"));
+        requireNotRemoved(followup.getVisibility());
         requireUndoable("followup", targetId, operator, followup.getModerationStatus());
         boolean wasVisible = "VISIBLE".equals(followup.getVisibility());
-        requireUpdated(followupDao.undoModerationIf(targetId, note));
-        if (wasVisible) {
+        String visibility = restoreVisibility("followup", targetId);
+        requireUpdated(followupDao.undoModerationIf(targetId, visibility, note));
+        if ("VISIBLE".equals(visibility)) {
+            if (!wasVisible) {
+                questionDao.incrementFollowup(followup.getQuestionId());
+            }
+        } else if (wasVisible) {
             questionDao.decrementFollowup(followup.getQuestionId());
         }
         moderationService.recordManual("followup", targetId, STAGE_HUMAN, "undo",
                 followup.getModerationStatus(), "L3", followup.getRiskLevel(), operator.getId(), note);
+    }
+
+    private String restoreVisibility(String targetType, Long targetId) {
+        return "allow".equals(recordDao.findLatestL2Decision(targetType, targetId)) ? "VISIBLE" : "HIDDEN";
+    }
+
+    private void requireNotRemoved(String visibility) {
+        if ("REMOVED".equals(visibility)) {
+            throw new BusinessException(ErrorCode.CONFLICT, "已下架内容不可撤销审核");
+        }
     }
 
     private void requireUndoable(String targetType, Long targetId, AuthUser operator, String currentStatus) {
@@ -605,7 +629,7 @@ applyQuestion(question, operator, decision, note);
     }
 
     private String displayStatus(String moderationStatus, String visibility, int reviewAttempts) {
-        return DisplayStatus.of(moderationStatus, visibility, reviewAttempts).name();
+        return DisplayStatus.adminOf(moderationStatus, visibility, reviewAttempts).name();
     }
 
     private List<ReviewEntry> context(Long questionId, String targetType, Long targetId) {
@@ -614,21 +638,24 @@ applyQuestion(question, operator, decision, note);
         List<ReviewEntry> entries = new ArrayList<>();
         entries.add(new ReviewEntry("question", question.getId(), nicknameOf(question.getAuthorId()),
                 "student", question.getBody(),
-                DisplayStatus.of(question.getModerationStatus(), question.getVisibility()).name(),
+                DisplayStatus.adminOf(question.getModerationStatus(), question.getVisibility(),
+                        question.getReviewAttempts()).name(),
                 "question".equals(targetType) && question.getId().equals(targetId),
                 question.getCreatedAt()));
         for (AnswerDO answer : answerDao.findVisible(questionId, null, true)) {
             entries.add(new ReviewEntry(
                     answer.getFollowupId() == null ? "answer" : "followup_answer",
                     answer.getId(), nicknameOf(answer.getAuthorId()), "hr", answer.getBody(),
-                    DisplayStatus.of(answer.getModerationStatus(), answer.getVisibility()).name(),
+                    DisplayStatus.adminOf(answer.getModerationStatus(), answer.getVisibility(),
+                            answer.getReviewAttempts()).name(),
                     "answer".equals(targetType) && answer.getId().equals(targetId),
                     answer.getCreatedAt()));
         }
         for (FollowupDO followup : followupDao.findVisible(questionId, null, true)) {
             entries.add(new ReviewEntry("followup", followup.getId(), nicknameOf(followup.getSenderId()),
                     followup.getSenderRole(), followup.getBody(),
-                    DisplayStatus.of(followup.getModerationStatus(), followup.getVisibility()).name(),
+                    DisplayStatus.adminOf(followup.getModerationStatus(), followup.getVisibility(),
+                            followup.getReviewAttempts()).name(),
                     "followup".equals(targetType) && followup.getId().equals(targetId),
                     followup.getCreatedAt()));
         }
@@ -783,8 +810,8 @@ applyDecision(operator, normalizeTargetType(report.getTargetType()),
         result.put("answersReviewing", answerDao.countByModerationStatus("L3") - answerArbitration);
         result.put("followupsReviewing", followupDao.countByModerationStatus("L3") - followupArbitration);
         result.put("arbitrationPending", questionArbitration + answerArbitration + followupArbitration);
-        result.put("questionsPublished", questionDao.countByModerationStatusAndVisibility("APPROVED", "VISIBLE"));
-        result.put("answersPublished", answerDao.countByModerationStatusAndVisibility("APPROVED", "VISIBLE"));
+        result.put("questionsPublished", questionDao.countByVisibility("VISIBLE"));
+        result.put("answersPublished", answerDao.countByVisibility("VISIBLE"));
         result.put("reportsPending", reportDao.countByStatus("pending"));
         return result;
     }

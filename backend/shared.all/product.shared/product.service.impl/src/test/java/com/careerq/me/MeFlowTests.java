@@ -1,5 +1,6 @@
 package com.careerq.me;
 
+import com.careerq.dao.ModerationWordDao;
 import com.careerq.dao.UserDao;
 import com.careerq.dataobject.UserDO;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -35,6 +36,9 @@ class MeFlowTests {
 
     @Autowired
     private UserDao userDao;
+
+    @Autowired
+    private ModerationWordDao wordDao;
 
     private void registerIfNeeded(String phone) throws Exception {
         MvcResult reg = mockMvc.perform(post("/api/v1/auth/register").with(csrf())
@@ -98,7 +102,7 @@ class MeFlowTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1))
                 .andExpect(jsonPath("$.data.items[0].id").value(publicId))
-                .andExpect(jsonPath("$.data.items[0].displayStatus").value("REVIEWING"))
+                .andExpect(jsonPath("$.data.items[0].displayStatus").value("PUBLISHED"))
                 .andExpect(jsonPath("$.data.items[0].body").value("公开问题正文"));
 
         mockMvc.perform(get("/api/v1/me/questions").session(student).param("scope", "public"))
@@ -122,7 +126,7 @@ class MeFlowTests {
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "body", "这是一条用于统计的回答。", "lengthType", "detailed"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.displayStatus").value("REVIEWING"))
+                .andExpect(jsonPath("$.data.displayStatus").value("PUBLISHED"))
                 .andReturn();
         long answerId = objectMapper.readTree(answerResult.getResponse().getContentAsString())
                 .path("data").path("id").asLong();
@@ -155,17 +159,18 @@ class MeFlowTests {
     }
 
     @Test
-    void authorCanViewOwnPendingPublicQuestion() throws Exception {
+    void authorCanViewOwnBlockedPublicQuestion() throws Exception {
         MockHttpSession author = login("13800000904");
-        long questionId = createQuestion(author, "public", "审核中的公开提问", "正文包含加微信，进入人工审核。");
+        wordDao.upsert("我的主页拦截词", "test", "block");
+        long questionId = createQuestion(author, "public", "被拦截的公开提问", "正文包含我的主页拦截词。");
 
         mockMvc.perform(get("/api/v1/questions/{id}", questionId))
                 .andExpect(status().isNotFound());
 
         mockMvc.perform(get("/api/v1/questions/{id}", questionId).session(author))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.question.displayStatus").value("REVIEWING"))
-                .andExpect(jsonPath("$.data.question.body").value("正文包含加微信，进入人工审核。"));
+                .andExpect(jsonPath("$.data.question.displayStatus").value("REJECTED"))
+                .andExpect(jsonPath("$.data.question.body").value("正文包含我的主页拦截词。"));
 
         MockHttpSession stranger = login("13800000905");
         mockMvc.perform(get("/api/v1/questions/{id}", questionId).session(stranger))

@@ -115,11 +115,12 @@ public interface FollowupDao {
                            @Param("reason") String reason);
 
     @Update("""
-            update followups set moderation_status = 'L3', visibility = 'HIDDEN',
+            update followups set moderation_status = 'L3', visibility = #{visibility},
                 moderation_reason = #{reason}, moderated_at = current_timestamp
             where id = #{id} and moderation_status in ('APPROVED', 'REJECTED')
             """)
-    int undoModerationIf(@Param("id") Long id, @Param("reason") String reason);
+    int undoModerationIf(@Param("id") Long id, @Param("visibility") String visibility,
+                         @Param("reason") String reason);
 
     @Select("""
             select count(*) from followups

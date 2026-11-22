@@ -114,7 +114,7 @@ class StudentFinishFlowTests {
         assertFalse(rejected.toString().contains("INTERNAL_ONLY"));
         long q = question(student, "正常面试准备问题");
         long a = answer(hr, q, "加微信讨论联系方式");
-        assertEquals(1, count(student));
+        assertEquals(2, count(student));
         decide(op, "answer", a, "approve");
         assertEquals(2, count(student));
         long f = write(student, "/questions/" + q + "/followups", Map.of("rootAnswerId", a,

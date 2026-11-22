@@ -102,13 +102,14 @@ class ModerationFlowTests {
     }
 
     @Test
-    void riskyQuestionGoesToQueueThenApproved() throws Exception {
+    void riskyQuestionPublishesImmediatelyAndStaysInQueue() throws Exception {
         MockHttpSession student = login("13800000301");
         long questionId = createQuestion(student, "想找内推", "可以加微信详聊吗？", "public");
 
-        // 命中高风险词 → 待人工审核，公开不可见
+        // L1 命中风险词但 L2 通过：立即公开，同时保留人工复核任务
         mockMvc.perform(get("/api/v1/questions/{id}", questionId))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.question.displayStatus").value("PUBLISHED"));
 
         MockHttpSession operator = loginAs("13800000302", "operator");
         assertTrue(queueContains(queue(operator), "question", questionId), "队列应包含待审问题");

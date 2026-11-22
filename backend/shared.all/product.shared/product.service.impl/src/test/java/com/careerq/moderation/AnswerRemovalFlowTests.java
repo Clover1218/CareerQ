@@ -171,15 +171,18 @@ class AnswerRemovalFlowTests {
     }
 
     @Test
-    void removingUnpublishedAnswersNeverDeductsPublishedCount() throws Exception {
+    void removingVisibleAnswersDeductsOnceAndWithdrawDoesNot() throws Exception {
         var s = scenario();
-        for (String body : new String[]{"可加微信咨询", "联系方式稍后提供"}) {
-            long pendingId = write(s.hr(), s.base() + "/answers", Map.of("body", body)).path("id").asLong();
-            assertEquals(1, count(s));
-            if (body.startsWith("可")) remove(s, pendingId);
-            else write(s.hr(), "/answers/" + pendingId + "/withdraw", Map.of());
-            assertEquals(1, count(s));
-        }
+        long flaggedId = write(s.hr(), s.base() + "/answers", Map.of("body", "可加微信咨询")).path("id").asLong();
+        assertEquals(2, count(s));
+        remove(s, flaggedId);
+        assertEquals(1, count(s));
+
+        long secondId = write(s.hr(), s.base() + "/answers", Map.of("body", "联系方式稍后提供")).path("id").asLong();
+        assertEquals(2, count(s));
+        write(s.hr(), "/answers/" + secondId + "/withdraw", Map.of());
+        assertEquals(1, count(s));
+
         remove(s, s.answerId());
         assertEquals(0, count(s));
     }

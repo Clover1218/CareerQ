@@ -127,7 +127,7 @@ try {
     $risky = Invoke-Api POST "/api/v1/questions" $student @{
         title = "想找内推"; body = "可以加微信详细聊吗？"; scope = "public"
     }
-    Assert-True ($risky.data.displayStatus -eq "REVIEWING") "含联系方式的问题进入待审核"
+    Assert-True ($risky.data.displayStatus -eq "PUBLISHED") "含联系方式的问题 L2 通过后立即公开并留在人工队列"
 
     $queue = Invoke-Api GET "/api/v1/admin/moderation/queue" $operator
     $matched = @(Get-Items $queue.data.items | Where-Object { [string]$_.targetId -eq [string]$risky.data.id })
@@ -162,7 +162,7 @@ try {
     $undoTarget = Invoke-Api POST "/api/v1/questions" $student @{
         title = "撤销与审核次数验证"; body = "撤销用例，请加微信 smoke-undo-001 联系"; scope = "public"
     }
-    Assert-True ($undoTarget.data.displayStatus -eq "REVIEWING") "新问题进入待审核"
+    Assert-True ($undoTarget.data.displayStatus -eq "PUBLISHED") "新问题 L2 通过后立即公开，等待人工审核"
 
     Invoke-Api POST "/api/v1/admin/moderation/question/$($undoTarget.data.id)/decide" $operator @{
         decision = "approve"; note = "撤销前先通过"

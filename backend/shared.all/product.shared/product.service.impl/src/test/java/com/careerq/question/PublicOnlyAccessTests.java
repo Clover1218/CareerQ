@@ -93,7 +93,7 @@ class PublicOnlyAccessTests {
                                 "scope", "public"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.scope").value("public"))
-                .andExpect(jsonPath("$.data.displayStatus").value("REVIEWING"));
+                .andExpect(jsonPath("$.data.displayStatus").value("PUBLISHED"));
     }
 
     @Test

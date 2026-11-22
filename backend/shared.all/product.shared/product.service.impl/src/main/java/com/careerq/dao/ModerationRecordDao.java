@@ -65,6 +65,15 @@ public interface ModerationRecordDao {
     Optional<ModerationRecordDO> findLatestAdjudication(@Param("targetType") String targetType,
                                                         @Param("targetId") Long targetId);
 
+    /** 创建时 L2 的结论；allow 表示内容当时已公开，撤销人工裁定后按此恢复可见性。 */
+    @Select("""
+            select decision from moderation_records
+            where target_type = #{targetType} and target_id = #{targetId} and stage = 'L2'
+            order by id desc limit 1
+            """)
+    String findLatestL2Decision(@Param("targetType") String targetType,
+                                @Param("targetId") Long targetId);
+
     /** 本人是否已裁定过该内容（撤销不解除该限制）。 */
     @Select("""
             select exists (
