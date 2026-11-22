@@ -301,8 +301,7 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="filter-sortbar">
-      <div class="filter-sort">
-        <span class="filter-sort-label">当前排序：</span>
+      <div class="filter-sort" role="group" aria-label="排序方式">
         <div class="filter-sort-options">
           <button
             type="button"
@@ -312,7 +311,6 @@ onBeforeUnmount(() => {
           >
             个性推荐
           </button>
-          <span class="filter-sep">|</span>
           <button
             type="button"
             class="filter-sort-btn"
@@ -321,7 +319,6 @@ onBeforeUnmount(() => {
           >
             最新
           </button>
-          <span class="filter-sep">|</span>
           <button
             type="button"
             class="filter-sort-btn"
@@ -355,9 +352,9 @@ onBeforeUnmount(() => {
 
 .filter-search-shell.is-open {
   border: 1px solid var(--color-border-default);
-  border-radius: 6px;
+  border-radius: 10px;
   background: var(--color-bg-surface);
-  padding-bottom: 8px;
+  padding-bottom: 10px;
   overflow: hidden;
 }
 
@@ -365,13 +362,18 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  height: 40px;
-  padding: 8px 16px;
+  gap: 12px;
+  height: 48px;
+  padding: 8px 12px 8px 16px;
   border: 1px solid var(--color-border-default);
-  border-radius: 6px;
+  border-radius: 10px;
   background: var(--color-bg-surface);
-  box-shadow: 0 4px 16px -8px rgba(0, 0, 0, 0.25);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.filter-searchbar:focus-within {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.09);
 }
 
 .filter-search-left {
@@ -411,22 +413,23 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 7px;
   background: none;
   padding: 0;
-  color: var(--color-text-primary);
+  color: var(--color-text-regular);
 }
 
 .filter-toggle:hover {
-  background: none;
-  color: #3874d0;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
 }
 
 .filter-toggle.is-active {
-  color: #3874d0;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
 }
 
 .filter-body {
@@ -465,11 +468,12 @@ onBeforeUnmount(() => {
 
 .filter-tag.is-active,
 .filter-tag.is-selected {
-  color: #3874d0;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
 }
 
 .filter-tag.is-selected:hover {
-  color: #3874d0;
+  color: var(--color-brand);
   text-decoration: line-through;
 }
 
@@ -514,7 +518,8 @@ onBeforeUnmount(() => {
 }
 
 .filter-time.is-active {
-  color: #3874d0;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
 }
 
 .filter-custom-timer {
@@ -560,71 +565,68 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 10px 16px;
+  gap: 12px;
+  padding: 0;
 }
 
 .filter-sort {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-}
-
-.filter-sort-label {
-  color: var(--color-text-primary);
-  font-size: 14px;
-  line-height: 22px;
+  border-radius: 10px;
+  background: #edf0f4;
+  padding: 4px;
 }
 
 .filter-sort-options {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 2px;
 }
 
 .filter-sort-btn {
+  min-height: 34px;
   border: 0;
+  border-radius: 7px;
   background: none;
-  padding: 0;
-  color: var(--color-text-primary);
+  padding: 6px 15px;
+  color: var(--color-text-muted);
   font-family: inherit;
   font-size: 14px;
   line-height: 22px;
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .filter-sort-btn:hover {
-  background: none;
-  color: #3874d0;
+  background: rgba(255, 255, 255, 0.65);
+  color: var(--color-text-primary);
 }
 
 .filter-sort-btn.is-active {
-  color: #5b94f5;
-}
-
-.filter-sep {
-  color: var(--color-text-primary);
-  font-size: 14px;
-  line-height: 22px;
+  background: var(--color-bg-surface);
+  color: var(--color-brand);
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(23, 32, 51, 0.08);
 }
 
 .filter-refresh {
   display: inline-flex;
+  min-height: 38px;
   flex-shrink: 0;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   border: 0;
+  border-radius: 7px;
   background: none;
-  padding: 0;
-  color: var(--color-text-primary);
+  padding: 7px 10px;
+  color: var(--color-text-regular);
   font-family: inherit;
   font-size: 14px;
   line-height: 22px;
 }
 
 .filter-refresh:hover {
-  background: none;
-  color: #3874d0;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
 }
 
 @media (max-width: 640px) {
@@ -633,7 +635,13 @@ onBeforeUnmount(() => {
   }
 
   .filter-sortbar {
-    padding: 10px 8px;
+    flex-wrap: wrap;
+    padding: 0;
+  }
+
+  .filter-sort-btn {
+    padding-right: 12px;
+    padding-left: 12px;
   }
 
   .filter-custom-timer {

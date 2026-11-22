@@ -35,6 +35,12 @@ const pageNumber = computed(() => cursors.value.length);
 const displayName = computed(() => profile.value?.nickname ?? userStore.user?.nickname ?? "HR 答主");
 const avatarUrl = computed(() => profile.value?.avatarUrl ?? userStore.user?.avatarUrl);
 const verification = computed(() => ({ approved: "认证通过（演示）", verified: "认证通过（演示）", pending: "认证待完善", rejected: "认证未通过" }[profile.value?.verifyStatus ?? "pending"] ?? "认证待完善"));
+const profileComplete = computed(() => {
+  const p = profile.value;
+  return !!p
+    && [p.nickname, p.companyDisplay, p.industry, p.position, p.bio].every(value => !!value?.trim())
+    && p.specialties.some(value => !!value.trim());
+});
 const statCards = computed(() => [
   { label: "主回答", value: stats.value?.rootAnswerCount },
   { label: "追问回复", value: stats.value?.followupReplyCount },
@@ -206,7 +212,7 @@ async function uploadAvatar(event: Event) {
 
 <template>
   <section class="hr-personal">
-    <div class="page-intro"><button v-if="route.query.from === 'hr-messages'" type="button" class="return-messages" @click="returnToMessages">← 返回消息中心</button><span v-else>我的个人中心</span><router-link to="/hr">前往 HR 工作台 <span aria-hidden="true">↗</span></router-link></div>
+    <div class="page-intro"><button v-if="route.query.from === 'hr-messages'" type="button" class="return-messages" @click="returnToMessages">← 返回消息中心</button><span v-else>我的个人中心</span><span><router-link to="/hr/posts">我的帖子 ↗</router-link> · <router-link to="/hr">前往 HR 工作台 ↗</router-link></span></div>
     <header class="identity-card">
       <button class="profile-avatar" type="button" :disabled="uploading" aria-label="更换头像" @click="avatarInput?.click()">
         <img v-if="avatarUrl" :src="avatarUrl" alt="" /><span v-else>{{ displayName.trim().slice(0, 1) }}</span>
@@ -253,7 +259,25 @@ async function uploadAvatar(event: Event) {
         <p v-if="!focusedMode && !loading && !listError && records.length && nextCursor == null" class="end-caption">回答记录已经看完咯</p>
       </section>
       <aside class="career-aside">
-        <section class="career-card"><h2>职业资料</h2><dl><div><dt>所属行业</dt><dd>{{ profile?.industry || '待完善' }}</dd></div><div><dt>职业方向</dt><dd>{{ profile?.position || '待完善' }}</dd></div><div><dt>企业展示名</dt><dd>{{ profile?.companyDisplay || '待完善' }}</dd></div><div><dt>身份状态</dt><dd>{{ verification }}</dd></div></dl><h3>擅长领域</h3><div v-if="profile?.specialties.length" class="specialties"><span v-for="tag in profile.specialties" :key="tag">{{ tag }}</span></div><p v-else class="aside-empty">添加你熟悉的领域，让学生了解你的经验。</p><button type="button" class="complete-profile" :disabled="!profile" @click="editProfile">完善职业资料 →</button></section>
+        <section class="career-card">
+          <h2>职业资料</h2>
+          <dl>
+            <div><dt>所属行业</dt><dd>{{ profile?.industry || '待完善' }}</dd></div>
+            <div><dt>职业方向</dt><dd>{{ profile?.position || '待完善' }}</dd></div>
+            <div><dt>企业展示名</dt><dd>{{ profile?.companyDisplay || '待完善' }}</dd></div>
+            <div><dt>身份状态</dt><dd>{{ verification }}</dd></div>
+          </dl>
+          <h3>擅长领域</h3>
+          <div v-if="profile?.specialties.length" class="specialties">
+            <span v-for="tag in profile.specialties" :key="tag">{{ tag }}</span>
+          </div>
+          <p v-if="profile && !profileComplete" class="aside-empty">
+            {{ profile.specialties.length ? '还有职业资料未填写完整，补充后让学生更全面地了解你的经验。' : '添加你熟悉的领域，让学生了解你的经验。' }}
+          </p>
+          <button type="button" class="complete-profile" :disabled="!profile" @click="editProfile">
+            {{ profileComplete ? '编辑资料 →' : '完善职业资料 →' }}
+          </button>
+        </section>
         <section class="workbench-link"><span>继续分享经验</span><p>发现新的问题，跟进学生追问。</p><router-link to="/hr">进入 HR 工作台 →</router-link></section>
       </aside>
     </div>

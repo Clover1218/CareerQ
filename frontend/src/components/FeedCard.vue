@@ -58,12 +58,25 @@ const counts = reactive({
   likeCount: props.item.likeCount,
   favoriteCount: props.item.favoriteCount,
   replyCount: props.item.replyCount,
+  answerCount: props.item.answerCount,
+  followupCount: props.item.followupCount,
 });
 const liked = ref(props.item.viewer?.liked ?? false);
 const favorited = ref(props.item.viewer?.favorited ?? false);
 const interacting = ref(false);
 let interactionVersion = 0;
 let contentRequest: Promise<void> | null = null;
+let replyCountsRequestVersion = 0;
+let appliedReplyCountsVersion = 0;
+
+function applyReplyCounts(data: Pick<Thread, "answerCount" | "followupCount">, version: number) {
+  // 全文与回答可能同时请求，较早请求的迟到响应不能覆盖新数量。
+  if (version < appliedReplyCountsVersion) return;
+  appliedReplyCountsVersion = version;
+  counts.answerCount = data.answerCount;
+  counts.followupCount = data.followupCount;
+  counts.replyCount = data.answerCount + data.followupCount;
+}
 
 function applyViewer(viewer: ViewerState, version: number) {
   if (version !== interactionVersion) return;
@@ -76,16 +89,28 @@ watch(
   (next) => {
     counts.likeCount = next.likeCount;
     counts.favoriteCount = next.favoriteCount;
-    counts.replyCount = next.replyCount;
+    applyReplyCounts(next, ++replyCountsRequestVersion);
     if (next.viewer && !interacting.value) applyViewer(next.viewer, interactionVersion);
   },
 );
 
 const authorName = computed(() => content.value?.question.author.nickname ?? "");
 const createdAt = computed(() => content.value?.question.createdAt ?? props.item.createdAt);
+const detailLink = computed(() => ({
+  path: `/questions/${props.item.id}`,
+  query: props.ownerMode ? undefined : { from: "feed" },
+}));
 const replyLabel = computed(() => {
-  if (counts.replyCount > 0) return `${counts.replyCount} 条问答互动`;
-  return props.ownerMode ? "暂无评论" : "我来回答";
+  if (threadOpen.value) return "收起回答";
+  const { answerCount, followupCount } = counts;
+  if (answerCount > 0) {
+    return followupCount > 0
+      ? `${answerCount} 个回答 · ${followupCount} 条追问`
+      : `${answerCount} 个回答`;
+  }
+  if (followupCount > 0) return `${followupCount} 条追问`;
+  if (props.ownerMode) return "暂无回答";
+  return user.value?.role === "hr" ? "我来回答" : "查看问题";
 });
 const questionAuthorId = computed(() => content.value?.question.author.id ?? null);
 
@@ -93,18 +118,31 @@ const conversations = computed(() => buildAnswerThreads(thread.value?.items ?? [
 const publishedRootCount = computed(() => conversations.value.filter((item) => item.rootAnswer?.status === "published").length);
 const participatingHrCount = computed(() => new Set(conversations.value.filter((item) => item.rootAnswer?.status === "published").map((item) => item.hrId)).size);
 
-const STATUS_META: Record<string, { text: string; color: string }> = {
-  published: { text: "已发表", color: "#34C759" },
-  pending_machine: { text: "待审核", color: "#FF383C" },
-  pending_human: { text: "待审核", color: "#FF383C" },
-  rejected: { text: "未通过", color: "var(--color-danger)" },
-  removed: { text: "已撤回", color: "var(--color-text-muted)" },
+const STATUS_META: Record<string, { text: string; tone: string }> = {
+  published: { text: "已发表", tone: "success" },
+  pending_machine: { text: "待审核", tone: "warning" },
+  pending_human: { text: "待审核", tone: "warning" },
+  rejected: { text: "未通过", tone: "danger" },
+  removed: { text: "已撤回", tone: "neutral" },
 };
 
 const statusMeta = computed(() => {
   if (!props.status) return null;
-  return STATUS_META[props.status] ?? { text: props.status, color: "var(--color-text-muted)" };
+  return STATUS_META[props.status] ?? { text: props.status, tone: "neutral" };
 });
+
+function formatRelativeTime(value: string): string {
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return "";
+  const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60_000));
+  if (minutes < 1) return "刚刚";
+  if (minutes < 60) return `${minutes} 分钟前`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} 天前`;
+  return value.slice(0, 10);
+}
 
 // 审核中/未通过的问题不能点赞收藏，按作者视角展示计数但禁用操作
 const interactive = computed(
@@ -134,6 +172,7 @@ async function ensureContent() {
   if (contentRequest) return contentRequest;
   const viewerId = user.value?.id;
   const version = interactionVersion;
+  const countsVersion = ++replyCountsRequestVersion;
   loadingContent.value = true;
   error.value = "";
   contentRequest = (async () => {
@@ -147,7 +186,7 @@ async function ensureContent() {
       applyViewer(data.viewer, version);
       counts.likeCount = data.question.likeCount;
       counts.favoriteCount = data.question.favoriteCount;
-      counts.replyCount = data.question.answerCount + data.question.followupCount;
+      applyReplyCounts(data.question, countsVersion);
     } catch (e) {
       reportError(e, "加载全文失败");
     } finally {
@@ -179,11 +218,12 @@ async function loadThread() {
       };
       return;
     }
+    const countsVersion = ++replyCountsRequestVersion;
     const data = await api.getQuestionThread(props.item.id);
     if (viewerId !== user.value?.id) return;
     thread.value = data;
     applyViewer(data.viewer, version);
-    counts.replyCount = data.replyCount;
+    applyReplyCounts(data, countsVersion);
   } catch (e) {
     reportError(e, "加载回答失败");
   } finally {
@@ -482,54 +522,60 @@ onBeforeUnmount(() => {
 <template>
   <!-- 菜单打开时整卡提升层级，避免下拉菜单被后续卡片覆盖 -->
   <article
-    class="flex flex-col gap-4 rounded-card-lg border border-solid border-line bg-surface py-4"
-    :class="{ 'relative z-30': menuOpen !== null }"
+    class="feed-card"
+    :class="{ 'relative z-30': menuOpen !== null, 'is-thread-open': threadOpen, 'feed-card--summary': !ownerMode }"
   >
-    <!-- 问题卡片（Right）：回答区展开时才抬起，向下投影落在回答卡上；clip-path 裁掉上方与左右，只留向下的阴影 -->
-    <div
-      class="relative z-10 flex flex-col gap-2 rounded-card-lg bg-surface px-4"
-      :class="threadOpen ? 'border-b border-line pb-4 shadow-float [border-bottom-style:solid] [clip-path:inset(0_0_-200px_0)]' : ''"
-    >
-      <div class="flex items-start justify-between gap-4">
-        <h2 class="m-0 text-[22px] font-bold leading-[30px] text-ink sm:text-24 sm:leading-8">{{ item.title }}</h2>
+    <div class="question-card">
+      <div class="card-meta">
+        <div class="topic-tags" aria-label="问题标签">
+          <span v-for="tag in !ownerMode || expanded ? item.tags : item.tags.slice(0, 3)" :key="tag" class="topic-tag">{{ tag }}</span>
+          <button v-if="ownerMode && !expanded && item.tags.length > 3" type="button" class="topic-tag topic-tag-more" aria-label="展开全部问题标签和全文" @click="toggleExpand">+{{ item.tags.length - 3 }}</button>
+          <span v-if="!item.tags.length" class="topic-tag">公开问答</span>
+        </div>
+        <time v-if="!ownerMode" class="card-time" :datetime="createdAt" :title="formatTime(createdAt)">{{ formatRelativeTime(createdAt) }}</time>
+      </div>
+
+      <div class="title-row">
+        <h2 class="question-heading">
+          <router-link :to="detailLink" class="question-title-link">{{ item.title }}</router-link>
+        </h2>
         <span
           v-if="statusMeta"
-          class="shrink-0 pt-1 text-14 font-medium"
-          :style="{ color: statusMeta.color }"
+          class="status-badge"
+          :class="`status-badge--${statusMeta.tone}`"
         >{{ statusMeta.text }}</span>
       </div>
 
-      <p v-if="!ownerMode && item.matchedTags.length" class="m-0 text-12 text-muted">
-        因为你关注「{{ item.matchedTags.join("、") }}」
+      <p v-if="!ownerMode && item.matchedTags.length" class="recommendation-reason">
+        <span aria-hidden="true"></span>因为你关注「{{ item.matchedTags.join("、") }}」
       </p>
 
-      <div class="flex flex-col gap-2.5">
-        <p v-if="!expanded" class="m-0 line-clamp-4 whitespace-pre-wrap text-16 leading-6 text-ink">{{ item.excerpt }}</p>
-        <p v-else class="m-0 whitespace-pre-wrap text-16 leading-6 text-ink">{{ content?.question.body ?? item.excerpt }}</p>
-        <div class="flex justify-end">
-          <button class="aux-btn" @click="toggleExpand">{{ expanded ? "收起 ↑" : "阅读全文 ↓" }}</button>
-        </div>
-        <!-- TagSet：仅在阅读全文时展示 -->
-        <div v-if="expanded && item.tags.length" class="flex min-w-0 flex-nowrap items-center gap-2 overflow-hidden">
-          <span
-            v-for="tag in item.tags"
-            :key="tag"
-            class="shrink-0 whitespace-nowrap rounded-[4px] bg-[#f8f9fa] px-1 py-0.5 text-[12px] leading-[18px] text-[#4b5563]"
-          >{{ tag }}</span>
+      <div class="excerpt-block">
+        <p v-if="!expanded" class="question-excerpt line-clamp-3">{{ item.excerpt }}</p>
+        <p v-else class="question-excerpt question-excerpt--full">{{ content?.question.body ?? item.excerpt }}</p>
+        <div v-if="ownerMode" class="flex justify-end">
+          <button class="aux-btn read-more" @click="toggleExpand">{{ expanded ? "收起内容 ↑" : "阅读全文 ↓" }}</button>
         </div>
       </div>
 
-      <!-- 底部信息行：折叠态只留操作按钮；展开全文后才出现作者与提问时间，行高始终 22px -->
-      <div
-        class="flex min-w-0 items-center gap-4"
-        :class="expanded || ownerMode ? 'justify-between' : 'justify-end'"
-      >
-        <div v-if="expanded || ownerMode" class="flex min-w-0 flex-1 items-center gap-2.5 text-14">
-          <span v-if="!ownerMode && authorName" class="min-w-0 truncate text-regular">{{ authorName }}</span>
-          <time class="shrink-0 whitespace-nowrap text-muted">提问于 {{ formatTime(createdAt) }}</time>
-        </div>
+      <div v-if="expanded || ownerMode" class="author-row">
+        <span v-if="!ownerMode && authorName" class="min-w-0 truncate">{{ authorName }}</span>
+        <time class="shrink-0 whitespace-nowrap">提问于 {{ formatTime(createdAt) }}</time>
+      </div>
 
-        <div class="flex shrink-0 items-center gap-4">
+      <div class="question-footer">
+        <button v-if="ownerMode" type="button" class="discussion-toggle" :aria-expanded="threadOpen" aria-label="查看或参与回答" @click="toggleThread">
+          <FeedIcon name="comment" :size="18" />
+          <span>{{ replyLabel }}</span>
+          <span class="discussion-arrow" aria-hidden="true">{{ threadOpen ? "↑" : "→" }}</span>
+        </button>
+        <router-link v-else :to="detailLink" class="discussion-toggle">
+          <FeedIcon name="comment" :size="18" />
+          <span>{{ replyLabel }}</span>
+          <span class="discussion-arrow" aria-hidden="true">→</span>
+        </router-link>
+
+        <div class="question-actions">
           <button
             v-if="ownerMode && withdrawable"
             class="feed-action"
@@ -537,10 +583,6 @@ onBeforeUnmount(() => {
             @click="emit('withdraw')"
           >
             <span>撤回</span>
-          </button>
-          <button class="feed-action" aria-label="回答" @click="toggleThread">
-            <FeedIcon name="comment" />
-            <span>{{ threadOpen ? "收起回答" : replyLabel }}</span>
           </button>
           <button
             class="feed-action"
@@ -565,7 +607,7 @@ onBeforeUnmount(() => {
             <span>{{ counts.favoriteCount }}</span>
           </button>
           <div v-if="!ownerMode" class="relative flex items-center">
-            <button class="feed-action" aria-label="更多" @click.stop="toggleMenu('question')">
+            <button class="feed-action more-trigger" aria-label="更多" @click.stop="toggleMenu('question')">
               <FeedIcon name="dots" />
             </button>
             <div v-if="menuOpen === 'question'" class="more-menu" @click.stop>
@@ -576,20 +618,13 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <p v-if="error" class="m-0 text-14 text-danger">{{ error }}</p>
+      <p v-if="error" class="m-0 mt-3 text-14 text-danger">{{ error }}</p>
     </div>
 
-    <!-- 回答区（Wrapper）：上移 8px 叠在问题卡下方，展开时从卡片底下抽出 -->
-    <div v-if="threadOpen" class="drawer-panel relative z-0 -mt-6 flex flex-col rounded-card-lg bg-surface pt-2">
-      <!-- 游客提示 -->
-      <div v-if="!user" class="p-4">
-        <div class="composer-guest">
-          <router-link :to="{ path: '/login', query: { redirect: route.fullPath } }">登录</router-link>
-          后参与回答和追问
-        </div>
-      </div>
+    <!-- 回答区与问题共用一张卡片，通过分割线和浅色背景区分层级 -->
+    <div v-if="ownerMode && threadOpen" class="drawer-panel answer-panel">
       <!-- HR 主回答输入框 -->
-      <div v-else-if="user.role === 'hr'" class="flex flex-col gap-1 p-4">
+      <div v-if="user?.role === 'hr'" class="flex flex-col gap-1 p-4">
         <textarea
           v-model="rootDraft"
           rows="1"
@@ -630,14 +665,16 @@ onBeforeUnmount(() => {
                 :aria-expanded="isThreadOpen(conversation.key)"
                 @click="toggleThreadDetails(conversation.key)"
               >
-                <span class="hr-name">HR · {{ conversation.nickname }}</span>
+                <span class="hr-avatar" aria-hidden="true">{{ conversation.nickname.trim().slice(0, 1) }}</span>
+                <span class="hr-name">{{ conversation.nickname }}</span>
+                <span class="hr-identity">HR</span>
                 <span class="hr-chips">
                   <span v-if="conversation.company" class="hr-chip">{{ conversation.company }}</span>
                   <span v-if="conversation.position" class="hr-chip">{{ conversation.position }}</span>
                 </span>
                 <span
                   v-if="!isThreadOpen(conversation.key)"
-                  class="shrink-0 whitespace-nowrap text-14 leading-[22px] text-muted"
+                  class="hr-expand-label shrink-0 whitespace-nowrap"
                 >展开追问（{{ conversation.messages.filter((item) => item.kind === 'followup').length }}）</span>
               </button>
 
@@ -690,23 +727,17 @@ onBeforeUnmount(() => {
                     <div
                       v-for="entry in conversation.messages"
                       :key="entry.key"
-                      class="group flex flex-col"
-                      :class="entry.kind === 'followup' ? 'items-end' : 'items-start'"
+                      class="group thread-entry"
+                      :class="entry.kind === 'followup' ? 'thread-entry--followup' : 'thread-entry--answer'"
                     >
-                      <span class="text-14 leading-[22px] text-regular">
-                        {{ entry.kind === 'followup' ? '学生' : 'HR' }} · {{ entry.author.nickname }}
+                      <span class="thread-author">
+                        {{ entry.kind === 'followup' ? '学生追问' : 'HR 回复' }} · {{ entry.author.nickname }}
                       </span>
-                      <span v-if="entry.kind === 'followup_answer'" class="text-12 text-muted">回复追问：{{ Array.from(conversation.messages.find((item) => item.kind === 'followup' && item.id === entry.followupId)?.body || '原追问已不可见').slice(0, 36).join('') }}</span>
-                      <p
-                        class="m-0 mt-1 max-w-[500px] whitespace-pre-wrap rounded-card px-2 py-2 text-16 leading-6 text-ink"
-                        :class="entry.kind === 'followup' ? 'bg-hover' : 'bg-[#e6f0ff]'"
-                      >{{ entry.status === 'removed' ? '这条追问已撤销或下架。' : entry.body }}</p>
+                      <span v-if="entry.kind === 'followup_answer'" class="reply-context">回复追问：{{ Array.from(conversation.messages.find((item) => item.kind === 'followup' && item.id === entry.followupId)?.body || '原追问已不可见').slice(0, 36).join('') }}</span>
+                      <p class="thread-message">{{ entry.status === 'removed' ? '这条追问已撤销或下架。' : entry.body }}</p>
                       <span v-if="entry.status !== 'published' && entry.status !== 'removed'" class="text-14 text-muted">{{ STATUS_META[entry.status]?.text }}</span>
-                      <button v-if="entry.kind === 'followup' && entry.status === 'published' && user?.role === 'hr' && user.id === conversation.hrId" type="button" class="feed-action" @click="selectReply(conversation, entry.id)">回复这条追问</button>
-                      <div
-                        class="mt-1 flex h-[22px] items-center gap-4 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
-                        :class="entry.kind === 'followup' ? 'justify-end' : 'justify-start'"
-                      >
+                      <button v-if="entry.kind === 'followup' && entry.status === 'published' && user?.role === 'hr' && user.id === conversation.hrId" type="button" class="feed-action thread-reply-action" @click="selectReply(conversation, entry.id)">回复这条追问</button>
+                      <div class="thread-meta">
                         <span class="text-14 leading-[22px] text-muted">{{ formatTime(entry.createdAt) }}</span>
                         <button
                           v-if="user && entry.author.id === user.id && ['published', 'pending_machine', 'pending_human'].includes(entry.status)"
@@ -783,5 +814,430 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.answer-thread { margin-top: 12px; padding: 18px 0; border-top: 1px solid var(--color-border-default); }
+.feed-card {
+  position: relative;
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  background: var(--color-bg-surface);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+@media (hover: hover) {
+  .feed-card:hover {
+    border-color: #d4dce8;
+    box-shadow: 0 8px 24px -18px rgba(23, 32, 51, 0.45);
+    transform: translateY(-1px);
+  }
+}
+
+.question-card {
+  padding: 20px 22px 12px;
+  border-radius: 12px;
+  background: var(--color-bg-surface);
+}
+
+.card-meta,
+.title-row,
+.question-footer,
+.author-row,
+.question-actions {
+  display: flex;
+  align-items: center;
+}
+
+.card-meta {
+  min-width: 0;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.topic-tags {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.topic-tag {
+  flex-shrink: 0;
+  max-width: 140px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: var(--color-bg-hover);
+  padding: 3px 8px;
+  color: var(--color-text-regular);
+  font-size: 12px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topic-tag-more {
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.topic-tag-more:hover {
+  color: var(--color-brand);
+  background: var(--color-brand-soft);
+}
+
+.card-time {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.title-row {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.question-heading {
+  min-width: 0;
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 30px;
+  overflow-wrap: anywhere;
+}
+
+.question-title-link {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.question-title-link:hover {
+  color: var(--color-brand);
+}
+
+.status-badge {
+  flex-shrink: 0;
+  margin-top: 3px;
+  border-radius: 5px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.status-badge--success { background: var(--color-success-soft); color: var(--color-success); }
+.status-badge--warning { background: var(--color-warning-soft); color: var(--color-warning); }
+.status-badge--danger { background: var(--color-danger-soft); color: var(--color-danger); }
+.status-badge--neutral { background: var(--color-bg-hover); color: var(--color-text-muted); }
+
+.recommendation-reason {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 9px 0 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.recommendation-reason > span {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
+  border-radius: 50%;
+  background: var(--color-brand);
+}
+
+.excerpt-block {
+  margin-top: 10px;
+}
+
+.question-excerpt {
+  margin: 0;
+  color: var(--color-text-regular);
+  font-size: 15px;
+  line-height: 26px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.question-excerpt--full {
+  color: var(--color-text-primary);
+}
+
+.read-more {
+  min-height: 32px;
+  padding: 5px 0 0;
+  color: var(--color-brand);
+  font-size: 13px;
+}
+
+.read-more:hover {
+  color: var(--color-brand-dark);
+}
+
+.author-row {
+  min-width: 0;
+  gap: 12px;
+  margin-top: 10px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.question-footer {
+  min-width: 0;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  border-top: 1px solid var(--color-border-subtle);
+  padding-top: 10px;
+}
+
+.discussion-toggle {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 36px;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--color-bg-hover);
+  padding: 7px 10px;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 22px;
+  text-align: left;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.discussion-toggle:hover {
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+}
+
+.discussion-arrow {
+  color: var(--color-brand);
+  font-size: 15px;
+}
+
+.question-actions {
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+.more-trigger {
+  min-width: 34px;
+}
+
+.answer-panel {
+  position: relative;
+  border-top: 1px solid var(--color-border-default);
+  border-radius: 0 0 12px 12px;
+  background: var(--color-bg-feed);
+}
+
+.answer-thread {
+  margin-top: 10px;
+  border-top: 1px solid var(--color-border-default);
+  padding: 18px 0 8px;
+}
+
+.hr-row {
+  width: 100%;
+  min-width: 0;
+  gap: 9px;
+  border-radius: 8px;
+  padding: 9px 10px;
+}
+
+.hr-row:hover {
+  background: var(--color-bg-hover);
+}
+
+.hr-avatar {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.hr-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: min(45%, 220px);
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.hr-identity {
+  flex-shrink: 0;
+  border-radius: 4px;
+  background: var(--color-brand-soft);
+  padding: 1px 5px;
+  color: var(--color-brand);
+  font-size: 11px;
+  line-height: 17px;
+}
+
+.hr-expand-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  border: 1px solid var(--color-brand-border);
+  border-radius: 6px;
+  background: var(--color-brand-soft);
+  padding: 3px 9px;
+  color: var(--color-brand);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.hr-expand-label::after {
+  content: "↓";
+  font-size: 14px;
+}
+
+.hr-row:hover .hr-expand-label {
+  border-color: #bdd2f6;
+  background: #e3edff;
+}
+
+.thread-entry {
+  position: relative;
+  border: 1px solid var(--color-border-subtle);
+  border-left: 3px solid #cbd5e1;
+  border-radius: 8px;
+  background: var(--color-bg-surface);
+  padding: 11px 13px;
+}
+
+.thread-entry--followup {
+  background: #f7f8fa;
+}
+
+.thread-entry--answer {
+  border-left-color: var(--color-brand);
+}
+
+.thread-author {
+  color: var(--color-text-regular);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.reply-context {
+  display: block;
+  margin-top: 3px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.thread-message {
+  margin: 5px 0 0;
+  color: var(--color-text-primary);
+  font-size: 15px;
+  line-height: 25px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.thread-meta {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+}
+
+.thread-meta .feed-action,
+.thread-reply-action {
+  min-height: 28px;
+  padding: 3px 6px;
+  font-size: 12px;
+}
+
+.thread-reply-action {
+  margin-top: 4px;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+@media (max-width: 640px) {
+  .question-card {
+    padding: 16px 16px 10px;
+  }
+
+  .question-heading {
+    font-size: 19px;
+    line-height: 28px;
+  }
+
+  .question-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .feed-card--summary .question-footer {
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .feed-card--summary .question-actions {
+    margin-left: auto;
+  }
+
+  .discussion-toggle {
+    justify-content: flex-start;
+  }
+
+  .discussion-arrow {
+    margin-left: auto;
+  }
+
+  .question-actions {
+    justify-content: space-between;
+  }
+
+  .question-actions .feed-action {
+    min-width: 44px;
+    min-height: 40px;
+  }
+
+  .hr-row {
+    flex-wrap: wrap;
+  }
+
+  .hr-expand-label {
+    width: auto;
+    margin-left: 41px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feed-card {
+    transition: none;
+  }
+}
 </style>

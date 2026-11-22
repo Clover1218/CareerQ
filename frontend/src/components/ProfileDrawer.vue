@@ -136,6 +136,7 @@ function go(path: string) {
             <template v-if="isHr">
               <button type="button" class="drawer-menu-item" @click="go('/hr/profile')"><span>个人中心</span><span class="drawer-arrow">›</span></button>
               <button type="button" class="drawer-menu-item" @click="go('/hr/profile#my-answers')"><span>我的回答</span><span class="drawer-arrow">›</span></button>
+              <button type="button" class="drawer-menu-item" @click="go('/hr/posts')"><span>我的帖子</span><span class="drawer-arrow">›</span></button>
               <button type="button" class="drawer-menu-item" @click="go('/hr')"><span>HR 工作台</span><span class="drawer-arrow">›</span></button>
             </template>
             <template v-else>

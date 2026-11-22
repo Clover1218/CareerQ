@@ -11,10 +11,18 @@ defineProps<{
   replyState: "published" | "reviewing" | "pending";
   highlighted: boolean;
   withdrawingAnswerId: number | null;
+  likingAnswerId: number | null;
   highlightedAnswerId?: number | null;
   withdrawingFollowupId?: number | null;
 }>();
-defineEmits<{ reply: [id: number]; useful: [id: number]; withdraw: [answer: Answer]; withdrawFollowup: [followup: Followup] }>();
+defineEmits<{
+  reply: [id: number];
+  useful: [id: number];
+  like: [id: number];
+  report: [id: number];
+  withdraw: [answer: Answer];
+  withdrawFollowup: [followup: Followup];
+}>();
 
 const statusLabels: Record<string, string> = {
   pending_machine: "待审核", pending_human: "待审核", rejected: "审核未通过",
@@ -47,10 +55,18 @@ const statusLabels: Record<string, string> = {
       </div>
       <p class="question-body">{{ reply.body }}</p>
       <span v-if="statusLabels[reply.status]" class="tag">{{ statusLabels[reply.status] }}</span>
-      <button v-if="viewer && reply.status === 'published'" @click="$emit('useful', reply.id)">有用（{{ reply.usefulCount }}）</button>
-      <button v-if="viewer?.role === 'hr' && viewer.id === reply.author.id && canWithdrawAnswer(reply)" type="button" class="withdraw-answer" :disabled="withdrawingAnswerId !== null" @click="$emit('withdraw', reply)">
-        {{ withdrawingAnswerId === reply.id ? '撤销中…' : '撤销这条回复' }}
-      </button>
+      <div class="reply-actions">
+        <template v-if="reply.status === 'published'">
+          <button v-if="viewer" type="button" @click="$emit('useful', reply.id)">有用（{{ reply.usefulCount }}）</button>
+          <button type="button" :aria-pressed="reply.liked" :disabled="likingAnswerId !== null" @click="$emit('like', reply.id)">
+            {{ reply.liked ? '已点赞' : '点赞' }}（{{ reply.likeCount }}）
+          </button>
+          <button type="button" @click="$emit('report', reply.id)">举报</button>
+        </template>
+        <button v-if="viewer?.role === 'hr' && viewer.id === reply.author.id && canWithdrawAnswer(reply)" type="button" class="withdraw-answer" :disabled="withdrawingAnswerId !== null" @click="$emit('withdraw', reply)">
+          {{ withdrawingAnswerId === reply.id ? '撤销中…' : '撤销这条回复' }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -62,5 +78,7 @@ const statusLabels: Record<string, string> = {
 .followup-heading { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
 .followup-body { margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .followup-answer { margin: 10px 0 0 14px; padding: 4px 0 4px 12px; border-left: 2px solid #9bc4ac; }
+.answer-head, .followup-heading, .question-body { overflow-wrap: anywhere; }
+.answer-head, .reply-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .withdraw-answer { margin-left: 8px; color: #9b4141; border-color: #e4c9c9; }
 </style>

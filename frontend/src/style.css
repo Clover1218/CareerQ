@@ -10,20 +10,27 @@
   color-scheme: light;
 
   /* 颜色变量（Figma Variable Collection 1） */
-  --color-border-default: #e5e7eb; /* Border/default */
-  --color-border-subtle: #ebebeb; /* NavBar 分隔线 */
-  --color-text-primary: #111827; /* Text/Primary */
+  --color-border-default: #e3e8ef; /* Border/default */
+  --color-border-subtle: #edf0f4; /* NavBar 分隔线 */
+  --color-text-primary: #172033; /* Text/Primary */
   --color-text-regular: #4b5563; /* Text/Regular */
-  --color-text-muted: #9ca3af; /* Text/Muted */
-  --color-text-subtle: #8e8e93; /* 阅读全文 / 收起 / 加载更多 等辅助操作文字 */
-  --color-bg-main: #f8f9fa; /* Bg/Main */
+  --color-text-muted: #6b7280; /* Text/Muted */
+  --color-text-subtle: #7b8494; /* 阅读全文 / 收起 / 加载更多 等辅助操作文字 */
+  --color-bg-main: #f5f7fa; /* Bg/Main */
   --color-bg-surface: #ffffff; /* Bg/Surface */
-  --color-bg-hover: #f3f4f6; /* Bg/Hover */
-  --color-bg-feed: #fafafa; /* Feed 容器底色 */
+  --color-bg-hover: #f3f5f8; /* Bg/Hover */
+  --color-bg-feed: #fafbfc; /* Feed 容器底色 */
   --color-white: #ffffff; /* Color */
   --color-brand: #2f6fed; /* 品牌蓝：仅用于链接与可点击强调 */
   --color-brand-dark: #1d4fc4;
-  --color-danger: #d64545;
+  --color-brand-soft: #eef4ff;
+  --color-brand-border: #d6e3fb;
+  --color-success: #34765a;
+  --color-success-soft: #edf7f1;
+  --color-warning: #946514;
+  --color-warning-soft: #fff6e3;
+  --color-danger-soft: #fff0ef;
+  --color-danger: #c44848;
 
   /* 旧变量别名：其他页面仍在使用，统一指向新 token */
   --primary: var(--color-brand);
@@ -68,7 +75,7 @@ body {
   color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
   /* 顶栏 fixed 固定吸顶，内容区留出顶栏高度 */
-  padding-top: 57px;
+  padding-top: var(--topbar-height, 57px);
 }
 
 a {
@@ -128,6 +135,8 @@ a {
 .account {
   justify-self: end;
   display: flex;
+  min-width: 0;
+  max-width: 100%;
   align-items: center;
   gap: 8px;
   color: var(--color-text-regular);
@@ -144,6 +153,8 @@ a {
 }
 
 .logout-link {
+  flex-shrink: 0;
+  white-space: nowrap;
   color: var(--color-text-muted);
   font-size: 14px;
 }
@@ -166,10 +177,13 @@ a {
   position: relative;
   display: flex;
   align-items: center;
+  min-width: 0;
 }
 
 .account-trigger {
   display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
   align-items: center;
   gap: 8px;
   border: 0;
@@ -212,6 +226,7 @@ a {
 }
 
 .account-name {
+  min-width: 0;
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -265,9 +280,9 @@ a {
 
 /* ---------------- 页面骨架 ---------------- */
 .container {
-  max-width: 655px;
-  margin: 28px auto 64px;
-  padding: 0 16px;
+  max-width: 704px;
+  margin: 32px auto 72px;
+  padding: 0 20px;
 }
 
 /* 我的问答：内容宽 1000，顶部横幅需要贴住导航并通栏铺白 */
@@ -391,9 +406,9 @@ a {
 .card {
   background: var(--color-bg-surface);
   border: 1px solid var(--color-border-default);
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 10px;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 12px;
 }
 
 .card h2,
@@ -617,8 +632,8 @@ textarea {
   flex-shrink: 0;
   padding: 2px 4px;
   border-radius: 4px;
-  background: #e6f0ff;
-  color: #3874d0;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
   font-size: 12px;
   line-height: 18px;
   white-space: nowrap;
@@ -640,28 +655,31 @@ textarea {
   color: var(--color-text-regular);
 }
 
-/* 图标操作按钮：覆盖全局 button 的边框/底色，保持 Figma 的纯文字样式 */
+/* 图标操作按钮：轻量文字按钮，悬停和选中时使用品牌色浅底 */
 .feed-action {
   display: inline-flex;
+  min-height: 34px;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 5px;
   border: 0;
   background: none;
-  padding: 0;
-  border-radius: 0;
-  color: var(--color-text-primary);
+  padding: 6px 8px;
+  border-radius: 7px;
+  color: var(--color-text-regular);
   font-family: inherit;
   font-size: 14px;
   line-height: 22px;
-  transition: color 0.15s ease;
+  transition: color 0.15s ease, background-color 0.15s ease;
 }
 
 .feed-action:hover {
-  background: none;
+  background: var(--color-brand-soft);
   color: var(--color-brand);
 }
 
 .feed-action.is-active {
+  background: var(--color-brand-soft);
   color: var(--color-brand);
 }
 
@@ -726,18 +744,6 @@ textarea {
   resize: none;
 }
 
-.composer-guest {
-  display: flex;
-  align-items: center;
-  min-height: 42px;
-  padding: 8px 12px;
-  border: 1px dashed var(--color-border-default);
-  border-radius: 8px;
-  color: var(--color-text-muted);
-  font-size: 16px;
-  line-height: 24px;
-}
-
 .more-menu {
   position: absolute;
   top: calc(100% + 4px);
@@ -770,7 +776,7 @@ textarea {
   color: var(--color-text-primary);
 }
 
-/* 回答卡从问题卡下方滑出，配合问题卡的向下投影形成「两张卡叠放」的层次 */
+/* 回答区在同一卡片内展开，用短距离移动提示内容层级变化 */
 @keyframes drawer-out {
   from {
     opacity: 0;
@@ -794,8 +800,12 @@ textarea {
 
 /* ---------------- 响应式 ---------------- */
 @media (max-width: 640px) {
+  body {
+    padding-top: var(--topbar-height, 85px);
+  }
+
   .topbar {
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto minmax(0, 1fr);
     grid-template-rows: auto auto;
     height: auto;
     padding: 10px 16px 0;
@@ -816,7 +826,7 @@ textarea {
     min-width: 0;
   }
 
-  .account .nickname {
+  .account-name {
     max-width: 96px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -930,7 +940,7 @@ textarea {
 /* 「我的问答」右侧个人资料栏：随页面滚动固定在右侧 */
 .profile-aside {
   position: sticky;
-  top: 73px;
+  top: calc(var(--topbar-height, 57px) + 16px);
   align-self: start;
 }
 
