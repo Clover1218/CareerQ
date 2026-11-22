@@ -1079,9 +1079,32 @@ onBeforeUnmount(() => {
   text-decoration: none;
 }
 
-.feed-card--summary .discussion-toggle:hover {
+.feed-card--summary .discussion-toggle:is(:hover, :focus-visible) {
   background: #e3edff;
   color: var(--color-brand);
+}
+
+.feed-card--summary .discussion-toggle:active {
+  border-color: var(--color-brand);
+  background: #d9e7ff;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .feed-card--summary .discussion-toggle {
+    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, translate 100ms ease;
+  }
+
+  .feed-card--summary .discussion-toggle:active {
+    translate: 0 1px;
+  }
+
+  .feed-card--summary .discussion-arrow {
+    transition: translate 160ms ease;
+  }
+
+  .feed-card--summary .discussion-toggle:is(:hover, :focus-visible) .discussion-arrow {
+    translate: 3px 0;
+  }
 }
 
 .detail-entry-label {

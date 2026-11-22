@@ -136,10 +136,15 @@ watch(() => route.fullPath, refresh);
           <n-loading-bar-provider>
             <header ref="topbar" class="topbar" :inert="accountDialogOpen">
               <router-link class="brand" to="/" aria-label="CareerQ 首页">CareerQ</router-link>
-              <nav class="nav" aria-label="主导航">
+              <nav class="nav" :class="{ 'nav--hr': user?.role === 'hr' }" aria-label="主导航">
                 <router-link to="/">公开问答</router-link>
                 <router-link to="/hr-shares" :class="{ 'router-link-active': route.name === 'hr-share-detail' }">HR 分享</router-link>
                 <router-link v-if="user?.role === 'hr'" to="/hr">HR 工作台</router-link>
+                <router-link
+                  v-if="user?.role === 'hr'"
+                  to="/hr/posts"
+                  :class="{ 'router-link-active': route.name === 'hr-post-new' || route.name === 'hr-post-editor' }"
+                >我的帖子</router-link>
               </nav>
               <div class="account">
                 <router-link v-if="user?.role === 'student' || !user" class="topbar-ask" to="/ask">提问</router-link>
@@ -161,10 +166,10 @@ watch(() => route.fullPath, refresh);
                     </span>
                   </button>
                 </template>
-                <template v-else>
+                <div v-else class="account-auth">
                   <router-link class="account-link" to="/login">登录</router-link>
                   <router-link class="account-link" to="/register">注册</router-link>
-                </template>
+                </div>
               </div>
             </header>
             <main :inert="accountDialogOpen" :class="['my-qa', 'student-messages', 'hr-workbench', 'hr-profile', 'hr-messages', 'hr-posts', 'hr-post-new', 'hr-post-editor'].includes(String(route.name)) ? 'wide-shell' : 'container'">

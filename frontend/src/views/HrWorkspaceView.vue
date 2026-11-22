@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onActivated, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
+import FeedIcon from "@/components/FeedIcon.vue";
 import { canWithdrawAnswer, useAnswerWithdrawal } from "@/composables/useAnswerWithdrawal";
 import { answerStatusLabel, removedAnswerText } from "@/utils/answerRemoval";
 import {
@@ -61,11 +62,12 @@ const emptyTitle = computed(() => {
   return "暂时没有公开问题";
 });
 
-const tabs: { id: WorkTab; label: string }[] = [
-  { id: "pending", label: "待回答" },
-  { id: "answeredPublic", label: "已回答公开问题" },
-  { id: "answeredMine", label: "我回答过的" },
+const tabs: { id: WorkTab; label: string; icon: "clock" | "comment" | "edit" }[] = [
+  { id: "pending", label: "待回答", icon: "clock" },
+  { id: "answeredPublic", label: "已回答公开问题", icon: "comment" },
+  { id: "answeredMine", label: "我回答过的", icon: "edit" },
 ];
+const activeTabIndex = computed(() => tabs.findIndex((tab) => tab.id === activeTab.value));
 
 function mapQuestion(question: Question): WorkItem {
   return {
@@ -210,30 +212,25 @@ onActivated(async () => {
 <template>
   <section class="hr-workspace">
     <header class="workspace-heading">
-      <div>
-        <p class="workspace-kicker">职业问答 · 答主工作区</p>
-        <h1>HR 工作台</h1>
-        <p class="workspace-description">浏览学生的公开问题，分享经验，并跟进你回答过的问题。</p>
-      </div>
-      <div class="workspace-links">
-        <router-link class="role-stamp" to="/hr/profile"><span class="role-dot"></span>我的个人中心 →</router-link>
-        <router-link class="workspace-posts" to="/hr/posts">我的帖子 →</router-link>
-      </div>
+      <p class="workspace-kicker">职业问答 · 答主工作区</p>
+      <h1>HR 工作台</h1>
+      <p class="workspace-description">浏览学生的公开问题，分享经验，并跟进你回答过的问题。</p>
     </header>
 
-    <nav class="workspace-tabs" aria-label="问题分类">
+    <div class="workspace-tabs" role="group" aria-label="问题分类" :style="{ '--active-tab-index': activeTabIndex }">
       <button
         v-for="tab in tabs"
         :key="tab.id"
         type="button"
         class="workspace-tab"
         :class="{ active: activeTab === tab.id }"
-        :aria-current="activeTab === tab.id ? 'page' : undefined"
+        :aria-pressed="activeTab === tab.id"
         @click="selectTab(tab.id)"
       >
-        {{ tab.label }}
+        <FeedIcon :name="tab.icon" :size="17" />
+        <span>{{ tab.label }}</span>
       </button>
-    </nav>
+    </div>
 
     <div class="list-heading">
       <div>
@@ -347,12 +344,7 @@ onActivated(async () => {
 }
 
 .workspace-heading {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
-  padding-bottom: 28px;
-  border-bottom: 1px solid var(--color-border-default);
+  margin-bottom: 22px;
 }
 
 .workspace-kicker {
@@ -375,70 +367,64 @@ onActivated(async () => {
   line-height: 1.6;
 }
 
-.workspace-links {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-}
-
-.workspace-posts {
-  padding: 8px 0;
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.role-stamp {
-  text-decoration: none;
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 11px;
-  border: 1px solid #c6ded5;
-  border-radius: 6px;
-  background: #f1f8f4;
-  color: #315f50;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.role-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #3e8d6d;
-}
-
 .workspace-tabs {
-  display: flex;
-  gap: 26px;
-  margin-top: 20px;
-  border-bottom: 1px solid var(--color-border-default);
+  --tab-inset: 4px;
+  --tab-gap: 4px;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--tab-gap);
+  width: min(100%, 540px);
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  background: var(--color-bg-feed);
+  padding: var(--tab-inset);
+}
+
+.workspace-tabs::before {
+  content: "";
+  position: absolute;
+  inset: var(--tab-inset) auto var(--tab-inset) var(--tab-inset);
+  width: calc((100% - 2 * (var(--tab-inset) + var(--tab-gap))) / 3);
+  border-radius: 8px;
+  background: var(--color-brand-soft);
+  box-shadow: inset 0 0 0 1px var(--color-brand-border), 0 1px 2px rgb(23 32 51 / 5%);
+  transform: translateX(calc(var(--active-tab-index) * (100% + var(--tab-gap))));
+  pointer-events: none;
 }
 
 .workspace-tab {
   position: relative;
-  margin-bottom: -1px;
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   border: 0;
-  border-bottom: 2px solid transparent;
+  border-radius: 8px;
   background: transparent;
-  padding: 12px 1px 13px;
+  padding: 8px 6px;
   color: var(--color-text-regular);
   font: inherit;
-  font-size: 15px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
   cursor: pointer;
 }
 
-.workspace-tab:hover,
-.workspace-tab.active {
+.workspace-tab svg { flex: 0 0 auto; }
+
+.workspace-tab:not(.active):hover {
+  background: var(--color-bg-hover);
   color: var(--color-text-primary);
 }
 
-.workspace-tab.active {
-  border-bottom-color: var(--color-brand);
-  font-weight: 650;
+.workspace-tab.active { color: var(--color-brand-dark); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .workspace-tabs::before { transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+  .workspace-tab { transition: background-color 150ms ease, color 150ms ease, transform 80ms ease; }
 }
 
 .list-heading {
@@ -781,34 +767,12 @@ onActivated(async () => {
     padding-top: 24px;
   }
 
-  .workspace-heading {
-    align-items: flex-start;
-    flex-wrap: wrap;
-    gap: 12px;
-    padding-bottom: 20px;
-  }
-
   .workspace-heading h1 {
     font-size: 25px;
   }
 
   .workspace-description {
     max-width: 36ch;
-    font-size: 14px;
-  }
-
-  .role-stamp {
-    padding: 7px 8px;
-    font-size: 12px;
-  }
-
-  .workspace-tabs {
-    gap: 18px;
-    overflow-x: auto;
-  }
-
-  .workspace-tab {
-    flex: 0 0 auto;
     font-size: 14px;
   }
 
@@ -835,6 +799,27 @@ onActivated(async () => {
     grid-column: 1 / -1;
     justify-self: center;
     text-align: center;
+  }
+}
+
+@media (max-width: 490px) {
+  .workspace-tab {
+    min-height: 48px;
+    flex-direction: column;
+    gap: 3px;
+    padding: 4px 2px;
+    font-size: 12px;
+  }
+
+  .list-heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .list-tools {
+    width: 100%;
+    justify-content: space-between;
   }
 }
 </style>

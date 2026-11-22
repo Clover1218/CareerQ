@@ -45,7 +45,7 @@ onBeforeUnmount(() => controller.abort());
       <a :href="href" class="hr-share-back" @click="returnToList($event); navigate($event)">← 返回 HR 分享</a>
     </router-link>
 
-    <article v-if="share" class="hr-share-article">
+    <article v-if="share" class="hr-share-article detail-enter">
       <header>
         <h1>{{ share.title }}</h1>
         <div class="hr-share-meta">
@@ -58,7 +58,7 @@ onBeforeUnmount(() => controller.abort());
       </header>
       <div class="hr-share-body">{{ share.body }}</div>
     </article>
-    <p v-else-if="loading" class="hr-share-state" role="status">正在加载分享…</p>
+    <p v-else-if="loading" class="hr-share-state detail-loading" role="status">正在加载分享…</p>
     <p v-else-if="unavailable" class="hr-share-state" role="status">这篇分享暂不可查看。</p>
     <div v-else class="hr-share-state" role="alert">
       <p>分享加载失败，请重试。</p>

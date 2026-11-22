@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { api, type MeStats, type Profile, type User, type HrProfile, type HrContributionStats } from "@/api";
 
 const props = defineProps<{
@@ -13,6 +13,7 @@ const emit = defineEmits<{
   logout: [];
 }>();
 
+const route = useRoute();
 const router = useRouter();
 const closeButton = ref<HTMLButtonElement | null>(null);
 const profile = ref<Profile | null>(null);
@@ -109,7 +110,7 @@ function go(path: string) {
     <Transition name="drawer-fade">
       <div v-if="show" class="profile-drawer-mask" @click.self="emit('close')">
         <aside class="profile-drawer" role="dialog" aria-modal="true" aria-label="个人信息" @keydown.esc.stop="emit('close')">
-          <button ref="closeButton" class="drawer-close" type="button" aria-label="关闭" @click="emit('close')">×</button>
+          <button ref="closeButton" class="drawer-close" type="button" aria-label="关闭" @click="emit('close')"></button>
 
           <!-- 头像 / 昵称 / 身份 -->
           <div class="drawer-head">
@@ -132,28 +133,18 @@ function go(path: string) {
           </div>
 
           <!-- 快捷入口 -->
-          <nav class="drawer-menu">
+          <nav v-if="!isHr || route.name !== 'hr-profile'" class="drawer-menu" aria-label="个人菜单">
             <template v-if="isHr">
-              <button type="button" class="drawer-menu-item" @click="go('/hr/profile')"><span>个人中心</span><span class="drawer-arrow">›</span></button>
-              <button type="button" class="drawer-menu-item" @click="go('/hr/profile#my-answers')"><span>我的回答</span><span class="drawer-arrow">›</span></button>
-              <button type="button" class="drawer-menu-item" @click="go('/hr/posts')"><span>我的帖子</span><span class="drawer-arrow">›</span></button>
-              <button type="button" class="drawer-menu-item" @click="go('/hr')"><span>HR 工作台</span><span class="drawer-arrow">›</span></button>
+              <button type="button" class="drawer-menu-item" @click="go('/hr/profile')">
+                <span>个人中心</span>
+                <span class="drawer-arrow" aria-hidden="true">›</span>
+              </button>
             </template>
             <template v-else>
-            <button type="button" class="drawer-menu-item" @click="go('/me')">
-              <span>个人中心</span>
-              <span class="drawer-arrow">›</span>
-            </button>
-            <button type="button" class="drawer-menu-item" @click="go('/me?tab=history')">
-              <span>历史浏览</span>
-              <span class="drawer-arrow">›</span>
-            </button>
-            <button v-if="user?.role === 'student'" type="button" class="drawer-menu-item" @click="go('/me?tab=favorites')"><span>我的收藏</span><span class="drawer-arrow">›</span></button>
-            <button v-if="user?.role === 'student'" type="button" class="drawer-menu-item" @click="go('/messages')"><span>消息中心</span><span class="drawer-arrow">›</span></button>
-            <button type="button" class="drawer-menu-item" @click="go('/me')">
-              <span>个人资料</span>
-              <span class="drawer-arrow">›</span>
-            </button>
+              <button type="button" class="drawer-menu-item" @click="go(user?.role === 'student' ? '/me?edit=profile' : '/me')">
+                <span>个人资料</span>
+                <span class="drawer-arrow">›</span>
+              </button>
             </template>
           </nav>
 
@@ -193,14 +184,28 @@ function go(path: string) {
   right: 14px;
   width: 32px;
   height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
   border: 0;
   border-radius: 8px;
   background: none;
   color: var(--color-text-muted);
-  font-size: 22px;
-  line-height: 1;
   cursor: pointer;
 }
+
+.drawer-close::before,
+.drawer-close::after {
+  content: "";
+  grid-area: 1 / 1;
+  width: 15px;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+}
+
+.drawer-close::before { transform: rotate(45deg); }
+.drawer-close::after { transform: rotate(-45deg); }
 
 .drawer-close:hover {
   background: var(--color-bg-hover);

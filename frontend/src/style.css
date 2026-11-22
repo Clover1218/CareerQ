@@ -119,6 +119,10 @@ a {
   gap: 4px clamp(12px, 3vw, 32px);
 }
 
+.nav.nav--hr {
+  column-gap: clamp(8px, 2vw, 28px);
+}
+
 .nav a {
   color: var(--color-text-regular);
   font-size: 16px;
@@ -149,12 +153,29 @@ a {
   line-height: 22px;
 }
 
+.account-auth {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  border-inline-start: 1px solid var(--color-border-default);
+  padding-inline-start: 12px;
+}
+
 .account-link {
+  display: inline-flex;
+  min-width: 44px;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  padding: 0 9px;
   color: var(--color-text-regular);
   white-space: nowrap;
 }
 
-.account-link:hover {
+.account-link:is(:hover, :focus-visible) {
+  background: var(--color-bg-hover);
   color: var(--color-text-primary);
 }
 
@@ -358,6 +379,39 @@ a {
 .card h2,
 .card h3 {
   margin-top: 0;
+}
+
+.detail-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.detail-loading::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-brand);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .detail-enter { animation: detail-enter 220ms ease-out; }
+  .detail-loading::before { animation: detail-loading-pulse 1s ease-in-out infinite alternate; }
+
+  @keyframes detail-enter {
+    from { opacity: 0.55; translate: 0 6px; }
+    to { opacity: 1; translate: 0 0; }
+  }
+
+  @keyframes detail-loading-pulse {
+    from { opacity: 0.35; }
+    to { opacity: 1; }
+  }
 }
 
 .muted {
@@ -793,6 +847,11 @@ textarea {
     gap: 4px;
   }
 
+  .account-auth {
+    gap: 3px;
+    padding-inline-start: 8px;
+  }
+
   .nav {
     grid-column: 1 / -1;
     grid-row: 2;
@@ -801,6 +860,8 @@ textarea {
     border-top: 1px solid var(--color-border-subtle);
     padding: 3px 0 5px;
   }
+
+  .nav--hr a { font-size: 14px; }
 }
 
 @media (max-width: 640px) {
@@ -899,19 +960,6 @@ textarea {
 .confirm-fade-leave-to {
   opacity: 0;
 }
-/* 「学生个人中心」右侧个人资料栏：随页面滚动固定在右侧 */
-.profile-aside {
-  position: sticky;
-  top: calc(var(--topbar-height, 57px) + 16px);
-  align-self: start;
-}
-
-@media (max-width: 1023px) {
-  .profile-aside {
-    position: static;
-  }
-}
-
 /* 历史浏览：单条记录删除图标 */
 .history-delete {
   display: inline-flex;
