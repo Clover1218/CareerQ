@@ -194,7 +194,7 @@ onMounted(load);
   <section class="hr-post-page post-editor">
     <div class="post-breadcrumb"><button type="button" @click="leave">← 返回我的帖子</button><span>HR 原创分享</span></div>
     <header class="post-page-heading"><div><p class="post-eyebrow">把经验写下来</p><h1>{{ post ? editable ? '编辑分享' : '查看帖子' : '写一篇分享' }}</h1><p>分享面试经验、招聘观察与职业建议。</p></div><span v-if="post" class="post-status" :class="post.status">{{ hrPostLabels[post.status] }}</span></header>
-    <p class="post-stage-note">当前提交后将等待审核，尚未接入公开阅读。保存草稿仅本人可见。</p>
+    <p class="post-stage-note">草稿仅本人可见。提交后进入待审核，审核通过后会出现在「HR 分享」。</p>
     <p v-if="loading" class="post-empty">正在读取草稿…</p>
     <p v-if="error" class="post-error" role="alert">{{ error }} <button type="button" @click="load">重新读取</button></p>
     <template v-if="!loading && !error">

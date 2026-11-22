@@ -14,16 +14,17 @@ import {
 } from "@/api";
 import { useUserStore } from "@/stores/user";
 import FeedIcon from "./FeedIcon.vue";
+import ReportDialog from "./ReportDialog.vue";
 import { buildAnswerThreads, detailThreadItems, type AnswerThread as Conversation } from "@/utils/answerThreads";
 import { removedAnswerText } from "@/utils/answerRemoval";
 
 const props = defineProps<{
   item: QuestionFeedItem;
-  /** 我的问答列表：问题状态，用于标题右侧状态标签 */
+  /** 学生个人中心提问列表：问题状态，用于标题右侧状态标签 */
   status?: string;
-  /** 我的问答列表：作者视角，隐藏编辑器并将提问时间常驻 */
+  /** 学生个人中心提问列表：作者视角，隐藏编辑器并将提问时间常驻 */
   ownerMode?: boolean;
-  /** 我的问答列表：是否显示「撤回」操作 */
+  /** 学生个人中心提问列表：是否显示「撤回」操作 */
   withdrawable?: boolean;
 }>();
 
@@ -43,6 +44,7 @@ const excerptBlockRef = ref<HTMLElement | null>(null);
 const excerptRef = ref<HTMLElement | null>(null);
 const excerptOverflows = ref(false);
 let excerptObserver: ResizeObserver | undefined;
+let excerptMeasureFrame: number | undefined;
 const threadOpen = ref(false);
 const loadingContent = ref(false);
 const loadingThread = ref(false);
@@ -57,6 +59,8 @@ const rootDraft = ref("");
 const threadDrafts = reactive<Record<string, string>>({});
 const focusedComposer = ref<string | null>(null);
 const menuOpen = ref<string | null>(null);
+const reportOpen = ref(false);
+const reportTarget = ref<{ targetType: "question" | "answer"; targetId: number }>({ targetType: "question", targetId: 0 });
 
 const counts = reactive({
   likeCount: props.item.likeCount,
@@ -68,6 +72,7 @@ const counts = reactive({
 const liked = ref(props.item.viewer?.liked ?? false);
 const favorited = ref(props.item.viewer?.favorited ?? false);
 const interacting = ref(false);
+const pendingInteraction = ref<"like" | "favorite" | null>(null);
 let interactionVersion = 0;
 let contentRequest: Promise<void> | null = null;
 let replyCountsRequestVersion = 0;
@@ -242,6 +247,14 @@ async function measureExcerpt() {
   excerptOverflows.value = element.scrollHeight > element.clientHeight + 1;
 }
 
+function scheduleExcerptMeasurement() {
+  if (excerptMeasureFrame !== undefined) return;
+  excerptMeasureFrame = requestAnimationFrame(() => {
+    excerptMeasureFrame = undefined;
+    void measureExcerpt();
+  });
+}
+
 watch(() => props.item.excerpt, () => {
   if (!expanded.value) void measureExcerpt();
 });
@@ -288,6 +301,7 @@ async function toggleFavorite() {
 async function toggleQuestionInteraction(type: "like" | "favorite") {
   if (!interactive.value || interacting.value || !requireLogin()) return;
   interacting.value = true;
+  pendingInteraction.value = type;
   ++interactionVersion;
   try {
     await ensureContent();
@@ -315,6 +329,7 @@ async function toggleQuestionInteraction(type: "like" | "favorite") {
     reportError(e, "操作失败");
   } finally {
     interacting.value = false;
+    pendingInteraction.value = null;
   }
 }
 
@@ -358,15 +373,11 @@ async function toggleAnswerLike(entry: ThreadItem) {
   }
 }
 
-async function report(targetType: "question" | "answer", targetId: number) {
+function report(targetType: "question" | "answer", targetId: number) {
   menuOpen.value = null;
   if (!requireLogin()) return;
-  try {
-    await api.report(targetType, targetId);
-    message.success("举报已提交，我们会尽快处理");
-  } catch (e) {
-    reportError(e, "举报失败");
-  }
+  reportTarget.value = { targetType, targetId };
+  reportOpen.value = true;
 }
 
 async function dislikeQuestion() {
@@ -530,7 +541,7 @@ onMounted(() => {
   document.addEventListener("click", closeMenu);
   if (excerptBlockRef.value) {
     excerptObserver = new ResizeObserver(() => {
-      if (!expanded.value) void measureExcerpt();
+      if (!expanded.value) scheduleExcerptMeasurement();
     });
     excerptObserver.observe(excerptBlockRef.value);
   }
@@ -541,6 +552,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener("click", closeMenu);
   excerptObserver?.disconnect();
+  if (excerptMeasureFrame !== undefined) cancelAnimationFrame(excerptMeasureFrame);
   if (blurTimer) clearTimeout(blurTimer);
 });
 </script>
@@ -558,7 +570,7 @@ onBeforeUnmount(() => {
           <button v-if="ownerMode && !expanded && item.tags.length > 3" type="button" class="topic-tag topic-tag-more" aria-label="展开全部问题标签和全文" @click="toggleExpand">+{{ item.tags.length - 3 }}</button>
           <span v-if="!item.tags.length" class="topic-tag">公开问答</span>
         </div>
-        <time v-if="!ownerMode" class="card-time" :datetime="createdAt" :title="formatTime(createdAt)">{{ formatRelativeTime(createdAt) }}</time>
+        <time v-if="!ownerMode" class="card-time" :datetime="createdAt" :title="formatRelativeTime(createdAt)">{{ formatTime(createdAt) }}</time>
       </div>
 
       <div class="title-row">
@@ -577,8 +589,7 @@ onBeforeUnmount(() => {
       </p>
 
       <div ref="excerptBlockRef" class="excerpt-block">
-        <p v-if="!expanded" ref="excerptRef" class="question-excerpt line-clamp-3">{{ item.excerpt }}</p>
-        <p v-else ref="excerptRef" class="question-excerpt question-excerpt--full">{{ content?.question.body ?? item.excerpt }}</p>
+        <p ref="excerptRef" class="question-excerpt" :class="expanded ? 'question-excerpt--full' : 'line-clamp-3'">{{ expanded ? content?.question.body ?? item.excerpt : item.excerpt }}</p>
         <div v-if="ownerMode || expanded || excerptOverflows" class="flex justify-end">
           <button type="button" class="aux-btn read-more" @click="toggleExpand">
             {{ expanded ? "收起问题 ↑" : ownerMode ? "阅读全文 ↓" : "展开问题 ↓" }}
@@ -586,9 +597,9 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div v-if="expanded || ownerMode" class="author-row">
+      <div v-if="ownerMode || (expanded && authorName)" class="author-row">
         <span v-if="!ownerMode && authorName" class="min-w-0 truncate">{{ authorName }}</span>
-        <time class="shrink-0 whitespace-nowrap">提问于 {{ formatTime(createdAt) }}</time>
+        <time v-if="ownerMode" class="shrink-0 whitespace-nowrap">提问于 {{ formatTime(createdAt) }}</time>
       </div>
 
       <div class="question-footer">
@@ -615,9 +626,10 @@ onBeforeUnmount(() => {
           </button>
           <button
             class="feed-action"
-            :class="{ 'is-active': liked, 'is-disabled': !interactive }"
+            :class="{ 'is-active': liked, 'is-disabled': !interactive, 'is-pending': pendingInteraction === 'like' }"
             :disabled="!interactive || interacting"
             :aria-pressed="liked"
+            :aria-busy="pendingInteraction === 'like'"
             aria-label="点赞"
             @click="toggleLike"
           >
@@ -626,9 +638,10 @@ onBeforeUnmount(() => {
           </button>
           <button
             class="feed-action"
-            :class="{ 'is-active': favorited, 'is-disabled': !interactive }"
+            :class="{ 'is-active': favorited, 'is-disabled': !interactive, 'is-pending': pendingInteraction === 'favorite' }"
             :disabled="!interactive || interacting"
             :aria-pressed="favorited"
+            :aria-busy="pendingInteraction === 'favorite'"
             aria-label="收藏"
             @click="toggleFavorite"
           >
@@ -839,6 +852,12 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </div>
+    <ReportDialog
+      v-if="reportOpen"
+      v-model:show="reportOpen"
+      :target-type="reportTarget.targetType"
+      :target-id="reportTarget.targetId"
+    />
   </article>
 </template>
 
@@ -996,6 +1015,12 @@ onBeforeUnmount(() => {
 
 .question-excerpt--full {
   color: var(--color-text-primary);
+  animation: excerpt-reveal 180ms ease-out;
+}
+
+@keyframes excerpt-reveal {
+  from { opacity: 0.45; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .read-more {
@@ -1063,6 +1088,30 @@ onBeforeUnmount(() => {
   color: var(--color-brand);
   font-weight: 650;
   white-space: nowrap;
+}
+
+.feed-action.is-active svg {
+  animation: action-pop 180ms ease-out;
+}
+
+.feed-action.is-pending {
+  opacity: 0.65;
+  cursor: progress;
+}
+
+.feed-action.is-pending svg {
+  animation: action-pulse 700ms ease-in-out infinite;
+}
+
+@keyframes action-pop {
+  0% { transform: scale(0.82); }
+  70% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+@keyframes action-pulse {
+  0%, 100% { opacity: 0.5; transform: scale(0.92); }
+  50% { opacity: 1; transform: scale(1); }
 }
 
 .discussion-toggle:hover {
@@ -1286,6 +1335,16 @@ onBeforeUnmount(() => {
 @media (prefers-reduced-motion: reduce) {
   .feed-card {
     transition: none;
+  }
+
+  .feed-card:hover {
+    transform: none;
+  }
+
+  .question-excerpt--full,
+  .feed-action.is-active svg,
+  .feed-action.is-pending svg {
+    animation: none;
   }
 }
 </style>

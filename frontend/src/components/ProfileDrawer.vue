@@ -14,6 +14,7 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
+const closeButton = ref<HTMLButtonElement | null>(null);
 const profile = ref<Profile | null>(null);
 const stats = ref<MeStats | null>(null);
 const loading = ref(false);
@@ -89,14 +90,13 @@ watch(
       ++loadSequence;
       profile.value = null; stats.value = null; hrProfile.value = null; hrStats.value = null;
     }
-    if (open) {
-      void load();
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+    if (open) void load();
   },
 );
+
+watch(() => props.show, (open) => {
+  if (open) closeButton.value?.focus({ preventScroll: true });
+}, { flush: "post" });
 
 function go(path: string) {
   emit("close");
@@ -108,8 +108,8 @@ function go(path: string) {
   <Teleport to="body">
     <Transition name="drawer-fade">
       <div v-if="show" class="profile-drawer-mask" @click.self="emit('close')">
-        <aside class="profile-drawer" role="dialog" aria-modal="true" aria-label="个人信息">
-          <button class="drawer-close" type="button" aria-label="关闭" @click="emit('close')">×</button>
+        <aside class="profile-drawer" role="dialog" aria-modal="true" aria-label="个人信息" @keydown.esc.stop="emit('close')">
+          <button ref="closeButton" class="drawer-close" type="button" aria-label="关闭" @click="emit('close')">×</button>
 
           <!-- 头像 / 昵称 / 身份 -->
           <div class="drawer-head">
@@ -141,7 +141,7 @@ function go(path: string) {
             </template>
             <template v-else>
             <button type="button" class="drawer-menu-item" @click="go('/me')">
-              <span>我的问答</span>
+              <span>个人中心</span>
               <span class="drawer-arrow">›</span>
             </button>
             <button type="button" class="drawer-menu-item" @click="go('/me?tab=history')">
@@ -240,6 +240,7 @@ function go(path: string) {
   line-height: 30px;
   font-weight: 700;
   color: var(--color-text-primary);
+  overflow-wrap: anywhere;
 }
 
 .drawer-role {

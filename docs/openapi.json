@@ -2218,6 +2218,84 @@
         }
       }
     },
+    "/api/v1/hr-shares": {
+      "get": {
+        "tags": [
+          "public-hr-share-controller"
+        ],
+        "operationId": "listPublicHrShares",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 5
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePageResultPublicShareSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid cursor or page size"
+          }
+        }
+      }
+    },
+    "/api/v1/hr-shares/{id}": {
+      "get": {
+        "tags": [
+          "public-hr-share-controller"
+        ],
+        "operationId": "getPublicHrShare",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePublicShareDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Share not available"
+          }
+        }
+      }
+    },
     "/api/v1/hr/posts": {
       "get": {
         "tags": [
@@ -2320,6 +2398,107 @@
 },
     "components":  {
                        "schemas":  {
+    "ApiResponsePageResultPublicShareSummary": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/components/schemas/PageResultPublicShareSummary"
+        }
+      }
+    },
+    "PageResultPublicShareSummary": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/PublicShareSummary"
+          }
+        },
+        "nextCursor": {
+          "type": "integer",
+          "format": "int64"
+        }
+      }
+    },
+    "PublicShareSummary": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "title": {
+          "type": "string"
+        },
+        "excerpt": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "authorNickname": {
+          "type": "string"
+        },
+        "publishedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "ApiResponsePublicShareDetail": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/components/schemas/PublicShareDetail"
+        }
+      }
+    },
+    "PublicShareDetail": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "title": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "authorNickname": {
+          "type": "string"
+        },
+        "publishedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
     "ApiResponseHrAnswerRecord": {
         "type": "object",
         "properties": {

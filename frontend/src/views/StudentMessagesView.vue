@@ -68,7 +68,7 @@ onMounted(refresh);
 
 <template>
   <section class="student-messages">
-    <div class="messages-breadcrumb"><router-link to="/me">← 我的问答</router-link><router-link to="/">前往公开问答 ↗</router-link></div>
+    <div class="messages-breadcrumb"><router-link to="/me">← 个人中心</router-link><router-link to="/">前往公开问答 ↗</router-link></div>
     <header class="messages-heading"><div><p>学生 · 站内通知</p><h1>消息中心 <span v-if="notices.counts && notices.counts.total > 0">{{ notices.counts.total }} 条未读</span></h1><p>查看 HR 的建议、收到的赞和内容审核结果。</p></div><div class="heading-actions"><button type="button" :disabled="busy" @click="refresh">刷新</button><button type="button" :disabled="busy || !snapshotId || notices.counts?.total === 0" @click="markAll">{{ markingAll ? '标记中…' : '全部标为已读' }}</button></div></header>
     <div class="message-filters"><nav aria-label="消息类型"><button v-for="tab in tabs" :key="tab.value" type="button" :disabled="busy" :class="{ active: category === tab.value }" :aria-pressed="category === tab.value" @click="navigate(tab.value, unreadOnly)">{{ tab.label }}<span v-if="tab.value !== 'all' && notices.counts?.[tab.value]">{{ notices.counts[tab.value] }}</span></button></nav><label><input type="checkbox" :checked="unreadOnly" :disabled="busy" @change="navigate(category, ($event.target as HTMLInputElement).checked)" />只看未读</label></div>
     <p class="message-note">点击消息可定位具体回答或追问。已读消息仍会保留，方便之后查看。</p>

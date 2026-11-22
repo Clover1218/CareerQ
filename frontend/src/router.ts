@@ -1,17 +1,20 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { useUserStore } from "@/stores/user";
-import LoginView from "./views/LoginView.vue";
-import RegisterView from "./views/RegisterView.vue";
 import QuestionListView from "./views/QuestionListView.vue";
-import QuestionDetailView from "./views/QuestionDetailView.vue";
-import AskView from "./views/AskView.vue";
-import MyQaView from "./views/MyQaView.vue";
-import HrWorkspaceView from "./views/HrWorkspaceView.vue";
-import HrProfileView from "./views/HrProfileView.vue";
-import HrMessagesView from "./views/HrMessagesView.vue";
-import StudentMessagesView from "./views/StudentMessagesView.vue";
-import HrPostsView from "./views/HrPostsView.vue";
-import HrPostEditorView from "./views/HrPostEditorView.vue";
+
+const LoginView = () => import("./views/LoginView.vue");
+const RegisterView = () => import("./views/RegisterView.vue");
+const QuestionDetailView = () => import("./views/QuestionDetailView.vue");
+const AskView = () => import("./views/AskView.vue");
+const MyQaView = () => import("./views/MyQaView.vue");
+const HrWorkspaceView = () => import("./views/HrWorkspaceView.vue");
+const HrProfileView = () => import("./views/HrProfileView.vue");
+const HrMessagesView = () => import("./views/HrMessagesView.vue");
+const StudentMessagesView = () => import("./views/StudentMessagesView.vue");
+const HrPostsView = () => import("./views/HrPostsView.vue");
+const HrPostEditorView = () => import("./views/HrPostEditorView.vue");
+const PublicHrSharesView = () => import("./views/PublicHrSharesView.vue");
+const PublicHrShareDetailView = () => import("./views/PublicHrShareDetailView.vue");
 
 export const router = createRouter({
   history: createWebHistory("/careerq/"),
@@ -22,6 +25,8 @@ export const router = createRouter({
     // 公开页面：未注册也能浏览
     { path: "/", component: QuestionListView },
     { path: "/questions/:id", component: QuestionDetailView },
+    { path: "/hr-shares", name: "hr-shares", component: PublicHrSharesView },
+    { path: "/hr-shares/:id", name: "hr-share-detail", component: PublicHrShareDetailView },
     // 未注册可进入登录/注册
     { path: "/login", component: LoginView },
     { path: "/register", component: RegisterView },
@@ -42,7 +47,8 @@ export const router = createRouter({
 const PUBLIC_PATHS = ["/", "/login", "/register"];
 
 router.beforeEach(async (to) => {
-  const isPublic = PUBLIC_PATHS.includes(to.path) || to.path.startsWith("/questions/");
+  const isPublic = PUBLIC_PATHS.includes(to.path) || to.path.startsWith("/questions/")
+    || to.name === "hr-shares" || to.name === "hr-share-detail";
   if (isPublic) {
     return true;
   }

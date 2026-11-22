@@ -28,6 +28,7 @@ declare module 'vue' {
     NNotificationProvider: typeof import('naive-ui')['NNotificationProvider']
     NPopover: typeof import('naive-ui')['NPopover']
     ProfileDrawer: typeof import('./components/ProfileDrawer.vue')['default']
+    ReportDialog: typeof import('./components/ReportDialog.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     StudentFavorites: typeof import('./components/StudentFavorites.vue')['default']

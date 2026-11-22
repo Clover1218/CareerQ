@@ -272,6 +272,16 @@ export interface HrPost {
 export interface HrPostSummary extends Omit<HrPost, "body"> { excerpt: string }
 export interface HrPostContent { title: string; body: string; tags: string[] }
 
+export interface PublicHrShare {
+  id: number;
+  title: string;
+  tags: string[];
+  authorNickname: string;
+  publishedAt: string;
+}
+export interface PublicHrShareSummary extends PublicHrShare { excerpt: string }
+export interface PublicHrShareDetail extends PublicHrShare { body: string }
+
 export type StudentMessageCategory = "all" | "reply" | "like" | "system";
 export interface StudentNotification {
   id: number; type: string; category: "reply" | "like" | "system";
@@ -324,6 +334,13 @@ export interface PageResult<T> {
 }
 
 export const api = {
+  publicHrShares(cursor: number | null, signal?: AbortSignal): Promise<PageResult<PublicHrShareSummary>> {
+    const query = cursor == null ? "" : `?cursor=${cursor}`;
+    return request(`/hr-shares${query}`, { signal });
+  },
+  publicHrShare(id: number, signal?: AbortSignal): Promise<PublicHrShareDetail> {
+    return request(`/hr-shares/${id}`, { signal });
+  },
   hrPosts(ownerId: number, status = "all", cursor?: number | null): Promise<PageResult<HrPostSummary>> {
     const params = new URLSearchParams({ status, limit: "5" });
     if (cursor != null) params.set("cursor", String(cursor));
@@ -584,10 +601,10 @@ export const api = {
     });
   },
 
-  report(targetType: "question" | "answer", targetId: number, reason = "inappropriate"): Promise<void> {
+  report(targetType: "question" | "answer", targetId: number, reason: string, detail?: string): Promise<void> {
     return request<void>("/reports", {
       method: "POST",
-      body: { targetType, targetId, reason },
+      body: { targetType, targetId, reason, detail: detail || undefined },
     });
   },
 

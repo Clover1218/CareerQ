@@ -88,8 +88,9 @@ a {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  height: 57px;
-  padding: 0 32px;
+  column-gap: 20px;
+  min-height: 57px;
+  padding: 0 clamp(16px, 3vw, 32px);
   background: var(--color-bg-surface);
   border-bottom: 1px solid var(--color-border-subtle);
   position: fixed;
@@ -97,7 +98,8 @@ a {
   left: 0;
   right: 0;
   width: 100%;
-  z-index: 100;}
+  z-index: 100;
+}
 
 .brand {
   justify-self: start;
@@ -112,7 +114,9 @@ a {
 .nav {
   justify-self: center;
   display: flex;
-  gap: 32px;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px clamp(12px, 3vw, 32px);
 }
 
 .nav a {
@@ -120,6 +124,7 @@ a {
   font-size: 16px;
   line-height: 24px;
   padding: 4px 0;
+  white-space: nowrap;
   transition: color 0.15s ease;
 }
 
@@ -146,49 +151,41 @@ a {
 
 .account-link {
   color: var(--color-text-regular);
+  white-space: nowrap;
 }
 
 .account-link:hover {
   color: var(--color-text-primary);
 }
 
-.logout-link {
-  flex-shrink: 0;
-  white-space: nowrap;
-  color: var(--color-text-muted);
-  font-size: 14px;
-}
-
-.logout-link:hover {
-  color: var(--color-text-regular);
-}
-
-.role {
-  background: var(--color-bg-hover);
-  color: var(--color-text-regular);
-  border-radius: 999px;
-  padding: 1px 8px;
-  font-size: 12px;
-  line-height: 18px;
-}
-
-/* ---------------- 顶栏账号：头像 + 昵称 + 悬浮角色卡 ---------------- */
-.account-profile {
-  position: relative;
-  display: flex;
+.topbar-ask {
+  display: inline-flex;
   align-items: center;
-  min-width: 0;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 7px;
+  background: var(--color-brand);
+  color: var(--color-white);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.topbar-ask:hover,
+.topbar-ask.router-link-active {
+  background: var(--color-brand-dark);
+  color: var(--color-white);
 }
 
 .account-trigger {
   display: inline-flex;
-  min-width: 0;
-  max-width: 100%;
+  flex: 0 0 42px;
+  height: 42px;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
   border: 0;
   background: none;
-  padding: 2px 6px 2px 2px;
+  padding: 0;
   border-radius: 999px;
   font-family: inherit;
   color: var(--color-text-regular);
@@ -225,59 +222,6 @@ a {
   display: block;
 }
 
-.account-name {
-  min-width: 0;
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 悬浮框：鼠标悬停或键盘聚焦时出现在「昵称」下方 */
-.account-pop {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 30;
-  min-width: 132px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
-  background: var(--color-bg-surface);
-  border: 1px solid var(--color-border-default);
-  border-radius: 8px;
-  box-shadow: 0 4px 16px -8px rgba(0, 0, 0, 0.25);
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(-4px);
-  transition:
-    opacity 0.15s ease,
-    transform 0.15s ease,
-    visibility 0.15s ease;
-  pointer-events: none;
-  cursor: pointer;
-}
-
-.account-profile:hover .account-pop,
-.account-profile:focus-within .account-pop {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
-  pointer-events: auto;
-}
-
-.account-pop .role {
-  align-self: flex-start;
-}
-
-.account-pop-hint {
-  color: var(--color-text-muted);
-  font-size: 12px;
-  line-height: 18px;
-  white-space: nowrap;
-}
-
 /* ---------------- 页面骨架 ---------------- */
 .container {
   max-width: 704px;
@@ -285,7 +229,7 @@ a {
   padding: 0 20px;
 }
 
-/* 我的问答：内容宽 1000，顶部横幅需要贴住导航并通栏铺白 */
+/* 学生个人中心：内容宽 1000，顶部横幅需要贴住导航并通栏铺白 */
 .wide-shell {
   width: 100%;
   margin: 0 0 64px;
@@ -320,8 +264,8 @@ a {
   color: var(--color-text-primary);
 }
 
-/* 我的问答标签栏：固定顶栏高度 + 间距，切换标签时 scrollIntoView 不被顶栏遮住 */
-/* 我的问答：学生头像（横幅可点击更换 + 侧边资料栏展示） */
+/* 学生个人中心标签栏：固定顶栏高度 + 间距，切换标签时 scrollIntoView 不被顶栏遮住 */
+/* 学生个人中心：学生头像（横幅可点击更换 + 侧边资料栏展示） */
 .myqa-avatar {
   position: relative;
   width: 56px;
@@ -460,7 +404,19 @@ button,
   transition:
     background-color 0.15s ease,
     border-color 0.15s ease,
-    color 0.15s ease;
+    color 0.15s ease,
+    transform 0.08s ease;
+}
+
+button:not(:disabled):active,
+.btn:active {
+  transform: translateY(1px);
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 3px;
 }
 
 button:hover,
@@ -755,6 +711,13 @@ textarea {
   border-radius: 8px;
   background: var(--color-bg-surface);
   box-shadow: 0 4px 16px -8px rgba(0, 0, 0, 0.25);
+  transform-origin: top right;
+  animation: menu-pop 140ms ease-out;
+}
+
+@keyframes menu-pop {
+  from { opacity: 0; transform: translateY(-3px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .more-item {
@@ -793,13 +756,19 @@ textarea {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .drawer-panel {
+  .drawer-panel,
+  .more-menu {
     animation: none;
+  }
+
+  button:not(:disabled):active,
+  .btn:active {
+    transform: none;
   }
 }
 
 /* ---------------- 响应式 ---------------- */
-@media (max-width: 640px) {
+@media (max-width: 560px) {
   body {
     padding-top: var(--topbar-height, 85px);
   }
@@ -807,9 +776,8 @@ textarea {
   .topbar {
     grid-template-columns: auto minmax(0, 1fr);
     grid-template-rows: auto auto;
-    height: auto;
-    padding: 10px 16px 0;
-    row-gap: 4px;
+    padding: 6px 12px 0;
+    gap: 4px 12px;
   }
 
   .brand {
@@ -822,26 +790,20 @@ textarea {
   .account {
     grid-column: 2;
     grid-row: 1;
-    justify-self: end;
-    min-width: 0;
-  }
-
-  .account-name {
-    max-width: 96px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    gap: 4px;
   }
 
   .nav {
     grid-column: 1 / -1;
     grid-row: 2;
     justify-self: stretch;
-    justify-content: center;
-    gap: 24px;
-    padding: 6px 0 10px;
+    column-gap: clamp(12px, 5vw, 24px);
+    border-top: 1px solid var(--color-border-subtle);
+    padding: 3px 0 5px;
   }
+}
 
+@media (max-width: 640px) {
   .container {
     margin-top: 16px;
   }
@@ -937,7 +899,7 @@ textarea {
 .confirm-fade-leave-to {
   opacity: 0;
 }
-/* 「我的问答」右侧个人资料栏：随页面滚动固定在右侧 */
+/* 「学生个人中心」右侧个人资料栏：随页面滚动固定在右侧 */
 .profile-aside {
   position: sticky;
   top: calc(var(--topbar-height, 57px) + 16px);
@@ -950,17 +912,6 @@ textarea {
   }
 }
 
-/* 顶栏头像悬停浮层里的资料摘要 */
-.account-pop-meta {
-  margin: 0;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--color-text-regular);
-}
-
-.account-pop-meta--muted {
-  color: var(--color-text-muted);
-}
 /* 历史浏览：单条记录删除图标 */
 .history-delete {
   display: inline-flex;

@@ -21,4 +21,8 @@ public final class HrPostDtos {
             long version, LocalDateTime createdAt, LocalDateTime updatedAt, LocalDateTime submittedAt) {}
     public record HrPostSummary(Long id, String title, String excerpt, List<String> tags, String status,
             long version, LocalDateTime createdAt, LocalDateTime updatedAt, LocalDateTime submittedAt) {}
+    public record PublicShareSummary(Long id, String title, String excerpt, List<String> tags,
+            String authorNickname, LocalDateTime publishedAt) {}
+    public record PublicShareDetail(Long id, String title, String body, List<String> tags,
+            String authorNickname, LocalDateTime publishedAt) {}
 }
