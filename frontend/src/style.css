@@ -10,20 +10,27 @@
   color-scheme: light;
 
   /* 颜色变量（Figma Variable Collection 1） */
-  --color-border-default: #e5e7eb; /* Border/default */
-  --color-border-subtle: #ebebeb; /* NavBar 分隔线 */
-  --color-text-primary: #111827; /* Text/Primary */
+  --color-border-default: #e3e8ef; /* Border/default */
+  --color-border-subtle: #edf0f4; /* NavBar 分隔线 */
+  --color-text-primary: #172033; /* Text/Primary */
   --color-text-regular: #4b5563; /* Text/Regular */
-  --color-text-muted: #9ca3af; /* Text/Muted */
-  --color-text-subtle: #8e8e93; /* 阅读全文 / 收起 / 加载更多 等辅助操作文字 */
-  --color-bg-main: #f8f9fa; /* Bg/Main */
+  --color-text-muted: #6b7280; /* Text/Muted */
+  --color-text-subtle: #7b8494; /* 阅读全文 / 收起 / 加载更多 等辅助操作文字 */
+  --color-bg-main: #f5f7fa; /* Bg/Main */
   --color-bg-surface: #ffffff; /* Bg/Surface */
-  --color-bg-hover: #f3f4f6; /* Bg/Hover */
-  --color-bg-feed: #fafafa; /* Feed 容器底色 */
+  --color-bg-hover: #f3f5f8; /* Bg/Hover */
+  --color-bg-feed: #fafbfc; /* Feed 容器底色 */
   --color-white: #ffffff; /* Color */
   --color-brand: #2f6fed; /* 品牌蓝：仅用于链接与可点击强调 */
   --color-brand-dark: #1d4fc4;
-  --color-danger: #d64545;
+  --color-brand-soft: #eef4ff;
+  --color-brand-border: #d6e3fb;
+  --color-success: #34765a;
+  --color-success-soft: #edf7f1;
+  --color-warning: #946514;
+  --color-warning-soft: #fff6e3;
+  --color-danger-soft: #fff0ef;
+  --color-danger: #c44848;
 
   /* 旧变量别名：其他页面仍在使用，统一指向新 token */
   --primary: var(--color-brand);
@@ -68,7 +75,7 @@ body {
   color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
   /* 顶栏 fixed 固定吸顶，内容区留出顶栏高度 */
-  padding-top: 57px;
+  padding-top: var(--topbar-height, 57px);
 }
 
 a {
@@ -81,8 +88,9 @@ a {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  height: 57px;
-  padding: 0 32px;
+  column-gap: 20px;
+  min-height: 57px;
+  padding: 0 clamp(16px, 3vw, 32px);
   background: var(--color-bg-surface);
   border-bottom: 1px solid var(--color-border-subtle);
   position: fixed;
@@ -90,7 +98,8 @@ a {
   left: 0;
   right: 0;
   width: 100%;
-  z-index: 100;}
+  z-index: 100;
+}
 
 .brand {
   justify-self: start;
@@ -105,7 +114,13 @@ a {
 .nav {
   justify-self: center;
   display: flex;
-  gap: 32px;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px clamp(12px, 3vw, 32px);
+}
+
+.nav.nav--hr {
+  column-gap: clamp(8px, 2vw, 28px);
 }
 
 .nav a {
@@ -113,6 +128,7 @@ a {
   font-size: 16px;
   line-height: 24px;
   padding: 4px 0;
+  white-space: nowrap;
   transition: color 0.15s ease;
 }
 
@@ -128,6 +144,8 @@ a {
 .account {
   justify-self: end;
   display: flex;
+  min-width: 0;
+  max-width: 100%;
   align-items: center;
   gap: 8px;
   color: var(--color-text-regular);
@@ -135,46 +153,60 @@ a {
   line-height: 22px;
 }
 
-.account-link {
-  color: var(--color-text-regular);
+.account-auth {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  border-inline-start: 1px solid var(--color-border-default);
+  padding-inline-start: 12px;
 }
 
-.account-link:hover {
+.account-link {
+  display: inline-flex;
+  min-width: 44px;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  padding: 0 9px;
+  color: var(--color-text-regular);
+  white-space: nowrap;
+}
+
+.account-link:is(:hover, :focus-visible) {
+  background: var(--color-bg-hover);
   color: var(--color-text-primary);
 }
 
-.logout-link {
-  color: var(--color-text-muted);
-  font-size: 14px;
-}
-
-.logout-link:hover {
-  color: var(--color-text-regular);
-}
-
-.role {
-  background: var(--color-bg-hover);
-  color: var(--color-text-regular);
-  border-radius: 999px;
-  padding: 1px 8px;
-  font-size: 12px;
-  line-height: 18px;
-}
-
-/* ---------------- 顶栏账号：头像 + 昵称 + 悬浮角色卡 ---------------- */
-.account-profile {
-  position: relative;
-  display: flex;
+.topbar-ask {
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 7px;
+  background: var(--color-brand);
+  color: var(--color-white);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.topbar-ask:hover,
+.topbar-ask.router-link-active {
+  background: var(--color-brand-dark);
+  color: var(--color-white);
 }
 
 .account-trigger {
   display: inline-flex;
+  flex: 0 0 42px;
+  height: 42px;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
   border: 0;
   background: none;
-  padding: 2px 6px 2px 2px;
+  padding: 0;
   border-radius: 999px;
   font-family: inherit;
   color: var(--color-text-regular);
@@ -211,66 +243,14 @@ a {
   display: block;
 }
 
-.account-name {
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 悬浮框：鼠标悬停或键盘聚焦时出现在「昵称」下方 */
-.account-pop {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 30;
-  min-width: 132px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
-  background: var(--color-bg-surface);
-  border: 1px solid var(--color-border-default);
-  border-radius: 8px;
-  box-shadow: 0 4px 16px -8px rgba(0, 0, 0, 0.25);
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(-4px);
-  transition:
-    opacity 0.15s ease,
-    transform 0.15s ease,
-    visibility 0.15s ease;
-  pointer-events: none;
-  cursor: pointer;
-}
-
-.account-profile:hover .account-pop,
-.account-profile:focus-within .account-pop {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
-  pointer-events: auto;
-}
-
-.account-pop .role {
-  align-self: flex-start;
-}
-
-.account-pop-hint {
-  color: var(--color-text-muted);
-  font-size: 12px;
-  line-height: 18px;
-  white-space: nowrap;
-}
-
 /* ---------------- 页面骨架 ---------------- */
 .container {
-  max-width: 655px;
-  margin: 28px auto 64px;
-  padding: 0 16px;
+  max-width: 704px;
+  margin: 32px auto 72px;
+  padding: 0 20px;
 }
 
-/* 我的问答：内容宽 1000，顶部横幅需要贴住导航并通栏铺白 */
+/* 学生个人中心：内容宽 1000，顶部横幅需要贴住导航并通栏铺白 */
 .wide-shell {
   width: 100%;
   margin: 0 0 64px;
@@ -322,8 +302,8 @@ body.admin-mode {
   color: var(--color-text-primary);
 }
 
-/* 我的问答标签栏：固定顶栏高度 + 间距，切换标签时 scrollIntoView 不被顶栏遮住 */
-/* 我的问答：学生头像（横幅可点击更换 + 侧边资料栏展示） */
+/* 学生个人中心标签栏：固定顶栏高度 + 间距，切换标签时 scrollIntoView 不被顶栏遮住 */
+/* 学生个人中心：学生头像（横幅可点击更换 + 侧边资料栏展示） */
 .myqa-avatar {
   position: relative;
   width: 56px;
@@ -408,14 +388,47 @@ body.admin-mode {
 .card {
   background: var(--color-bg-surface);
   border: 1px solid var(--color-border-default);
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 10px;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 12px;
 }
 
 .card h2,
 .card h3 {
   margin-top: 0;
+}
+
+.detail-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.detail-loading::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-brand);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .detail-enter { animation: detail-enter 220ms ease-out; }
+  .detail-loading::before { animation: detail-loading-pulse 1s ease-in-out infinite alternate; }
+
+  @keyframes detail-enter {
+    from { opacity: 0.55; translate: 0 6px; }
+    to { opacity: 1; translate: 0 0; }
+  }
+
+  @keyframes detail-loading-pulse {
+    from { opacity: 0.35; }
+    to { opacity: 1; }
+  }
 }
 
 .muted {
@@ -462,7 +475,19 @@ button,
   transition:
     background-color 0.15s ease,
     border-color 0.15s ease,
-    color 0.15s ease;
+    color 0.15s ease,
+    transform 0.08s ease;
+}
+
+button:not(:disabled):active,
+.btn:active {
+  transform: translateY(1px);
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 3px;
 }
 
 button:hover,
@@ -634,8 +659,8 @@ textarea {
   flex-shrink: 0;
   padding: 2px 4px;
   border-radius: 4px;
-  background: #e6f0ff;
-  color: #3874d0;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
   font-size: 12px;
   line-height: 18px;
   white-space: nowrap;
@@ -657,28 +682,31 @@ textarea {
   color: var(--color-text-regular);
 }
 
-/* 图标操作按钮：覆盖全局 button 的边框/底色，保持 Figma 的纯文字样式 */
+/* 图标操作按钮：轻量文字按钮，悬停和选中时使用品牌色浅底 */
 .feed-action {
   display: inline-flex;
+  min-height: 34px;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 5px;
   border: 0;
   background: none;
-  padding: 0;
-  border-radius: 0;
-  color: var(--color-text-primary);
+  padding: 6px 8px;
+  border-radius: 7px;
+  color: var(--color-text-regular);
   font-family: inherit;
   font-size: 14px;
   line-height: 22px;
-  transition: color 0.15s ease;
+  transition: color 0.15s ease, background-color 0.15s ease;
 }
 
 .feed-action:hover {
-  background: none;
+  background: var(--color-brand-soft);
   color: var(--color-brand);
 }
 
 .feed-action.is-active {
+  background: var(--color-brand-soft);
   color: var(--color-brand);
 }
 
@@ -743,18 +771,6 @@ textarea {
   resize: none;
 }
 
-.composer-guest {
-  display: flex;
-  align-items: center;
-  min-height: 42px;
-  padding: 8px 12px;
-  border: 1px dashed var(--color-border-default);
-  border-radius: 8px;
-  color: var(--color-text-muted);
-  font-size: 16px;
-  line-height: 24px;
-}
-
 .more-menu {
   position: absolute;
   top: calc(100% + 4px);
@@ -766,6 +782,13 @@ textarea {
   border-radius: 8px;
   background: var(--color-bg-surface);
   box-shadow: 0 4px 16px -8px rgba(0, 0, 0, 0.25);
+  transform-origin: top right;
+  animation: menu-pop 140ms ease-out;
+}
+
+@keyframes menu-pop {
+  from { opacity: 0; transform: translateY(-3px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .more-item {
@@ -787,7 +810,7 @@ textarea {
   color: var(--color-text-primary);
 }
 
-/* 回答卡从问题卡下方滑出，配合问题卡的向下投影形成「两张卡叠放」的层次 */
+/* 回答区在同一卡片内展开，用短距离移动提示内容层级变化 */
 @keyframes drawer-out {
   from {
     opacity: 0;
@@ -804,19 +827,28 @@ textarea {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .drawer-panel {
+  .drawer-panel,
+  .more-menu {
     animation: none;
+  }
+
+  button:not(:disabled):active,
+  .btn:active {
+    transform: none;
   }
 }
 
 /* ---------------- 响应式 ---------------- */
-@media (max-width: 640px) {
+@media (max-width: 560px) {
+  body {
+    padding-top: var(--topbar-height, 85px);
+  }
+
   .topbar {
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto minmax(0, 1fr);
     grid-template-rows: auto auto;
-    height: auto;
-    padding: 10px 16px 0;
-    row-gap: 4px;
+    padding: 6px 12px 0;
+    gap: 4px 12px;
   }
 
   .brand {
@@ -829,26 +861,27 @@ textarea {
   .account {
     grid-column: 2;
     grid-row: 1;
-    justify-self: end;
-    min-width: 0;
+    gap: 4px;
   }
 
-  .account .nickname {
-    max-width: 96px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .account-auth {
+    gap: 3px;
+    padding-inline-start: 8px;
   }
 
   .nav {
     grid-column: 1 / -1;
     grid-row: 2;
     justify-self: stretch;
-    justify-content: center;
-    gap: 24px;
-    padding: 6px 0 10px;
+    column-gap: clamp(12px, 5vw, 24px);
+    border-top: 1px solid var(--color-border-subtle);
+    padding: 3px 0 5px;
   }
 
+  .nav--hr a { font-size: 14px; }
+}
+
+@media (max-width: 640px) {
   .container {
     margin-top: 16px;
   }
@@ -943,30 +976,6 @@ textarea {
 .confirm-fade-enter-from,
 .confirm-fade-leave-to {
   opacity: 0;
-}
-/* 「我的问答」右侧个人资料栏：随页面滚动固定在右侧 */
-.profile-aside {
-  position: sticky;
-  top: 73px;
-  align-self: start;
-}
-
-@media (max-width: 1023px) {
-  .profile-aside {
-    position: static;
-  }
-}
-
-/* 顶栏头像悬停浮层里的资料摘要 */
-.account-pop-meta {
-  margin: 0;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--color-text-regular);
-}
-
-.account-pop-meta--muted {
-  color: var(--color-text-muted);
 }
 /* 历史浏览：单条记录删除图标 */
 .history-delete {

@@ -1,17 +1,19 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useDialog, useMessage } from "naive-ui";
 import { api, type MeStats, type Profile, type Question, type QuestionFeedItem } from "@/api";
 import { useUserStore } from "@/stores/user";
 import { clearViewHistory, getViewHistory, removeViewHistoryEntry, type ViewHistoryEntry } from "@/utils/history";
 import FeedCard from "@/components/FeedCard.vue";
 import FeedIcon from "@/components/FeedIcon.vue";
+import StudentFavorites from "@/components/StudentFavorites.vue";
 
 const userStore = useUserStore();
 const { user } = storeToRefs(userStore);
 const route = useRoute();
+const router = useRouter();
 const message = useMessage();
 const dialog = useDialog();
 
@@ -28,16 +30,17 @@ const loading = ref(false);
 const error = ref("");
 
 // 「我的提问 / 历史浏览」两个标签页；历史浏览暂用本地存储，后端接口后续再接
-type MyQaTab = "questions" | "history";
-const activeTab = ref<MyQaTab>("questions");
-const historyEntries = ref<ViewHistoryEntry[]>(getViewHistory());
+type MyQaTab = "questions" | "history" | "favorites";
+const activeTab = ref<MyQaTab>(route.query.tab === "history" || route.query.tab === "favorites" ? route.query.tab : "questions");
+const historyEntries = ref<ViewHistoryEntry[]>(getViewHistory(user.value?.id ?? null));
 const tabRowRef = ref<HTMLElement | null>(null);
 
 function switchTab(tab: MyQaTab) {
   if (activeTab.value === tab) return;
   activeTab.value = tab;
+  void router.replace({ path: "/me", query: tab === "questions" ? {} : { tab } });
   if (tab === "history") {
-    historyEntries.value = getViewHistory();
+    historyEntries.value = getViewHistory(user.value?.id ?? null);
   }
   // 若已经滚动到标签栏下方，切页时平滑回到标签栏，避免高度差造成的跳动
   void nextTick(() => {
@@ -51,13 +54,13 @@ function switchTab(tab: MyQaTab) {
 }
 
 function clearHistory() {
-  clearViewHistory();
+  clearViewHistory(user.value?.id ?? null);
   historyEntries.value = [];
 }
 
 function deleteHistory(id: number) {
-  removeViewHistoryEntry(id);
-  historyEntries.value = getViewHistory();
+  removeViewHistoryEntry(id, user.value?.id ?? null);
+  historyEntries.value = getViewHistory(user.value?.id ?? null);
 }
 
 function formatVisitedAt(iso: string): string {
@@ -135,7 +138,7 @@ const feedEntries = computed(() =>
   questions.value.map((question) => ({ question, item: toFeedItem(question) })),
 );
 
-// 我的问答默认只展示前 3 条，其余折叠；展开时自动加载剩余分页
+// 我的提问默认只展示前 3 条，其余折叠；展开时自动加载剩余分页
 const COLLAPSED_LIMIT = 3;
 const expanded = ref(false);
 const expanding = ref(false);
@@ -150,7 +153,9 @@ async function expandAll() {
   expanding.value = true;
   try {
     while (cursor.value) {
-      await loadQuestions(false);
+      const previous = cursor.value;
+      if (!await loadQuestions(false)) break;
+      if (cursor.value === previous) { error.value = "分页暂时无法继续，请稍后重试。"; break; }
     }
   } finally {
     expanding.value = false;
@@ -207,16 +212,18 @@ function confirmWithdraw(question: Question) {
   });
 }
 
-async function loadQuestions(reset = false) {
-  if (loading.value) return;
+async function loadQuestions(reset = false): Promise<boolean> {
+  if (loading.value) return false;
   loading.value = true;
   error.value = "";
   try {
     const page = await api.myQuestions(reset ? null : cursor.value);
     questions.value = reset ? page.items : [...questions.value, ...page.items];
-    cursor.value = page.nextCursor;
+    cursor.value = page.nextCursor ?? null;
+    return true;
   } catch (e) {
     error.value = errorText(e, "提问列表加载失败");
+    return false;
   } finally {
     loading.value = false;
   }
@@ -261,6 +268,20 @@ function openProfileEditor() {
   showProfileModal.value = true;
 }
 
+async function requestProfileEditor() {
+  if (!profile.value) await loadProfile();
+  if (route.query.edit === "profile" && profile.value) openProfileEditor();
+}
+
+function onProfileModalChange(show: boolean) {
+  showProfileModal.value = show;
+  if (!show && route.query.edit === "profile") {
+    const query = { ...route.query };
+    delete query.edit;
+    void router.replace({ path: "/me", query });
+  }
+}
+
 async function saveProfile() {
   if (savingProfile.value) return;
   savingProfile.value = true;
@@ -271,7 +292,7 @@ async function saveProfile() {
       grade: profileDraft.grade,
     });
     await userStore.fetchUserInfo(true);
-    showProfileModal.value = false;
+    onProfileModalChange(false);
     message.success("资料已更新");
   } catch (e) {
     message.error(errorText(e, "资料更新失败"));
@@ -280,15 +301,16 @@ async function saveProfile() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   // 从个人信息弹窗点「历史浏览」会带 ?tab=history，进来直接切到历史标签
   if (route.query.tab === "history") {
     activeTab.value = "history";
-    historyEntries.value = getViewHistory();
+    historyEntries.value = getViewHistory(user.value?.id ?? null);
   }
-  void loadProfile();
   void loadStats();
   void loadQuestions(true);
+  await loadProfile();
+  if (route.query.edit === "profile") openProfileEditor();
 });
 
 watch(
@@ -296,10 +318,15 @@ watch(
   (tab) => {
     if (tab === "history") {
       activeTab.value = "history";
-      historyEntries.value = getViewHistory();
+      historyEntries.value = getViewHistory(user.value?.id ?? null);
     }
   },
 );
+
+watch(() => route.query.edit, edit => {
+  if (edit === "profile") void requestProfileEditor();
+  else showProfileModal.value = false;
+});
 </script>
 
 <template>
@@ -346,7 +373,7 @@ watch(
         accept="image/png,image/jpeg,image/webp"
         @change="onAvatarChange"
       />
-      <p class="m-0 text-14 text-muted">占位</p>
+      <div class="flex flex-wrap items-center gap-4 text-14 text-muted"><span>我的求职提问与学习记录</span></div>
     </div>
   </section>
 
@@ -362,6 +389,7 @@ watch(
           <FeedIcon name="clock" :size="18" />
           <span>我的提问</span>
         </button>
+        <button class="myqa-tab" :class="{ 'is-active': activeTab === 'favorites' }" type="button" @click="switchTab('favorites')"><FeedIcon name="star" :size="18" /><span>我的收藏</span></button>
         <button
           class="myqa-tab"
           :class="{ 'is-active': activeTab === 'history' }"
@@ -378,13 +406,13 @@ watch(
           <p class="m-0 text-14 font-medium text-ink">{{ stats.likeCount }}</p>
         </div>
         <div class="text-center">
-          <p class="m-0 text-14 text-muted">回答数</p>
+          <p class="m-0 text-14 text-muted" title="包含 HR 对你的问题的回答和追问回复">收到回答</p>
           <p class="m-0 text-14 font-medium text-ink">{{ stats.receivedAnswerCount }}</p>
         </div>
       </div>
     </div>
 
-    <div class="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_247px] lg:gap-2.5">
+    <div class="mt-5">
       <div class="flex flex-col gap-5" style="min-height: 480px">
         <template v-if="activeTab === 'questions'">
           <p v-if="error" class="m-0 text-14 text-danger">{{ error }}</p>
@@ -403,15 +431,19 @@ watch(
             还没有提问，去提出第一个问题吧。
           </p>
 
-          <div v-if="hiddenCount > 0 || expanded" class="text-center">
-            <button v-if="!expanded" class="aux-btn" :disabled="expanding" @click="expandAll">
+          <div v-if="hiddenCount > 0 || expanded || cursor" class="text-center">
+            <button v-if="!expanded" class="aux-btn" :disabled="expanding || loading" @click="expandAll">
               {{ expanding ? "加载中…" : `展开全部（共 ${feedEntries.length} 条）` }}
             </button>
-            <button v-else class="aux-btn" @click="collapseAll">收起</button>
+            <template v-else>
+              <button v-if="cursor" class="aux-btn" :disabled="expanding || loading" @click="expandAll">{{ expanding ? '加载中…' : error ? '重试加载剩余提问' : '加载剩余提问' }}</button>
+              <button class="aux-btn" :disabled="expanding" @click="collapseAll">收起</button>
+            </template>
           </div>
         </template>
 
-        <!-- 历史浏览：暂存本地，后端接口后续接入 -->
+        <StudentFavorites v-else-if="activeTab === 'favorites'" />
+        <!-- 历史浏览：按账号暂存本地 -->
         <template v-else>
           <p class="m-0 text-14 text-muted">最近浏览过的问题（保存在本机，最多 50 条）。</p>
 
@@ -465,51 +497,13 @@ watch(
         </template>
       </div>
 
-      <aside class="profile-aside order-first lg:order-none">
-        <section class="rounded-card border border-line bg-surface p-4">
-          <div class="flex items-center justify-between">
-            <h2 class="m-0 text-16 font-semibold text-ink">个人资料</h2>
-            <button class="aux-btn text-12" @click="openProfileEditor">编辑 &gt;</button>
-          </div>
-          <div class="mt-3 flex items-center gap-3">
-            <span class="myqa-avatar myqa-avatar--sm" aria-hidden="true">
-              <img v-if="avatarUrl" :src="avatarUrl" alt="" />
-              <template v-else>{{ avatarInitial }}</template>
-            </span>
-            <div class="min-w-0">
-              <p class="m-0 truncate text-14 font-medium text-ink">{{ displayName }}</p>
-              <button
-                class="aux-btn text-12"
-                type="button"
-                :disabled="uploadingAvatar"
-                @click="pickAvatar"
-              >
-                {{ uploadingAvatar ? "上传中…" : "更换头像" }}
-              </button>
-            </div>
-          </div>
-          <dl class="m-0 mt-3 flex flex-col gap-2.5">
-            <div class="flex items-center gap-2">
-              <FeedIcon name="school" :size="24" class="shrink-0 text-regular" />
-              <dd class="m-0 truncate text-14 text-ink">{{ profile?.school || "学校待完善" }}</dd>
-            </div>
-            <div class="flex items-center gap-2">
-              <FeedIcon name="book" :size="24" class="shrink-0 text-regular" />
-              <dd class="m-0 truncate text-14 text-ink">{{ profile?.major || "专业待完善" }}</dd>
-            </div>
-            <div class="flex items-center gap-2">
-              <FeedIcon name="calendar" :size="24" class="shrink-0 text-regular" />
-              <dd class="m-0 truncate text-14 text-ink">{{ profile?.grade || "年级待完善" }}</dd>
-            </div>
-          </dl>
-        </section>
-      </aside>
     </div>
   </div>
 
   <n-modal
-    v-model:show="showProfileModal"
+    :show="showProfileModal"
     preset="card"
+    @update:show="onProfileModalChange"
     title="编辑个人资料"
     style="width: 420px; max-width: calc(100vw - 32px)"
   >
@@ -527,7 +521,7 @@ watch(
         <input v-model="profileDraft.grade" maxlength="32" placeholder="如：大三" />
       </label>
       <div class="mt-2 flex justify-end gap-2">
-        <button @click="showProfileModal = false">取消</button>
+        <button @click="onProfileModalChange(false)">取消</button>
         <button class="primary-btn" :disabled="savingProfile" @click="saveProfile">
           {{ savingProfile ? "保存中…" : "保存" }}
         </button>

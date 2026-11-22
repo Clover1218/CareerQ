@@ -33,6 +33,8 @@ import com.careerq.service.AdminService.UndoRequest;
 import com.careerq.service.AdminService.WordRequest;
 import com.careerq.service.AdminService.WordView;
 import com.careerq.service.ModerationService;
+import com.careerq.service.HrNotificationService;
+import com.careerq.service.StudentNotificationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -68,6 +70,9 @@ public class AdminServiceImpl implements AdminService {
     private final ModerationRecordDao recordDao;
     private final ModerationService moderationService;
     private final UserDao userDao;
+    private final AnswerRemovalService answerRemovalService;
+    private final HrNotificationService notifications;
+    private final StudentNotificationService studentNotifications;
 
     public AdminServiceImpl(QuestionDao questionDao,
                             AnswerDao answerDao,
@@ -76,7 +81,10 @@ public class AdminServiceImpl implements AdminService {
                             ModerationWordDao wordDao,
                             ModerationRecordDao recordDao,
                             ModerationService moderationService,
-                            UserDao userDao) {
+                            UserDao userDao,
+                            AnswerRemovalService answerRemovalService,
+                            HrNotificationService notifications,
+                            StudentNotificationService studentNotifications) {
         this.questionDao = questionDao;
         this.answerDao = answerDao;
         this.followupDao = followupDao;
@@ -85,6 +93,9 @@ public class AdminServiceImpl implements AdminService {
         this.recordDao = recordDao;
         this.moderationService = moderationService;
         this.userDao = userDao;
+        this.answerRemovalService = answerRemovalService;
+        this.notifications = notifications;
+        this.studentNotifications = studentNotifications;
     }
 
     @Override
@@ -140,7 +151,7 @@ public class AdminServiceImpl implements AdminService {
 
     @Override
     @Transactional(readOnly = true)
-    public ReviewPage reviewed(AuthUser operator, String type, String status, String risk, int page, int size) {
+public ReviewPage reviewed(AuthUser operator, String type, String status, String risk, int page, int size) {
         String typeFilter = normalizeTypeFilter(type);
         String statusFilter = normalizeStatusFilter(status);
         String riskFilter = normalizeRiskFilter(risk);
@@ -313,11 +324,10 @@ public class AdminServiceImpl implements AdminService {
             case "question" -> {
                 QuestionDO question = questionDao.findByIdForUpdate(targetId)
                         .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
-                applyQuestion(question, operator, decision, note);
+applyQuestion(question, operator, decision, note);
             }
             case "answer" -> {
-                AnswerDO answer = answerDao.findByIdForUpdate(targetId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "回答不存在"));
+                AnswerDO answer = answerRemovalService.lockAnswer(targetId);
                 applyAnswer(answer, operator, decision, note);
             }
             default -> {
@@ -333,13 +343,18 @@ public class AdminServiceImpl implements AdminService {
         String risk = question.getRiskLevel();
         if ("remove".equals(decision) || "restore".equals(decision)) {
             int updated = "remove".equals(decision)
-                    ? questionDao.updateVisibilityIf(question.getId(), List.of("APPROVED"),
-                    List.of("VISIBLE"), "REMOVED", note)
+                    ? questionDao.updateVisibilityIf(question.getId(),
+                    List.of("L1", "L2", "L3", "APPROVED", "REJECTED"),
+                    List.of("VISIBLE", "HIDDEN"), "REMOVED", note)
                     : questionDao.updateVisibilityIf(question.getId(), List.of("APPROVED"),
                     List.of("REMOVED"), "VISIBLE", note);
             requireUpdated(updated);
             moderationService.recordHuman("question", question.getId(), decision,
-                    fromStatus, "APPROVED", risk, operator.getId(), note);
+                    fromStatus, "remove".equals(decision) ? fromStatus : "APPROVED",
+                    risk, operator.getId(), note);
+            if (!"restore".equals(decision)) {
+                studentNotifications.contentReviewed("question", question.getId(), decision);
+            }
             return;
         }
         boolean arbitration = requireAdjudication(operator, "question", question.getId(),
@@ -349,6 +364,7 @@ public class AdminServiceImpl implements AdminService {
         int updated = questionDao.updateModerationIfStatusIn(question.getId(), REVIEW_STATUSES,
                 toStatus, visibility, risk, note);
         requireUpdated(updated);
+        studentNotifications.contentReviewed("question", question.getId(), decision);
         recordAdjudication("question", question.getId(), arbitration, decision,
                 fromStatus, toStatus, risk, operator, note);
     }
@@ -358,19 +374,29 @@ public class AdminServiceImpl implements AdminService {
         String fromVisibility = answer.getVisibility();
         String risk = answer.getRiskLevel();
         if ("remove".equals(decision) || "restore".equals(decision)) {
-            int updated = "remove".equals(decision)
-                    ? answerDao.updateVisibilityIf(answer.getId(), List.of("APPROVED"),
-                    List.of("VISIBLE"), "REMOVED", note)
-                    : answerDao.updateVisibilityIf(answer.getId(), List.of("APPROVED"),
-                    List.of("REMOVED"), "VISIBLE", note);
-            requireUpdated(updated);
             if ("remove".equals(decision)) {
-                questionDao.decrementAnswer(answer.getQuestionId());
-            } else {
-                questionDao.recordAnswer(answer.getQuestionId());
+                // 运营下架与举报下架共用同一实现：幂等、保留首次来源、只在原可见时扣减计数。
+                answerRemovalService.removeByOperator(operator, answer.getId());
+                if (!"REMOVED".equals(fromVisibility)) {
+                    moderationService.recordHuman("answer", answer.getId(), "remove",
+                            fromStatus, "REJECTED", risk, operator.getId(), note);
+                }
+                return;
             }
-            moderationService.recordHuman("answer", answer.getId(), decision,
-                    fromStatus, "APPROVED", risk, operator.getId(), note);
+            if ("VISIBLE".equals(fromVisibility)) {
+                return;
+            }
+            if (answerDao.restoreOperatorRemoval(answer.getId(), note) == 1) {
+                questionDao.recordAnswer(answer.getQuestionId());
+                moderationService.recordHuman("answer", answer.getId(), "restore",
+                        fromStatus, "APPROVED", risk, operator.getId(), note);
+                return;
+            }
+            AnswerDO current = answerDao.findById(answer.getId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "回答不存在"));
+            if (!"VISIBLE".equals(current.getVisibility())) {
+                throw new BusinessException(ErrorCode.CONFLICT, "该回答不是运营下架，无法恢复");
+            }
             return;
         }
         boolean arbitration = requireAdjudication(operator, "answer", answer.getId(),
@@ -382,9 +408,11 @@ public class AdminServiceImpl implements AdminService {
         requireUpdated(updated);
         if ("approve".equals(decision) && !"VISIBLE".equals(fromVisibility)) {
             questionDao.recordAnswer(answer.getQuestionId());
+            studentNotifications.answerPublished(answer.getId());
         } else if ("reject".equals(decision) && "VISIBLE".equals(fromVisibility)) {
             questionDao.decrementAnswer(answer.getQuestionId());
         }
+        notifications.answerReviewed(answer.getId(), decision);
         recordAdjudication("answer", answer.getId(), arbitration, decision,
                 fromStatus, toStatus, risk, operator, note);
     }
@@ -407,6 +435,9 @@ public class AdminServiceImpl implements AdminService {
             }
             moderationService.recordHuman("followup", followup.getId(), decision,
                     fromStatus, "APPROVED", risk, operator.getId(), note);
+            if ("remove".equals(decision)) {
+                studentNotifications.contentReviewed("followup", followup.getId(), "remove");
+            }
             return;
         }
         boolean arbitration = requireAdjudication(operator, "followup", followup.getId(),
@@ -418,9 +449,11 @@ public class AdminServiceImpl implements AdminService {
         requireUpdated(updated);
         if ("approve".equals(decision) && !"VISIBLE".equals(fromVisibility)) {
             questionDao.incrementFollowup(followup.getQuestionId());
+            notifications.followupPublished(followup.getId());
         } else if ("reject".equals(decision) && "VISIBLE".equals(fromVisibility)) {
             questionDao.decrementFollowup(followup.getQuestionId());
         }
+        studentNotifications.contentReviewed("followup", followup.getId(), decision);
         recordAdjudication("followup", followup.getId(), arbitration, decision,
                 fromStatus, toStatus, risk, operator, note);
     }
@@ -714,7 +747,7 @@ public class AdminServiceImpl implements AdminService {
             throw new BusinessException(ErrorCode.INVALID_PARAM, "decision 只能是 dismiss/remove");
         }
         if ("remove".equals(normalized)) {
-            applyDecision(operator, normalizeTargetType(report.getTargetType()),
+applyDecision(operator, normalizeTargetType(report.getTargetType()),
                     report.getTargetId(), "remove", note);
         }
         report.setStatus("dismiss".equals(normalized) ? "dismissed" : "resolved");
@@ -723,7 +756,7 @@ public class AdminServiceImpl implements AdminService {
         reportDao.updateResolution(report);
     }
 
-    @Override
+@Override
     @Transactional(readOnly = true)
     public List<WordView> words() {
         return wordDao.findAll().stream().map(this::toWordView).toList();

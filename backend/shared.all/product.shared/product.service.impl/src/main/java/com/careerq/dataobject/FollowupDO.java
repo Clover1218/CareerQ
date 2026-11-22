@@ -1,5 +1,7 @@
 package com.careerq.dataobject;
 
+import com.careerq.moderation.LegacyStatus;
+
 import java.time.LocalDateTime;
 
 /**
@@ -13,6 +15,12 @@ public class FollowupDO {
 
     /** 追问目标 HR：会话线程按 (questionId, hrId) 划分。 */
     private Long hrId;
+
+    private Long rootAnswerId;
+
+    public Long getRootAnswerId() { return rootAnswerId; }
+
+    public void setRootAnswerId(Long rootAnswerId) { this.rootAnswerId = rootAnswerId; }
 
     private Long senderId;
 
@@ -102,6 +110,11 @@ public class FollowupDO {
 
     public void setVisibility(String visibility) {
         this.visibility = visibility;
+    }
+
+    /** 兼容旧调用方的聚合状态；真实状态以 moderationStatus 与 visibility 为准。 */
+    public String getStatus() {
+        return LegacyStatus.of(moderationStatus, visibility).value();
     }
 
     public String getRiskLevel() {

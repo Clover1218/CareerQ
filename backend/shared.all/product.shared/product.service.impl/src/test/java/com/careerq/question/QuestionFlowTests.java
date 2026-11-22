@@ -259,7 +259,7 @@ class QuestionFlowTests {
                         .session(student).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "hrId", hrId, "body", "想先了解一下准备周期。"))))
+                                "hrId", hrId, "rootAnswerId", 1, "body", "想先了解一下准备周期。"))))
                 .andExpect(status().isBadRequest());
 
         MvcResult answerResult = mockMvc.perform(post("/api/v1/questions/{id}/answers", questionId)
@@ -277,7 +277,7 @@ class QuestionFlowTests {
                         .session(student).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "hrId", hrId, "body", "想先了解一下准备周期。"))))
+                                "hrId", hrId, "rootAnswerId", answerId, "body", "想先了解一下准备周期。"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.hr").value(false))
                 .andExpect(jsonPath("$.data.hrId").value((int) hrId))
@@ -288,14 +288,14 @@ class QuestionFlowTests {
                         .session(otherStudent).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "hrId", hrId, "body", "非题主也能追问吗？"))))
+                                "hrId", hrId, "rootAnswerId", answerId, "body", "非题主也能追问吗？"))))
                 .andExpect(status().isForbidden());
 
         mockMvc.perform(post("/api/v1/questions/{id}/followups", questionId)
                         .session(hr).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "hrId", hrId, "body", "也可以先做一次模拟面试评估基础。"))))
+                                "hrId", hrId, "rootAnswerId", answerId, "body", "也可以先做一次模拟面试评估基础。"))))
                 .andExpect(status().isForbidden());
 
         mockMvc.perform(post("/api/v1/interactions").session(student).with(csrf())

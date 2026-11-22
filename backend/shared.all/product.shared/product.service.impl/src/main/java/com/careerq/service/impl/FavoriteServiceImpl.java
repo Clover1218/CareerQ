@@ -39,8 +39,9 @@ public class FavoriteServiceImpl implements FavoriteService {
     public PageResult<FavoriteView> list(AuthUser user, String targetType, Long cursor, int limit) {
         int size = Math.max(1, Math.min(limit, 50));
         String filter = normalizeTargetType(targetType);
-        List<InteractionDO> rows = interactionDao.findByUserAndType(
-                user.getId(), "favorite", filter, cursor, size + 1);
+        if (cursor != null && cursor <= 0) throw new BusinessException(ErrorCode.INVALID_PARAM, "收藏游标无效");
+        // 先过滤不可见内容再分页，避免整页为空但仍有后续收藏。
+        List<InteractionDO> rows = interactionDao.findVisibleFavorites(user.getId(), filter, cursor, size + 1);
         boolean hasMore = rows.size() > size;
         List<InteractionDO> page = hasMore ? rows.subList(0, size) : rows;
 
@@ -58,8 +59,8 @@ public class FavoriteServiceImpl implements FavoriteService {
     private FavoriteView resolve(InteractionDO row) {
         return switch (row.getTargetType()) {
             case "question" -> questionDao.findById(row.getTargetId())
-                    .filter(question -> "VISIBLE".equals(question.getVisibility()))
-                    .map(question -> new FavoriteView("question", question.getId(), question.getTitle(),
+.filter(question -> "public".equals(question.getScope()) && "VISIBLE".equals(question.getVisibility()))
+                    .map(question -> new FavoriteView("question", question.getId(), question.getId(), null, question.getTitle(),
                             excerpt(question.getBody()), row.getCreatedAt()))
                     .orElse(null);
             case "answer" -> answerDao.findById(row.getTargetId())
@@ -69,7 +70,7 @@ public class FavoriteServiceImpl implements FavoriteService {
                         String title = questionDao.findById(answer.getQuestionId())
                                 .map(question -> "回答：" + question.getTitle())
                                 .orElse("回答");
-                        return new FavoriteView("answer", answer.getId(), title,
+                        return new FavoriteView("answer", answer.getId(), answer.getQuestionId(), answer.getFollowupId(), title,
                                 excerpt(answer.getBody()), row.getCreatedAt());
                     })
                     .orElse(null);

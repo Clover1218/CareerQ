@@ -1,0 +1,191 @@
+.hr-shares {
+  width: min(100%, 760px);
+  margin-inline: auto;
+  padding-bottom: 36px;
+}
+
+.hr-shares-heading {
+  padding: 8px 0 18px;
+}
+
+.hr-shares-heading h1 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: clamp(25px, 4vw, 34px);
+  line-height: 1.3;
+  letter-spacing: -0.025em;
+}
+
+.hr-shares-heading p {
+  margin: 8px 0 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.hr-shares-list {
+  display: grid;
+  gap: 14px;
+}
+
+.hr-share-card,
+.hr-share-article,
+.hr-share-state {
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  background: var(--color-bg-surface);
+}
+
+.hr-share-card > a {
+  display: block;
+  border-radius: inherit;
+  padding: 20px 22px;
+  color: inherit;
+}
+
+.hr-share-card:is(:hover, :focus-within) {
+  border-color: var(--color-brand-border);
+}
+
+.hr-share-card > a:is(:hover, :focus-visible) {
+  background: var(--color-bg-feed);
+}
+
+.hr-share-card > a:active {
+  background: var(--color-brand-soft);
+}
+
+.hr-share-card h2 {
+  margin: 9px 0 6px;
+  color: var(--color-text-primary);
+  font-size: 19px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.hr-share-card a:is(:hover, :focus-visible) h2 {
+  color: var(--color-brand-dark);
+}
+
+.hr-share-meta,
+.hr-share-tags,
+.hr-share-card-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.hr-share-meta {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.hr-share-author {
+  color: var(--color-text-regular);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.hr-share-meta time {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.hr-share-excerpt {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-text-regular);
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.hr-share-card-footer {
+  justify-content: space-between;
+  margin-top: 14px;
+}
+
+.hr-share-tags span {
+  border-radius: 5px;
+  padding: 3px 8px;
+  background: var(--color-bg-hover);
+  color: var(--color-text-regular);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.hr-share-read,
+.hr-share-back {
+  color: var(--color-brand);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.hr-share-read {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hr-share-card { transition: border-color 150ms ease, translate 100ms ease; }
+  .hr-share-card > a { transition: background-color 150ms ease; }
+  .hr-share-arrow { transition: translate 160ms ease; }
+
+  .hr-share-card a:is(:hover, :focus-visible) .hr-share-arrow { translate: 3px 0; }
+  .hr-share-card:active { translate: 0 1px; }
+}
+
+.hr-share-back {
+  display: inline-block;
+  padding: 7px 0;
+  margin-bottom: 12px;
+}
+
+.hr-share-article {
+  padding: clamp(18px, 5vw, 40px);
+}
+
+.hr-share-article header {
+  border-bottom: 1px solid var(--color-border-subtle);
+  padding-bottom: 20px;
+}
+
+.hr-share-article h1 {
+  margin: 0 0 12px;
+  color: var(--color-text-primary);
+  font-size: clamp(23px, 4vw, 32px);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.hr-share-article .hr-share-tags { margin-top: 12px; }
+
+.hr-share-body {
+  margin-top: 22px;
+  color: var(--color-text-primary);
+  font-size: 16px;
+  line-height: 1.9;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.hr-share-state {
+  margin: 12px 0 0;
+  padding: 20px;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.hr-share-state > p { margin: 0 0 10px; }
+
+@media (max-width: 480px) {
+  .hr-share-card > a { padding: 16px; }
+  .hr-share-card h2 { font-size: 17px; }
+}

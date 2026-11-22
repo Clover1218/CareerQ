@@ -38,7 +38,7 @@ import java.util.TreeSet;
 /**
  * 登录 / 注册 / 登出 / 当前用户。
  * 注册规则：
- * - 学生：手机号 + 验证码即可，不收集学校等具体信息（资料可在“完善资料”里选填）；
+ * - 学生：手机号 + 验证码即可，注册时选填的学校、专业、年级一并保存；
  * - HR：手机号 + 验证码 + 就职公司（行业/职位可选），同时写入 hr_profiles（认证状态 pending，真实认证暂缓）。
  */
 @Service
@@ -86,6 +86,11 @@ public class AuthServiceImpl implements AuthService {
         user.setPhoneHash(phoneHash);
         user.setPhoneVerifiedAt(LocalDateTime.now());
         user.setNickname(defaultNickname(request.nickname(), request.phone()));
+        if ("student".equals(role)) {
+            user.setSchool(blankToNull(request.school()));
+            user.setMajor(blankToNull(request.major()));
+            user.setGrade(blankToNull(request.grade()));
+        }
         user.setStatus("active");
         try {
             userDao.insert(user);

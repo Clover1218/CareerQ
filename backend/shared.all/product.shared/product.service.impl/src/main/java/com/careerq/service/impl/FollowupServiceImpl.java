@@ -8,6 +8,7 @@ import com.careerq.dao.FollowupDao;
 import com.careerq.dao.QuestionDao;
 import com.careerq.dao.UserDao;
 import com.careerq.dataobject.FollowupDO;
+import com.careerq.dataobject.AnswerDO;
 import com.careerq.dataobject.QuestionDO;
 import com.careerq.followup.FollowupDtos.CreateRequest;
 import com.careerq.followup.FollowupDtos.FollowupView;
@@ -15,6 +16,7 @@ import com.careerq.moderation.DisplayStatus;
 import com.careerq.moderation.ModerationPlan;
 import com.careerq.security.AuthUser;
 import com.careerq.service.FollowupService;
+import com.careerq.service.HrNotificationService;
 import com.careerq.service.ModerationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,14 +35,17 @@ public class FollowupServiceImpl implements FollowupService {
     private final QuestionDao questionDao;
     private final UserDao userDao;
     private final AnswerDao answerDao;
+    private final HrNotificationService notifications;
     private final ModerationService moderationService;
 
     public FollowupServiceImpl(FollowupDao followupDao, QuestionDao questionDao, UserDao userDao,
-                               AnswerDao answerDao, ModerationService moderationService) {
+                               AnswerDao answerDao, HrNotificationService notifications,
+                               ModerationService moderationService) {
         this.followupDao = followupDao;
         this.questionDao = questionDao;
         this.userDao = userDao;
         this.answerDao = answerDao;
+        this.notifications = notifications;
         this.moderationService = moderationService;
     }
 
@@ -60,9 +65,15 @@ public class FollowupServiceImpl implements FollowupService {
         if (!sender.getId().equals(question.getAuthorId())) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "只有题主可以追问");
         }
-        if (request.hrId() == null
-                || !answerDao.hasVisibleRootAnswer(questionId, request.hrId())) {
-            throw new BusinessException(ErrorCode.INVALID_PARAM, "只能追问已回答该问题的 HR");
+Long rootAnswerId = request.rootAnswerId();
+        if (rootAnswerId == null || rootAnswerId <= 0 || request.hrId() == null) {
+            throw new BusinessException(ErrorCode.INVALID_PARAM, "请先选择要追问的具体回答");
+        }
+        AnswerDO root = answerDao.findByIdForUpdate(rootAnswerId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "目标回答不存在"));
+        if (!questionId.equals(root.getQuestionId()) || root.getFollowupId() != null
+                || !VISIBLE.equals(root.getVisibility()) || !request.hrId().equals(root.getAuthorId())) {
+            throw new BusinessException(ErrorCode.INVALID_PARAM, "只能追问该 HR 在此问题下已发布的主回答");
         }
 
         boolean highFrequency = followupDao.countBySenderSince(
@@ -73,11 +84,12 @@ public class FollowupServiceImpl implements FollowupService {
         FollowupDO followup = new FollowupDO();
         followup.setQuestionId(questionId);
         followup.setHrId(request.hrId());
+        followup.setRootAnswerId(rootAnswerId);
         followup.setSenderId(sender.getId());
         followup.setSenderRole(sender.getRole());
         followup.setBody(request.body());
         followup.setScope(question.getScope());
-        followup.setModerationStatus(plan.moderationStatus().name());
+followup.setModerationStatus(plan.moderationStatus().name());
         followup.setVisibility(plan.visibility().name());
         followup.setRiskLevel(plan.riskLevel().name());
         followup.setModerationReason(plan.reason());
@@ -86,6 +98,7 @@ public class FollowupServiceImpl implements FollowupService {
         moderationService.recordPlan("followup", followup.getId(), plan);
         if (VISIBLE.equals(followup.getVisibility())) {
             questionDao.incrementFollowup(questionId);
+            notifications.followupPublished(followup.getId());
         }
         return toView(followup);
     }
@@ -111,6 +124,10 @@ public class FollowupServiceImpl implements FollowupService {
     @Override
     @Transactional
     public FollowupView withdraw(AuthUser sender, Long followupId) {
+        FollowupDO reference = followupDao.findById(followupId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "追问不存在"));
+        questionDao.findByIdForUpdate(reference.getQuestionId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
         FollowupDO followup = followupDao.findByIdForUpdate(followupId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "追问不存在"));
         if (!sender.getId().equals(followup.getSenderId())) {
@@ -147,9 +164,11 @@ public class FollowupServiceImpl implements FollowupService {
                 followup.getId(),
                 followup.getQuestionId(),
                 followup.getHrId(),
+                followup.getRootAnswerId(),
                 followup.getSenderRole(),
-                followup.getBody(),
+                "REMOVED".equals(followup.getVisibility()) ? "" : followup.getBody(),
                 DisplayStatus.of(followup.getModerationStatus(), followup.getVisibility()).name(),
+                followup.getStatus(),
                 followup.getCreatedAt(),
                 author,
                 "hr".equals(followup.getSenderRole()));

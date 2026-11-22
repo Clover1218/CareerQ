@@ -201,6 +201,9 @@ public interface QuestionDao {
               and exists (
                   select 1 from answers a
                   where a.question_id = q.id and a.author_id = #{hrId}
+                    and (a.followup_id is null or exists (select 1 from followups f
+                         where f.id = a.followup_id and f.question_id = q.id
+                           and f.scope = 'public' and f.root_answer_id is not null))
               )
             <if test="cursor != null">and q.id &lt; #{cursor}</if>
             order by q.id desc limit #{limit}

@@ -110,11 +110,12 @@ class AdminReviewContextPagingTests {
                 .path("data").path("id").asLong();
     }
 
-    private long followUp(MockHttpSession student, long questionId, long hrId, String body) throws Exception {
+    private long followUp(MockHttpSession student, long questionId, long hrId, long rootAnswerId, String body) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/questions/{id}/followups", questionId)
                         .session(student).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("hrId", hrId, "body", body))))
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "hrId", hrId, "rootAnswerId", rootAnswerId, "body", body))))
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString())
@@ -165,9 +166,9 @@ class AdminReviewContextPagingTests {
         long questionId = createQuestion(student);
         long hrId = currentUserId(hr);
         long rootAnswerId = rootAnswer(hr, questionId);
-        long followup1 = followUp(student, questionId, hrId, "追问一：简历要多长？");
+        long followup1 = followUp(student, questionId, hrId, rootAnswerId, "追问一：简历要多长？");
         long reply1 = reply(hr, questionId, followup1, "回复一：一页即可。");
-        long followup2 = followUp(student, questionId, hrId, "追问二：面试怎么准备？");
+        long followup2 = followUp(student, questionId, hrId, rootAnswerId, "追问二：面试怎么准备？");
         long reply2 = reply(hr, questionId, followup2, "回复二：先过项目细节。");
 
         JsonNode questionDetail = detail(operator, "question", questionId);

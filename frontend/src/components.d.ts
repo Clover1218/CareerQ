@@ -26,6 +26,7 @@ declare module 'vue' {
     FeedCardSkeleton: typeof import('./components/FeedCardSkeleton.vue')['default']
     FeedFilterPanel: typeof import('./components/FeedFilterPanel.vue')['default']
     FeedIcon: typeof import('./components/FeedIcon.vue')['default']
+    FollowupDiscussion: typeof import('./components/FollowupDiscussion.vue')['default']
     MessageMenu: typeof import('./components/MessageMenu.vue')['default']
     NButton: typeof import('naive-ui')['NButton']
     NCheckbox: typeof import('naive-ui')['NCheckbox']
@@ -40,8 +41,10 @@ declare module 'vue' {
     NPopover: typeof import('naive-ui')['NPopover']
     NSelect: typeof import('naive-ui')['NSelect']
     ProfileDrawer: typeof import('./components/ProfileDrawer.vue')['default']
+    ReportDialog: typeof import('./components/ReportDialog.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    StudentFavorites: typeof import('./components/StudentFavorites.vue')['default']
     TagPicker: typeof import('./components/TagPicker.vue')['default']
   }
 }

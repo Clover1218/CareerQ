@@ -15,10 +15,10 @@ public interface FollowupDao {
 
     @Insert("""
             insert into followups (
-                question_id, hr_id, sender_id, sender_role, body, scope,
+                question_id, hr_id, root_answer_id, sender_id, sender_role, body, scope,
                 moderation_status, visibility, risk_level, moderation_reason, moderated_at, created_at
             ) values (
-                #{questionId}, #{hrId}, #{senderId}, #{senderRole}, #{body}, #{scope},
+                #{questionId}, #{hrId}, #{rootAnswerId}, #{senderId}, #{senderRole}, #{body}, #{scope},
                 #{moderationStatus}, #{visibility}, #{riskLevel}, #{moderationReason}, #{moderatedAt}, #{createdAt}
             )
             """)
@@ -26,21 +26,27 @@ public interface FollowupDao {
     int insert(FollowupDO followup);
 
     @Select("""
-            <script>
-            select * from followups where scope = 'public' and question_id = #{questionId}
+<script>
+            select f.* from followups f where f.scope = 'public' and f.question_id = #{questionId}
+            and f.root_answer_id is not null
             and (
-                visibility = 'VISIBLE'
-                or (#{senderId} is not null and sender_id = #{senderId} and visibility in ('HIDDEN', 'REMOVED'))
+                f.visibility = 'VISIBLE'
+                or (#{senderId} is not null and f.sender_id = #{senderId} and f.visibility = 'HIDDEN')
                 or #{operator} = true
+                or (f.visibility = 'REMOVED' and exists (
+                    select 1 from answers a where a.question_id = f.question_id and a.followup_id = f.id
+                      and (a.visibility = 'VISIBLE'
+                           or (#{senderId} is not null and a.author_id = #{senderId}
+                               and a.visibility in ('HIDDEN', 'REMOVED')))))
             )
-            order by id
+            order by f.created_at, f.id
             </script>
             """)
     List<FollowupDO> findVisible(@Param("questionId") Long questionId,
                                  @Param("senderId") Long senderId,
                                  @Param("operator") boolean operator);
 
-    @Select("select * from followups where scope = 'public' and moderation_status = 'L3' order by id")
+@Select("select * from followups where scope = 'public' and moderation_status = 'L3' order by id")
     List<FollowupDO> findPending();
 
     @Select("select count(*) from followups where moderation_status = #{status}")
@@ -126,4 +132,14 @@ public interface FollowupDao {
             where id = #{id} and visibility in ('VISIBLE', 'HIDDEN')
             """)
     int withdraw(Long id);
+
+    @Select("""
+            select max(f.id) from followups f
+            where f.question_id = #{questionId} and f.hr_id = #{hrId}
+              and f.root_answer_id = #{rootAnswerId}
+              and f.sender_role = 'student' and f.scope = 'public'
+              and f.visibility != 'REMOVED'
+            """)
+    Long findLatestId(@Param("questionId") Long questionId, @Param("hrId") Long hrId,
+                      @Param("rootAnswerId") Long rootAnswerId);
 }

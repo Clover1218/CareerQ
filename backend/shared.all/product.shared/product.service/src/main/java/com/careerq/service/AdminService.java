@@ -37,7 +37,7 @@ public interface AdminService {
 
     Map<String, Object> metrics();
 
-    record ReviewPage(List<ReviewItem> items, long total, int page, int size) {
+record ReviewPage(List<ReviewItem> items, long total, int page, int size) {
     }
 
     record ReviewItem(String targetType, Long targetId, String title, String snippet, String body,

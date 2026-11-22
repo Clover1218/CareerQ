@@ -19,6 +19,7 @@ import com.careerq.moderation.ModerationPlan;
 import com.careerq.security.AuthUser;
 import com.careerq.service.AnswerService;
 import com.careerq.service.ModerationService;
+import com.careerq.service.StudentNotificationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,19 +38,25 @@ public class AnswerServiceImpl implements AnswerService {
     private final UserDao userDao;
     private final ModerationService moderationService;
     private final HrProfileDao hrProfileDao;
+    private final AnswerRemovalService answerRemovalService;
+    private final StudentNotificationService studentNotifications;
 
     public AnswerServiceImpl(AnswerDao answerDao,
                              FollowupDao followupDao,
                              QuestionDao questionDao,
                              UserDao userDao,
                              ModerationService moderationService,
-                             HrProfileDao hrProfileDao) {
+                             HrProfileDao hrProfileDao,
+                             AnswerRemovalService answerRemovalService,
+                             StudentNotificationService studentNotifications) {
         this.answerDao = answerDao;
         this.followupDao = followupDao;
         this.questionDao = questionDao;
         this.userDao = userDao;
         this.moderationService = moderationService;
         this.hrProfileDao = hrProfileDao;
+        this.answerRemovalService = answerRemovalService;
+        this.studentNotifications = studentNotifications;
     }
 
     @Override
@@ -88,6 +95,18 @@ public class AnswerServiceImpl implements AnswerService {
             if (!hr.getId().equals(followup.getHrId())) {
                 throw new BusinessException(ErrorCode.NOT_FOUND, "只能回复发给自己线程的追问");
             }
+AnswerDO root = answerDao.findById(followup.getRootAnswerId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "原回答不存在"));
+            if (!questionId.equals(root.getQuestionId()) || root.getFollowupId() != null
+                    || !hr.getId().equals(root.getAuthorId())
+                    || !Set.of("VISIBLE", "REMOVED").contains(root.getVisibility())) {
+                throw new BusinessException(ErrorCode.NOT_FOUND, "追问对应的主回答不可用");
+            }
+            Long latestFollowupId = followupDao.findLatestId(questionId, hr.getId(),
+                    followup.getRootAnswerId());
+            if (latestFollowupId == null || !latestFollowupId.equals(followupId)) {
+                throw new BusinessException(ErrorCode.CONFLICT, "请先回复该线程最新的追问");
+            }
         } else if (!VISIBLE.equals(question.getVisibility())) {
             throw new BusinessException(ErrorCode.CONFLICT, "问题当前不可回答");
         }
@@ -96,6 +115,11 @@ public class AnswerServiceImpl implements AnswerService {
                 hr.getId(), LocalDateTime.now().minusHours(1)) >= 10;
         ModerationPlan plan = moderationService.evaluate("answer", null, request.body(),
                 question.getTitle(), hr.getRole(), highFrequency);
+        // 同一追问只保留一条公开回复；后续补充回复仅在进入审核（不可见）时允许。
+        if (followupId != null && "VISIBLE".equals(plan.visibility().name())
+                && answerDao.hasVisibleReply(questionId, followupId)) {
+            throw new BusinessException(ErrorCode.CONFLICT, "该追问已有公开回复，不能重复回复");
+        }
 
         AnswerDO answer = new AnswerDO();
         answer.setQuestionId(questionId);
@@ -113,6 +137,7 @@ public class AnswerServiceImpl implements AnswerService {
 
         if (VISIBLE.equals(answer.getVisibility())) {
             questionDao.recordAnswer(questionId);
+            studentNotifications.answerPublished(answer.getId());
         }
         return toView(answer);
     }
@@ -120,39 +145,23 @@ public class AnswerServiceImpl implements AnswerService {
     @Override
     @Transactional
     public AnswerView withdraw(AuthUser author, Long answerId) {
-        AnswerDO answer = answerDao.findByIdForUpdate(answerId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "回答不存在"));
-        if (!author.getId().equals(answer.getAuthorId())) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "只能撤销自己的回答");
-        }
-        if ("WITHDRAWN".equals(answer.getModerationStatus())) {
-            throw new BusinessException(ErrorCode.CONFLICT, "回答已撤销");
-        }
-        if (!ACTIVE_STATUSES.contains(answer.getModerationStatus())
-                || !Set.of("VISIBLE", "HIDDEN").contains(answer.getVisibility())) {
-            throw new BusinessException(ErrorCode.CONFLICT, "当前状态不可撤销");
-        }
-        boolean visible = VISIBLE.equals(answer.getVisibility());
-        answerDao.withdraw(answerId);
-        if (visible) {
-            questionDao.decrementAnswer(answer.getQuestionId());
-        }
-        answer.setModerationStatus("WITHDRAWN");
-        answer.setVisibility("REMOVED");
-        return toView(answer);
+        return toView(answerRemovalService.withdraw(author, answerId));
     }
 
     private AnswerView toView(AnswerDO answer) {
+        boolean hidden = "removed".equals(answer.getStatus());
         return new AnswerView(
                 answer.getId(),
                 answer.getQuestionId(),
                 answer.getFollowupId(),
-                answer.getBody(),
+                hidden ? "" : answer.getBody(),
                 answer.getLengthType(),
                 DisplayStatus.of(answer.getModerationStatus(), answer.getVisibility()).name(),
+                answer.getStatus(),
+                answer.getRemovalSource(),
                 authorOf(answer.getAuthorId()),
-                answer.getLikeCount(),
-                answer.getUsefulCount(),
+                hidden ? 0 : answer.getLikeCount(),
+                hidden ? 0 : answer.getUsefulCount(),
                 false,
                 false,
                 answer.getCreatedAt());

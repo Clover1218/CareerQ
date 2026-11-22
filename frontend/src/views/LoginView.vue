@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { api } from "../api";
 import { useUserStore } from "@/stores/user";
+import { authRedirect } from "@/utils/authRedirect";
 
 const router = useRouter();
 const route = useRoute();
 const userStore = useUserStore();
+const returnTo = computed(() => authRedirect(route.query.redirect));
 const phone = ref("13800000001");
 const code = ref("123456");
 const error = ref("");
@@ -28,10 +30,10 @@ async function login() {
   error.value = "";
   try {
     await userStore.login(phone.value.trim(), code.value.trim());
-    router.push(String(route.query.redirect ?? "/"));
+    router.replace(returnTo.value);
   } catch (e: any) {
     if (e?.code === 40401) {
-      router.push({ path: "/register", query: { phone: phone.value.trim() } });
+      router.push({ path: "/register", query: { phone: phone.value.trim(), redirect: returnTo.value } });
       return;
     }
     error.value = `登录失败：${e.message}`;
@@ -63,7 +65,7 @@ async function login() {
       {{ loading ? "登录中…" : "登录" }}
     </button>
     <p class="muted" style="text-align: center; margin-top: 12px">
-      还没有账号？<router-link to="/register">去注册</router-link>
+      还没有账号？<router-link :to="{ path: '/register', query: { redirect: returnTo } }">去注册</router-link>
       <span> · </span>
       <router-link to="/">先随便逛逛</router-link>
     </p>

@@ -12,6 +12,7 @@ import com.careerq.security.AuthUser;
 import com.careerq.service.InteractionService;
 import com.careerq.service.InteractionService.Request;
 import com.careerq.service.TagAffinityService;
+import com.careerq.service.StudentNotificationService;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,15 +29,18 @@ public class InteractionServiceImpl implements InteractionService {
     private final AnswerDao answerDao;
     private final QuestionDao questionDao;
     private final TagAffinityService tagAffinityService;
+    private final StudentNotificationService studentNotifications;
 
     public InteractionServiceImpl(InteractionDao interactionDao,
                                   AnswerDao answerDao,
                                   QuestionDao questionDao,
-                                  TagAffinityService tagAffinityService) {
+                                  TagAffinityService tagAffinityService,
+                                  StudentNotificationService studentNotifications) {
         this.interactionDao = interactionDao;
         this.answerDao = answerDao;
         this.questionDao = questionDao;
         this.tagAffinityService = tagAffinityService;
+        this.studentNotifications = studentNotifications;
     }
 
     @Override
@@ -59,6 +63,7 @@ public class InteractionServiceImpl implements InteractionService {
         }
         applyCount(targetType, type, request.targetId(), +1);
         recomputeAffinity(user, targetType);
+        if ("question".equals(targetType) && "like".equals(type)) studentNotifications.questionLiked(request.targetId(), user.getId());
     }
 
     @Override

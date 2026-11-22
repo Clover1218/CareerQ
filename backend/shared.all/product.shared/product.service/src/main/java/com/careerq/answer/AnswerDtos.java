@@ -24,7 +24,10 @@ public final class AnswerDtos {
             Long followupId,
             String body,
             String lengthType,
-            String displayStatus,
+String displayStatus,
+            String status,
+            /** removed 时为 author / operator / unknown，其他状态为空。 */
+            String removalSource,
             UserBrief author,
             int likeCount,
             int usefulCount,

@@ -1,36 +1,79 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { computed, onMounted, onUnmounted, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useUserStore } from "@/stores/user";
+import { useHrNotificationStore } from "@/stores/hrNotifications";
+import { useStudentNotificationStore } from "@/stores/studentNotifications";
 
 const router = useRouter();
+const route = useRoute();
+const user = useUserStore();
+const notifications = useHrNotificationStore();
+const studentNotifications = useStudentNotificationStore();
+const isHr = computed(() => user.user?.role === "hr");
+const isStudent = computed(() => user.user?.role === "student");
 
-// 说明：消息后端接口尚未实现，这里先按设计稿放静态示例数据；
-// 后续接 /api/v1/messages 时替换成接口返回即可。
+// 两类消息从各自的收件人接口读取，不共用未读状态。
 interface MessageCategory {
   key: string;
   label: string;
   count?: number;
 }
 
-const categories = ref<MessageCategory[]>([
-  { key: "reply", label: "回复我的", count: 2 },
-  { key: "like", label: "收到的赞" },
-  { key: "system", label: "系统消息" },
+const studentCategories = computed<MessageCategory[]>(() => [
+  { key: "reply", label: "回复我的", count: studentNotifications.counts?.reply },
+  { key: "like", label: "收到的赞", count: studentNotifications.counts?.like },
+  { key: "system", label: "审核与系统通知", count: studentNotifications.counts?.system },
+  { key: "all", label: "查看全部消息" },
 ]);
 
-const unreadTotal = ref(
-  categories.value.reduce((sum, item) => sum + (item.count ?? 0), 0),
-);
+const categories = computed<MessageCategory[]>(() => isHr.value ? [
+  { key: "followup", label: "学生追问", count: notifications.counts?.followup },
+  { key: "system", label: "审核与系统通知", count: notifications.counts?.system },
+  { key: "all", label: "查看全部消息" },
+] : isStudent.value ? studentCategories.value : []);
+const unreadTotal = computed(() => isHr.value ? notifications.counts?.total ?? 0
+  : isStudent.value ? studentNotifications.counts?.total ?? 0 : 0);
+const notificationError = computed(() => isHr.value ? notifications.error : isStudent.value ? studentNotifications.error : "");
+
+function refreshUnread() {
+  if (document.visibilityState !== "visible") return;
+  if (isHr.value) void notifications.refresh();
+  else if (isStudent.value) void studentNotifications.refresh();
+}
+function retryUnread() { if (isHr.value) void notifications.refresh(true); else if (isStudent.value) void studentNotifications.refresh(true); }
+watch([() => user.user?.id, () => user.user?.role], () => { notifications.reset(); studentNotifications.reset(); refreshUnread(); }, { immediate: true });
+watch(() => route.fullPath, refreshUnread);
+let refreshTimer: ReturnType<typeof setInterval> | null = null;
+onMounted(() => {
+  refreshTimer = setInterval(refreshUnread, 30000);
+  window.addEventListener("focus", refreshUnread);
+  document.addEventListener("visibilitychange", refreshUnread);
+});
+onUnmounted(() => {
+  if (refreshTimer) clearInterval(refreshTimer);
+  window.removeEventListener("focus", refreshUnread);
+  document.removeEventListener("visibilitychange", refreshUnread);
+});
 
 function open(category: MessageCategory) {
-  // 消息页尚未开发：先跳转到「我的问答」，后续换成 /messages?tab=xxx
-  router.push({ path: "/me", query: { tab: category.key } });
+  if (isHr.value) {
+    void router.push({ path: "/hr/messages", query: category.key === "all" ? {} : { category: category.key } });
+    return;
+  }
+  if (isStudent.value) void router.push({ path: "/messages", query: category.key === "all" ? {} : { category: category.key } });
 }
 </script>
 
 <template>
-  <div class="msg-menu">
-    <button class="msg-trigger" type="button" aria-label="消息">
+  <div v-if="isHr || isStudent" class="msg-menu" @mouseenter="refreshUnread" @focusin="refreshUnread">
+    <button
+      class="msg-trigger"
+      type="button"
+      :aria-label="unreadTotal > 0 ? `消息（${unreadTotal} 条未读）` : '消息'"
+      title="消息"
+      @click="open({ key: 'all', label: '查看全部消息' })"
+    >
       <svg
         width="18"
         height="18"
@@ -40,15 +83,16 @@ function open(category: MessageCategory) {
         stroke-width="1.6"
         stroke-linecap="round"
         stroke-linejoin="round"
+        aria-hidden="true"
       >
         <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
         <path d="M13.7 21a2 2 0 0 1-3.4 0" />
       </svg>
-      <span>消息</span>
-      <span v-if="unreadTotal > 0" class="msg-badge">{{ unreadTotal }}</span>
+      <span v-if="unreadTotal > 0" class="msg-badge" aria-hidden="true">{{ unreadTotal > 99 ? '99+' : unreadTotal }}</span>
     </button>
 
     <div class="msg-panel" role="menu">
+      <button v-if="notificationError" class="msg-item" type="button" @click="retryUnread">消息加载失败，点击重试</button>
       <button
         v-for="item in categories"
         :key="item.key"
@@ -69,6 +113,7 @@ function open(category: MessageCategory) {
   position: relative;
   display: flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
 /* 透明桥接区：填满「消息」与面板之间的 8px 间隙，鼠标移入面板时不会误触离开 */
@@ -82,12 +127,15 @@ function open(category: MessageCategory) {
 }
 
 .msg-trigger {
+  position: relative;
   display: inline-flex;
+  width: 42px;
+  height: 42px;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
   border: 0;
   background: none;
-  padding: 4px 8px;
+  padding: 0;
   border-radius: 999px;
   color: var(--color-text-regular);
   font-family: inherit;
@@ -105,6 +153,9 @@ function open(category: MessageCategory) {
 }
 
 .msg-badge {
+  position: absolute;
+  top: 1px;
+  right: 1px;
   display: inline-flex;
   align-items: center;
   justify-content: center;

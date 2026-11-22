@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { useDialog, useMessage } from "naive-ui";
@@ -10,17 +10,22 @@ import {
   type QuestionFeedItem,
   type Thread,
   type ThreadItem,
+  type ViewerState,
 } from "@/api";
 import { useUserStore } from "@/stores/user";
 import FeedIcon from "./FeedIcon.vue";
+import ReportDialog from "./ReportDialog.vue";
+import { buildAnswerThreads, detailThreadItems, type AnswerThread as Conversation } from "@/utils/answerThreads";
+import { removedAnswerText } from "@/utils/answerRemoval";
 
 const props = defineProps<{
   item: QuestionFeedItem;
-  /** 我的问答列表：派生展示状态，用于标题右侧状态标签 */
+/** 我的问答列表：派生展示状态，用于标题右侧状态标签 */
   displayStatus?: string;
-  /** 我的问答列表：作者视角，隐藏编辑器并将提问时间常驻 */
+  /** 学生个人中心提问列表：兼容旧聚合状态，用于标题右侧状态标签 */
+  status?: string;
   ownerMode?: boolean;
-  /** 我的问答列表：是否显示「撤回」操作 */
+  /** 学生个人中心提问列表：是否显示「撤回」操作 */
   withdrawable?: boolean;
 }>();
 
@@ -35,18 +40,12 @@ const dialog = useDialog();
 const userStore = useUserStore();
 const { user } = storeToRefs(userStore);
 
-interface Conversation {
-  hrId: number;
-  nickname: string;
-  company?: string | null;
-  position?: string | null;
-  /** HR 对主问题的回答 */
-  rootAnswer: ThreadItem | null;
-  /** 该 HR 与题主之间的追问消息，按时间正序 */
-  messages: ThreadItem[];
-}
-
 const expanded = ref(false);
+const excerptBlockRef = ref<HTMLElement | null>(null);
+const excerptRef = ref<HTMLElement | null>(null);
+const excerptOverflows = ref(false);
+let excerptObserver: ResizeObserver | undefined;
+let excerptMeasureFrame: number | undefined;
 const threadOpen = ref(false);
 const loadingContent = ref(false);
 const loadingThread = ref(false);
@@ -55,115 +54,113 @@ const error = ref("");
 const content = ref<QuestionContent | null>(null);
 const detail = ref<QuestionDetail | null>(null);
 const thread = ref<Thread | null>(null);
-const openHrIds = ref<number[]>([]);
+const openThreadKeys = ref<string[]>([]);
+const selectedFollowups = reactive<Record<string, number>>({});
 const rootDraft = ref("");
-const threadDrafts = reactive<Record<number, string>>({});
+const threadDrafts = reactive<Record<string, string>>({});
 const focusedComposer = ref<string | null>(null);
 const menuOpen = ref<string | null>(null);
+const reportOpen = ref(false);
+const reportTarget = ref<{ targetType: "question" | "answer"; targetId: number }>({ targetType: "question", targetId: 0 });
 
 const counts = reactive({
   likeCount: props.item.likeCount,
   favoriteCount: props.item.favoriteCount,
   replyCount: props.item.replyCount,
+  answerCount: props.item.answerCount,
+  followupCount: props.item.followupCount,
 });
-const liked = ref(false);
-const favorited = ref(false);
+const liked = ref(props.item.viewer?.liked ?? false);
+const favorited = ref(props.item.viewer?.favorited ?? false);
+const interacting = ref(false);
+const pendingInteraction = ref<"like" | "favorite" | null>(null);
+let interactionVersion = 0;
+let contentRequest: Promise<void> | null = null;
+let replyCountsRequestVersion = 0;
+let appliedReplyCountsVersion = 0;
+
+function applyReplyCounts(data: Pick<Thread, "answerCount" | "followupCount">, version: number) {
+  // 全文与回答可能同时请求，较早请求的迟到响应不能覆盖新数量。
+  if (version < appliedReplyCountsVersion) return;
+  appliedReplyCountsVersion = version;
+  counts.answerCount = data.answerCount;
+  counts.followupCount = data.followupCount;
+  counts.replyCount = data.answerCount + data.followupCount;
+}
+
+function applyViewer(viewer: ViewerState, version: number) {
+  if (version !== interactionVersion) return;
+  liked.value = viewer.liked;
+  favorited.value = viewer.favorited;
+}
 
 watch(
   () => props.item,
   (next) => {
     counts.likeCount = next.likeCount;
     counts.favoriteCount = next.favoriteCount;
-    counts.replyCount = next.replyCount;
+    applyReplyCounts(next, ++replyCountsRequestVersion);
+    if (next.viewer && !interacting.value) applyViewer(next.viewer, interactionVersion);
   },
 );
 
 const authorName = computed(() => content.value?.question.author.nickname ?? "");
 const createdAt = computed(() => content.value?.question.createdAt ?? props.item.createdAt);
+const detailLink = computed(() => ({
+  path: `/questions/${props.item.id}`,
+  query: props.ownerMode ? undefined : { from: "feed" },
+}));
 const replyLabel = computed(() => {
-  if (counts.replyCount > 0) return `${counts.replyCount} 条回答`;
-  return props.ownerMode ? "暂无评论" : "我来回答";
+  if (threadOpen.value) return "收起回答";
+  const { answerCount, followupCount } = counts;
+  if (answerCount > 0) {
+    return followupCount > 0
+      ? `${answerCount} 个回答 · ${followupCount} 条追问`
+      : `${answerCount} 个回答`;
+  }
+  if (followupCount > 0) return `${followupCount} 条追问`;
+  if (props.ownerMode) return "暂无回答";
+  return user.value?.role === "hr" ? "我来回答" : "查看问题";
 });
 const questionAuthorId = computed(() => content.value?.question.author.id ?? null);
 
-// 每个 HR 一条独立线程：主回答 + 该 HR 与题主之间的追问气泡
-const conversations = computed<Conversation[]>(() => {
-  const items = thread.value?.items ?? [];
-  const followupHr = new Map<number, number>();
-  for (const item of items) {
-    if (item.kind === "followup" && item.hrId != null) followupHr.set(item.id, item.hrId);
-  }
-  // 旧数据没有 hr_id 时，用回复追问的 HR 反推线程归属
-  for (const item of items) {
-    if (item.kind === "followup_answer" && item.followupId != null && !followupHr.has(item.followupId)) {
-      followupHr.set(item.followupId, item.author.id);
-    }
-  }
+const conversations = computed(() => buildAnswerThreads(thread.value?.items ?? []));
+const publishedRootCount = computed(() => conversations.value.filter((item) => item.rootAnswer?.status === "published").length);
+const participatingHrCount = computed(() => new Set(conversations.value.filter((item) => item.rootAnswer?.status === "published").map((item) => item.hrId)).size);
 
-  const map = new Map<number, Conversation>();
-  for (const item of items) {
-    if (item.kind !== "hr_answer") continue;
-    map.set(item.author.id, {
-      hrId: item.author.id,
-      nickname: item.author.nickname,
-      company: item.author.company,
-      position: item.author.position,
-      rootAnswer: item,
-      messages: [],
-    });
-  }
-
-  const hrIds = [...map.keys()];
-  for (const item of items) {
-    if (item.kind === "hr_answer") continue;
-    const hrId =
-      item.kind === "followup"
-        ? item.hrId ?? (hrIds.length === 1 ? hrIds[0] : undefined)
-        : item.hrId ?? (item.followupId != null ? followupHr.get(item.followupId) : undefined);
-    if (hrId == null) continue;
-    let conversation = map.get(hrId);
-    if (!conversation) {
-      conversation = {
-        hrId,
-        nickname: item.author.nickname,
-        company: item.author.company,
-        position: item.author.position,
-        rootAnswer: null,
-        messages: [],
-      };
-      map.set(hrId, conversation);
-    }
-    conversation.messages.push(item);
-  }
-
-  for (const conversation of map.values()) {
-    conversation.messages.sort((a, b) => {
-      if (a.createdAt === b.createdAt) return a.kind === "followup" ? -1 : 1;
-      return a.createdAt < b.createdAt ? -1 : 1;
-    });
-  }
-
-  return [...map.values()].sort((a, b) => {
-    if (!a.rootAnswer) return 1;
-    if (!b.rootAnswer) return -1;
-    return a.rootAnswer.createdAt < b.rootAnswer.createdAt ? -1 : 1;
-  });
-});
-
-const STATUS_META: Record<string, { text: string; color: string }> = {
-  PUBLISHED: { text: "已发表", color: "#34C759" },
-  REVIEWING: { text: "审核中", color: "#FF383C" },
-  REJECTED: { text: "未通过", color: "var(--color-danger)" },
-  REMOVED: { text: "已下架", color: "var(--color-text-muted)" },
-  WITHDRAWN: { text: "已撤回", color: "var(--color-text-muted)" },
+const STATUS_META: Record<string, { text: string; tone: string }> = {
+  PUBLISHED: { text: "已发表", tone: "success" },
+  REVIEWING: { text: "审核中", tone: "warning" },
+  REJECTED: { text: "未通过", tone: "danger" },
+  REMOVED: { text: "已下架", tone: "neutral" },
+  WITHDRAWN: { text: "已撤回", tone: "neutral" },
+  published: { text: "已发表", tone: "success" },
+  pending_machine: { text: "待审核", tone: "warning" },
+  pending_human: { text: "待审核", tone: "warning" },
+  rejected: { text: "未通过", tone: "danger" },
+  removed: { text: "已撤回", tone: "neutral" },
 };
 
 const statusMeta = computed(() => {
-  if (!props.displayStatus) return null;
-  return STATUS_META[props.displayStatus] ?? { text: props.displayStatus, color: "var(--color-text-muted)" };
+  const value = props.displayStatus ?? props.status;
+  if (!value) return null;
+  return STATUS_META[value] ?? { text: value, tone: "neutral" };
 });
 
-// 仅作者可见的未公开状态不能点赞收藏，已可见的复审中内容仍可互动
+function formatRelativeTime(value: string): string {
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return "";
+  const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60_000));
+  if (minutes < 1) return "刚刚";
+  if (minutes < 60) return `${minutes} 分钟前`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} 天前`;
+  return value.slice(0, 10);
+}
+
+// 审核中/未通过的问题不能点赞收藏，按作者视角展示计数但禁用操作
 const interactive = computed(
   () =>
     !props.ownerMode ||
@@ -187,77 +184,47 @@ function reportError(e: unknown, fallback: string) {
 }
 
 async function ensureContent() {
-  if (content.value || loadingContent.value) return;
+  if (content.value) return;
+  if (contentRequest) return contentRequest;
+  const viewerId = user.value?.id;
+  const version = interactionVersion;
+  const countsVersion = ++replyCountsRequestVersion;
   loadingContent.value = true;
   error.value = "";
-  try {
-    if (props.ownerMode) {
+  contentRequest = (async () => {
+    try {
       // 作者视角走 detail，允许查看自己审核中的问题正文与回答。
-      const data = await api.getQuestion(props.item.id);
-      detail.value = data;
+      const ownDetail = props.ownerMode ? await api.getQuestion(props.item.id) : null;
+      const data = ownDetail ?? await api.getQuestionContent(props.item.id);
+      if (viewerId !== user.value?.id) return;
+      if (ownDetail) detail.value = ownDetail;
       content.value = { question: data.question, viewer: data.viewer };
-      liked.value = data.viewer.liked;
-      favorited.value = data.viewer.favorited;
+      applyViewer(data.viewer, version);
       counts.likeCount = data.question.likeCount;
       counts.favoriteCount = data.question.favoriteCount;
-      counts.replyCount = data.question.answerCount + data.question.followupCount;
-      return;
+      applyReplyCounts(data.question, countsVersion);
+    } catch (e) {
+      reportError(e, "加载全文失败");
+    } finally {
+      loadingContent.value = false;
+      contentRequest = null;
     }
-    const data = await api.getQuestionContent(props.item.id);
-    content.value = data;
-    liked.value = data.viewer.liked;
-    favorited.value = data.viewer.favorited;
-    counts.likeCount = data.question.likeCount;
-    counts.favoriteCount = data.question.favoriteCount;
-    counts.replyCount = data.question.answerCount + data.question.followupCount;
-  } catch (e) {
-    reportError(e, "加载全文失败");
-  } finally {
-    loadingContent.value = false;
-  }
+  })();
+  return contentRequest;
 }
 
 async function loadThread() {
   if (loadingThread.value) return;
   loadingThread.value = true;
   error.value = "";
+  const viewerId = user.value?.id;
+  const version = interactionVersion;
   try {
     if (props.ownerMode) {
-      if (!detail.value) {
-        await ensureContent();
-      }
+      await ensureContent();
       if (!detail.value) return;
       const data = detail.value;
-      const items: ThreadItem[] = [
-        ...data.answers.map((answer) => ({
-          key: `${answer.followupId == null ? "answer" : "followup-answer"}-${answer.id}`,
-          kind: answer.followupId == null ? "hr_answer" as const : "followup_answer" as const,
-          id: answer.id,
-          followupId: answer.followupId,
-          hrId: answer.followupId == null ? null : answer.author.id,
-          body: answer.body,
-          author: answer.author,
-          hr: true,
-          displayStatus: answer.displayStatus,
-          likeCount: answer.likeCount,
-          liked: answer.liked,
-          createdAt: answer.createdAt,
-        })),
-        ...data.followups.map((followup) => ({
-          key: `followup-${followup.id}`,
-          kind: "followup" as const,
-          id: followup.id,
-          followupId: null,
-          hrId: followup.hrId ?? null,
-          body: followup.body,
-          author: followup.author,
-          hr: followup.hr,
-          displayStatus: followup.displayStatus,
-          likeCount: 0,
-          liked: false,
-          createdAt: followup.createdAt,
-        })),
-      ];
+      const items = detailThreadItems(data);
       thread.value = {
         items,
         viewer: data.viewer,
@@ -267,17 +234,40 @@ async function loadThread() {
       };
       return;
     }
+    const countsVersion = ++replyCountsRequestVersion;
     const data = await api.getQuestionThread(props.item.id);
+    if (viewerId !== user.value?.id) return;
     thread.value = data;
-    liked.value = data.viewer.liked;
-    favorited.value = data.viewer.favorited;
-    counts.replyCount = data.replyCount;
+    applyViewer(data.viewer, version);
+    applyReplyCounts(data, countsVersion);
   } catch (e) {
     reportError(e, "加载回答失败");
   } finally {
     loadingThread.value = false;
   }
 }
+
+async function measureExcerpt() {
+  await nextTick();
+  const element = excerptRef.value;
+  if (!element || expanded.value) return;
+  excerptOverflows.value = element.scrollHeight > element.clientHeight + 1;
+}
+
+function scheduleExcerptMeasurement() {
+  if (excerptMeasureFrame !== undefined) return;
+  excerptMeasureFrame = requestAnimationFrame(() => {
+    excerptMeasureFrame = undefined;
+    void measureExcerpt();
+  });
+}
+
+watch(() => props.item.excerpt, () => {
+  if (!expanded.value) void measureExcerpt();
+});
+watch(expanded, value => {
+  if (!value) void measureExcerpt();
+});
 
 // 只切换正文折叠，卡片其余结构（作者/时间/操作行）保持同一套 DOM
 async function toggleExpand() {
@@ -308,40 +298,45 @@ async function toggleThread() {
 }
 
 async function toggleLike() {
-  if (!interactive.value || !requireLogin()) return;
-  await ensureContent();
-  if (!content.value) return;
-  const next = !liked.value;
-  try {
-    if (next) {
-      await api.interact("question", props.item.id, "like");
-    } else {
-      await api.uninteract("question", props.item.id, "like");
-    }
-    liked.value = next;
-    counts.likeCount = Math.max(0, counts.likeCount + (next ? 1 : -1));
-    content.value.question.likeCount = counts.likeCount;
-  } catch (e) {
-    reportError(e, "操作失败");
-  }
+  await toggleQuestionInteraction("like");
 }
 
 async function toggleFavorite() {
-  if (!interactive.value || !requireLogin()) return;
-  await ensureContent();
-  if (!content.value) return;
-  const next = !favorited.value;
+  await toggleQuestionInteraction("favorite");
+}
+
+async function toggleQuestionInteraction(type: "like" | "favorite") {
+  if (!interactive.value || interacting.value || !requireLogin()) return;
+  interacting.value = true;
+  pendingInteraction.value = type;
+  ++interactionVersion;
   try {
+    await ensureContent();
+    if (!content.value) return;
+    const next = !(type === "like" ? liked.value : favorited.value);
     if (next) {
-      await api.interact("question", props.item.id, "favorite");
+      await api.interact("question", props.item.id, type);
     } else {
-      await api.uninteract("question", props.item.id, "favorite");
+      await api.uninteract("question", props.item.id, type);
     }
-    favorited.value = next;
-    counts.favoriteCount = Math.max(0, counts.favoriteCount + (next ? 1 : -1));
-    content.value.question.favoriteCount = counts.favoriteCount;
+    // 早于本次写入发起的全文/讨论请求不能覆盖刚更新的选中状态。
+    ++interactionVersion;
+    if (type === "like") {
+      liked.value = next;
+      counts.likeCount = Math.max(0, counts.likeCount + (next ? 1 : -1));
+      content.value.question.likeCount = counts.likeCount;
+      content.value.viewer.liked = next;
+    } else {
+      favorited.value = next;
+      counts.favoriteCount = Math.max(0, counts.favoriteCount + (next ? 1 : -1));
+      content.value.question.favoriteCount = counts.favoriteCount;
+      content.value.viewer.favorited = next;
+    }
   } catch (e) {
     reportError(e, "操作失败");
+  } finally {
+    interacting.value = false;
+    pendingInteraction.value = null;
   }
 }
 
@@ -385,15 +380,11 @@ async function toggleAnswerLike(entry: ThreadItem) {
   }
 }
 
-async function report(targetType: "question" | "answer", targetId: number) {
+function report(targetType: "question" | "answer", targetId: number) {
   menuOpen.value = null;
   if (!requireLogin()) return;
-  try {
-    await api.report(targetType, targetId);
-    message.success("举报已提交，我们会尽快处理");
-  } catch (e) {
-    reportError(e, "举报失败");
-  }
+  reportTarget.value = { targetType, targetId };
+  reportOpen.value = true;
 }
 
 async function dislikeQuestion() {
@@ -412,40 +403,69 @@ function toggleMenu(key: string) {
   menuOpen.value = menuOpen.value === key ? null : key;
 }
 
-function isHrOpen(hrId: number): boolean {
-  return openHrIds.value.includes(hrId);
+function isThreadOpen(key: string): boolean {
+  return openThreadKeys.value.includes(key);
 }
 
-// 多位 HR 的回答可同时展开，保证阅读连贯性
-function toggleHr(hrId: number) {
-  openHrIds.value = isHrOpen(hrId)
-    ? openHrIds.value.filter((id) => id !== hrId)
-    : [...openHrIds.value, hrId];
+function toggleThreadDetails(key: string) {
+  openThreadKeys.value = isThreadOpen(key)
+    ? openThreadKeys.value.filter((item) => item !== key) : [...openThreadKeys.value, key];
 }
 
-function openHr(hrId: number) {
-  if (!isHrOpen(hrId)) openHrIds.value = [...openHrIds.value, hrId];
+function openThread(key: string) {
+  if (!isThreadOpen(key)) openThreadKeys.value = [...openThreadKeys.value, key];
 }
 
-function latestFollowupId(conversation: Conversation): number | null {
-  for (let i = conversation.messages.length - 1; i >= 0; i--) {
-    if (conversation.messages[i].kind === "followup") return conversation.messages[i].id;
+function replyableFollowups(conversation: Conversation): ThreadItem[] {
+  return conversation.messages.filter((item) => item.kind === "followup" && item.status === "published");
+}
+
+function replyTargetId(conversation: Conversation): number | null {
+  const followups = replyableFollowups(conversation);
+  const selected = selectedFollowups[conversation.key];
+  if (selected !== undefined) return followups.some((item) => item.id === selected) ? selected : null;
+  return followups.at(-1)?.id ?? null;
+}
+
+function selectReply(conversation: Conversation, followupId: number) {
+  if (!replyableFollowups(conversation).some((item) => item.id === followupId)) return;
+  if (replyTargetId(conversation) !== followupId && (threadDrafts[conversation.key] ?? "").trim()) {
+    message.warning("请先发送或清空当前草稿，再切换要回复的追问。");
+    return;
   }
-  return null;
+  selectedFollowups[conversation.key] = followupId;
+  openThread(conversation.key);
 }
 
-// 只有题主能追问，且只有该线程的目标 HR 能回复
+function changeReplyTarget(conversation: Conversation, event: Event) {
+  const select = event.target as HTMLSelectElement;
+  selectReply(conversation, Number(select.value));
+  select.value = String(replyTargetId(conversation) ?? "");
+}
+
+function focusConversation(conversation: Conversation) {
+  const id = replyTargetId(conversation);
+  if (user.value?.role === "hr" && id != null) selectedFollowups[conversation.key] = id;
+  onComposerFocus(`thread-${conversation.key}`);
+}
+
 function canWriteConversation(conversation: Conversation): boolean {
   if (!user.value) return false;
-  if (user.value.role === "student") return user.value.id === questionAuthorId.value;
-  if (user.value.role === "hr") {
-    return user.value.id === conversation.hrId && latestFollowupId(conversation) != null;
+  if (user.value.role === "student") {
+    return user.value.id === questionAuthorId.value && conversation.rootAnswer?.status === "published";
   }
-  return false;
+  return user.value.role === "hr" && user.value.id === conversation.hrId && replyableFollowups(conversation).length > 0;
 }
 
 function conversationPlaceholder(): string {
-  return user.value?.role === "hr" ? "回复追问…" : "继续追问…";
+  return user.value?.role === "hr" ? "回复选中的学生追问…" : "针对这条回答继续追问…";
+}
+
+function showSubmission(status: string): boolean {
+  if (status === "published") { message.success("回答已发布"); return true; }
+  if (status === "rejected") { message.error("回答未通过审核，请修改后重新提交。"); return false; }
+  message.info("回答已提交，正在等待审核。");
+  return true;
 }
 
 async function submitRootAnswer() {
@@ -455,10 +475,9 @@ async function submitRootAnswer() {
   submitting.value = true;
   error.value = "";
   try {
-    await api.answer(props.item.id, body);
-    rootDraft.value = "";
+    const answer = await api.answer(props.item.id, body);
+    if (showSubmission(answer.status)) rootDraft.value = "";
     await loadThread();
-    if (user.value?.role === "hr") openHr(user.value.id);
   } catch (e) {
     reportError(e, "提交失败");
   } finally {
@@ -467,21 +486,30 @@ async function submitRootAnswer() {
 }
 
 async function submitThread(conversation: Conversation) {
-  const body = (threadDrafts[conversation.hrId] ?? "").trim();
+  const body = (threadDrafts[conversation.key] ?? "").trim();
   if (!body || submitting.value) return;
   if (!requireLogin()) return;
   submitting.value = true;
   error.value = "";
   try {
     if (user.value?.role === "hr") {
-      const followupId = latestFollowupId(conversation);
-      if (followupId == null) return;
-      await api.answerFollowup(props.item.id, followupId, body);
+      const followupId = replyTargetId(conversation);
+      if (followupId == null) { message.warning("原追问当前不可回复，请清空草稿后重新选择追问。"); return; }
+      const answer = await api.answerFollowup(props.item.id, followupId, body);
+      if (!showSubmission(answer.status)) { await loadThread(); return; }
     } else {
-      await api.followup(props.item.id, body, conversation.hrId);
+      if (conversation.hrId == null || conversation.rootAnswer?.status !== "published") return;
+      const followup = await api.followup(props.item.id, body, conversation.hrId, conversation.rootAnswer.id);
+      if (followup.status === "rejected") {
+        message.error("追问未通过审核，请修改内容后重新提交。");
+        openThread(conversation.key);
+        await loadThread();
+        return;
+      }
+      if (followup.status !== "published") message.info("追问已提交，正在等待审核；通过后才会公开。");
     }
-    threadDrafts[conversation.hrId] = "";
-    openHr(conversation.hrId);
+    threadDrafts[conversation.key] = "";
+    openThread(conversation.key);
     await loadThread();
   } catch (e) {
     reportError(e, "提交失败");
@@ -516,9 +544,22 @@ function onComposerBlur() {
   }, 150);
 }
 
-onMounted(() => document.addEventListener("click", closeMenu));
+onMounted(() => {
+  document.addEventListener("click", closeMenu);
+  if (excerptBlockRef.value) {
+    excerptObserver = new ResizeObserver(() => {
+      if (!expanded.value) scheduleExcerptMeasurement();
+    });
+    excerptObserver.observe(excerptBlockRef.value);
+  }
+  void measureExcerpt();
+  // 本人列表及旧摘要没有 viewer，显示时读取服务端状态。
+  if (user.value && props.item.viewer == null && interactive.value) void ensureContent();
+});
 onBeforeUnmount(() => {
   document.removeEventListener("click", closeMenu);
+  excerptObserver?.disconnect();
+  if (excerptMeasureFrame !== undefined) cancelAnimationFrame(excerptMeasureFrame);
   if (blurTimer) clearTimeout(blurTimer);
 });
 </script>
@@ -526,54 +567,62 @@ onBeforeUnmount(() => {
 <template>
   <!-- 菜单打开时整卡提升层级，避免下拉菜单被后续卡片覆盖 -->
   <article
-    class="flex flex-col gap-4 rounded-card-lg border border-solid border-line bg-surface py-4"
-    :class="{ 'relative z-30': menuOpen !== null }"
+    class="feed-card"
+    :class="{ 'relative z-30': menuOpen !== null, 'is-thread-open': threadOpen, 'feed-card--summary': !ownerMode }"
   >
-    <!-- 问题卡片（Right）：回答区展开时才抬起，向下投影落在回答卡上；clip-path 裁掉上方与左右，只留向下的阴影 -->
-    <div
-      class="relative z-10 flex flex-col gap-2 rounded-card-lg bg-surface px-4"
-      :class="threadOpen ? 'border-b border-line pb-4 shadow-float [border-bottom-style:solid] [clip-path:inset(0_0_-200px_0)]' : ''"
-    >
-      <div class="flex items-start justify-between gap-4">
-        <h2 class="m-0 text-[22px] font-bold leading-[30px] text-ink sm:text-24 sm:leading-8">{{ item.title }}</h2>
+    <div class="question-card">
+      <div class="card-meta">
+        <div class="topic-tags" aria-label="问题标签">
+          <span v-for="tag in !ownerMode || expanded ? item.tags : item.tags.slice(0, 3)" :key="tag" class="topic-tag">{{ tag }}</span>
+          <button v-if="ownerMode && !expanded && item.tags.length > 3" type="button" class="topic-tag topic-tag-more" aria-label="展开全部问题标签和全文" @click="toggleExpand">+{{ item.tags.length - 3 }}</button>
+          <span v-if="!item.tags.length" class="topic-tag">公开问答</span>
+        </div>
+        <time v-if="!ownerMode" class="card-time" :datetime="createdAt" :title="formatRelativeTime(createdAt)">{{ formatTime(createdAt) }}</time>
+      </div>
+
+      <div class="title-row">
+        <h2 class="question-heading">
+          <router-link :to="detailLink" class="question-title-link">{{ item.title }}</router-link>
+        </h2>
         <span
           v-if="statusMeta"
-          class="shrink-0 pt-1 text-14 font-medium"
-          :style="{ color: statusMeta.color }"
+          class="status-badge"
+          :class="`status-badge--${statusMeta.tone}`"
         >{{ statusMeta.text }}</span>
       </div>
 
-      <p v-if="!ownerMode && item.matchedTags.length" class="m-0 text-12 text-muted">
-        因为你关注「{{ item.matchedTags.join("、") }}」
+      <p v-if="!ownerMode && item.matchedTags.length" class="recommendation-reason">
+        <span aria-hidden="true"></span>因为你关注「{{ item.matchedTags.join("、") }}」
       </p>
 
-      <div class="flex flex-col gap-2.5">
-        <p v-if="!expanded" class="m-0 line-clamp-4 whitespace-pre-wrap text-16 leading-6 text-ink">{{ item.excerpt }}</p>
-        <p v-else class="m-0 whitespace-pre-wrap text-16 leading-6 text-ink">{{ content?.question.body ?? item.excerpt }}</p>
-        <div class="flex justify-end">
-          <button class="aux-btn" @click="toggleExpand">{{ expanded ? "收起 ↑" : "阅读全文 ↓" }}</button>
-        </div>
-        <!-- TagSet：仅在阅读全文时展示 -->
-        <div v-if="expanded && item.tags.length" class="flex min-w-0 flex-nowrap items-center gap-2 overflow-hidden">
-          <span
-            v-for="tag in item.tags"
-            :key="tag"
-            class="shrink-0 whitespace-nowrap rounded-[4px] bg-[#f8f9fa] px-1 py-0.5 text-[12px] leading-[18px] text-[#4b5563]"
-          >{{ tag }}</span>
+      <div ref="excerptBlockRef" class="excerpt-block">
+        <p ref="excerptRef" class="question-excerpt" :class="expanded ? 'question-excerpt--full' : 'line-clamp-3'">{{ expanded ? content?.question.body ?? item.excerpt : item.excerpt }}</p>
+        <div v-if="ownerMode || expanded || excerptOverflows" class="flex justify-end">
+          <button type="button" class="aux-btn read-more" @click="toggleExpand">
+            {{ expanded ? "收起问题 ↑" : ownerMode ? "阅读全文 ↓" : "展开问题 ↓" }}
+          </button>
         </div>
       </div>
 
-      <!-- 底部信息行：折叠态只留操作按钮；展开全文后才出现作者与提问时间，行高始终 22px -->
-      <div
-        class="flex min-w-0 items-center gap-4"
-        :class="expanded || ownerMode ? 'justify-between' : 'justify-end'"
-      >
-        <div v-if="expanded || ownerMode" class="flex min-w-0 flex-1 items-center gap-2.5 text-14">
-          <span v-if="!ownerMode && authorName" class="min-w-0 truncate text-regular">{{ authorName }}</span>
-          <time class="shrink-0 whitespace-nowrap text-muted">提问于 {{ formatTime(createdAt) }}</time>
-        </div>
+      <div v-if="ownerMode || (expanded && authorName)" class="author-row">
+        <span v-if="!ownerMode && authorName" class="min-w-0 truncate">{{ authorName }}</span>
+        <time v-if="ownerMode" class="shrink-0 whitespace-nowrap">提问于 {{ formatTime(createdAt) }}</time>
+      </div>
 
-        <div class="flex shrink-0 items-center gap-4">
+      <div class="question-footer">
+        <button v-if="ownerMode" type="button" class="discussion-toggle" :aria-expanded="threadOpen" aria-label="查看或参与回答" @click="toggleThread">
+          <FeedIcon name="comment" :size="18" />
+          <span>{{ replyLabel }}</span>
+          <span class="discussion-arrow" aria-hidden="true">{{ threadOpen ? "↑" : "→" }}</span>
+        </button>
+        <router-link v-else :to="detailLink" class="discussion-toggle" aria-label="查看问答详情">
+          <FeedIcon name="comment" :size="18" />
+          <span v-if="counts.answerCount || counts.followupCount">{{ replyLabel }}</span>
+          <span class="detail-entry-label">查看详情</span>
+          <span class="discussion-arrow" aria-hidden="true">→</span>
+        </router-link>
+
+        <div class="question-actions">
           <button
             v-if="ownerMode && withdrawable"
             class="feed-action"
@@ -582,14 +631,12 @@ onBeforeUnmount(() => {
           >
             <span>撤回</span>
           </button>
-          <button class="feed-action" aria-label="回答" @click="toggleThread">
-            <FeedIcon name="comment" />
-            <span>{{ threadOpen ? "收起回答" : replyLabel }}</span>
-          </button>
           <button
             class="feed-action"
-            :class="{ 'is-active': liked, 'is-disabled': !interactive }"
-            :disabled="!interactive"
+            :class="{ 'is-active': liked, 'is-disabled': !interactive, 'is-pending': pendingInteraction === 'like' }"
+            :disabled="!interactive || interacting"
+            :aria-pressed="liked"
+            :aria-busy="pendingInteraction === 'like'"
             aria-label="点赞"
             @click="toggleLike"
           >
@@ -598,8 +645,10 @@ onBeforeUnmount(() => {
           </button>
           <button
             class="feed-action"
-            :class="{ 'is-active': favorited, 'is-disabled': !interactive }"
-            :disabled="!interactive"
+            :class="{ 'is-active': favorited, 'is-disabled': !interactive, 'is-pending': pendingInteraction === 'favorite' }"
+            :disabled="!interactive || interacting"
+            :aria-pressed="favorited"
+            :aria-busy="pendingInteraction === 'favorite'"
             aria-label="收藏"
             @click="toggleFavorite"
           >
@@ -607,7 +656,7 @@ onBeforeUnmount(() => {
             <span>{{ counts.favoriteCount }}</span>
           </button>
           <div v-if="!ownerMode" class="relative flex items-center">
-            <button class="feed-action" aria-label="更多" @click.stop="toggleMenu('question')">
+            <button class="feed-action more-trigger" aria-label="更多" @click.stop="toggleMenu('question')">
               <FeedIcon name="dots" />
             </button>
             <div v-if="menuOpen === 'question'" class="more-menu" @click.stop>
@@ -618,20 +667,13 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <p v-if="error" class="m-0 text-14 text-danger">{{ error }}</p>
+      <p v-if="error" class="m-0 mt-3 text-14 text-danger">{{ error }}</p>
     </div>
 
-    <!-- 回答区（Wrapper）：上移 8px 叠在问题卡下方，展开时从卡片底下抽出 -->
-    <div v-if="threadOpen" class="drawer-panel relative z-0 -mt-6 flex flex-col rounded-card-lg bg-surface pt-2">
-      <!-- 游客提示 -->
-      <div v-if="!user" class="p-4">
-        <div class="composer-guest">
-          <router-link :to="{ path: '/login', query: { redirect: route.fullPath } }">登录</router-link>
-          后参与回答和追问
-        </div>
-      </div>
+    <!-- 回答区与问题共用一张卡片，通过分割线和浅色背景区分层级 -->
+    <div v-if="ownerMode && threadOpen" class="drawer-panel answer-panel">
       <!-- HR 主回答输入框 -->
-      <div v-else-if="user.role === 'hr'" class="flex flex-col gap-1 p-4">
+      <div v-if="user?.role === 'hr'" class="flex flex-col gap-1 p-4">
         <textarea
           v-model="rootDraft"
           rows="1"
@@ -660,41 +702,45 @@ onBeforeUnmount(() => {
         </p>
 
         <div v-else-if="thread" class="flex flex-col gap-2">
-          <p class="m-0 text-14 leading-[22px] text-ink">共有{{ conversations.length }}位HR参与回答</p>
+          <p class="m-0 text-14 leading-[22px] text-ink">{{ publishedRootCount }} 条主回答 · {{ participatingHrCount }} 位 HR 参与</p>
 
           <div class="flex flex-col gap-1">
-            <div v-for="conversation in conversations" :key="conversation.hrId" class="flex flex-col">
+            <div v-for="conversation in conversations" :key="conversation.key" class="answer-thread flex flex-col" :data-answer-id="conversation.rootAnswerId ?? undefined">
               <!-- HRClose / HROpen -->
               <button
                 type="button"
                 class="hr-row"
                 :title="conversation.nickname"
-                :aria-expanded="isHrOpen(conversation.hrId)"
-                @click="openHr(conversation.hrId)"
+                :aria-expanded="isThreadOpen(conversation.key)"
+                @click="toggleThreadDetails(conversation.key)"
               >
+                <span class="hr-avatar" aria-hidden="true">{{ conversation.nickname.trim().slice(0, 1) }}</span>
                 <span class="hr-name">{{ conversation.nickname }}</span>
+                <span class="hr-identity">HR</span>
                 <span class="hr-chips">
                   <span v-if="conversation.company" class="hr-chip">{{ conversation.company }}</span>
                   <span v-if="conversation.position" class="hr-chip">{{ conversation.position }}</span>
                 </span>
                 <span
-                  v-if="!isHrOpen(conversation.hrId)"
-                  class="shrink-0 whitespace-nowrap text-14 leading-[22px] text-muted"
-                >展开详情</span>
+                  v-if="!isThreadOpen(conversation.key)"
+                  class="hr-expand-label shrink-0 whitespace-nowrap"
+                >展开追问（{{ conversation.messages.filter((item) => item.kind === 'followup').length }}）</span>
               </button>
 
               <!-- HRA&UserQ：首回复卡与追问气泡区之间 32px -->
-              <div v-if="isHrOpen(conversation.hrId)" class="flex flex-col gap-8 pt-2">
+              <div class="flex flex-col gap-4 pt-2">
                 <!-- HR 对主问题的回答 -->
-                <article v-if="conversation.rootAnswer" class="flex flex-col">
-                  <p class="m-0 whitespace-pre-wrap text-16 leading-6 text-ink">{{ conversation.rootAnswer.body }}</p>
+                <article class="flex flex-col">
+                  <p v-if="conversation.rootAnswer.status === 'removed'" class="m-0 text-14 text-muted">{{ removedAnswerText(conversation.rootAnswer) }}相关追问与回复保留。</p>
+                  <p v-else class="m-0 whitespace-pre-wrap text-16 leading-6 text-ink">{{ conversation.rootAnswer.body }}</p>
+                  <span v-if="conversation.rootAnswer.status !== 'published' && conversation.rootAnswer.status !== 'removed'" class="text-14 text-muted">{{ STATUS_META[conversation.rootAnswer.status]?.text }}</span>
                   <div class="mt-2 flex items-center justify-between gap-4">
                     <span class="text-14 leading-[22px] text-muted">
                       回答于 {{ formatTime(conversation.rootAnswer.createdAt) }}
                     </span>
-                    <div class="flex shrink-0 items-center gap-4">
+                    <div v-if="conversation.rootAnswer.status !== 'removed'" class="flex shrink-0 items-center gap-4">
                       <button
-                        v-if="user && conversation.rootAnswer.author.id === user.id"
+                        v-if="user && conversation.rootAnswer.author.id === user.id && conversation.rootAnswer.status !== 'rejected'"
                         class="feed-action"
                         aria-label="撤销"
                         @click="withdrawEntry(conversation.rootAnswer)"
@@ -702,6 +748,7 @@ onBeforeUnmount(() => {
                         <span>撤销</span>
                       </button>
                       <button
+                        v-if="conversation.rootAnswer.status === 'published'"
                         class="feed-action"
                         :class="{ 'is-active': conversation.rootAnswer.liked }"
                         aria-label="点赞"
@@ -710,7 +757,7 @@ onBeforeUnmount(() => {
                         <FeedIcon name="like" :filled="conversation.rootAnswer.liked" />
                         <span>{{ conversation.rootAnswer.likeCount }}</span>
                       </button>
-                      <div v-if="!ownerMode" class="relative flex items-center">
+                      <div v-if="!ownerMode && conversation.rootAnswer.status === 'published'" class="relative flex items-center">
                         <button class="feed-action" aria-label="更多" @click.stop="toggleMenu(conversation.rootAnswer.key)">
                           <FeedIcon name="dots" />
                         </button>
@@ -722,89 +769,612 @@ onBeforeUnmount(() => {
                   </div>
                 </article>
 
-                <!-- BubbleCard：追问气泡整体一块，内部保持 8px 间距 -->
-                <div v-if="conversation.messages.length" class="flex flex-col gap-2">
-                  <!-- 追问气泡：题主在右、HR 在左；时间与点赞仅悬停显示，占位保持 22px -->
-                  <div
-                    v-for="entry in conversation.messages"
-                    :key="entry.key"
-                    class="group flex flex-col"
-                    :class="entry.kind === 'followup' ? 'items-end' : 'items-start'"
-                  >
-                    <span class="text-14 leading-[22px] text-regular">
-                      {{ entry.author.nickname }}
-                    </span>
-                    <p
-                      class="m-0 mt-1 max-w-[500px] whitespace-pre-wrap rounded-card px-2 py-2 text-16 leading-6 text-ink"
-                      :class="entry.kind === 'followup' ? 'bg-hover' : 'bg-[#e6f0ff]'"
-                    >{{ entry.body }}</p>
+                <template v-if="isThreadOpen(conversation.key)">
+                  <!-- BubbleCard：追问气泡整体一块，内部保持 8px 间距 -->
+                  <div v-if="conversation.messages.length" class="flex flex-col gap-2">
+                    <!-- 追问气泡：题主在右、HR 在左；时间与点赞仅悬停显示，占位保持 22px -->
                     <div
-                      class="mt-1 flex h-[22px] items-center gap-4 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
-                      :class="entry.kind === 'followup' ? 'justify-end' : 'justify-start'"
+                      v-for="entry in conversation.messages"
+                      :key="entry.key"
+                      class="group thread-entry"
+                      :class="entry.kind === 'followup' ? 'thread-entry--followup' : 'thread-entry--answer'"
                     >
-                      <span class="text-14 leading-[22px] text-muted">{{ formatTime(entry.createdAt) }}</span>
-                      <button
-                        v-if="user && entry.author.id === user.id"
-                        class="feed-action"
-                        aria-label="撤销"
-                        @click="withdrawEntry(entry)"
-                      >
-                        <span>撤销</span>
-                      </button>
-                      <template v-if="entry.kind === 'followup_answer'">
+                      <span class="thread-author">
+                        {{ entry.kind === 'followup' ? '学生追问' : 'HR 回复' }} · {{ entry.author.nickname }}
+                      </span>
+                      <span v-if="entry.kind === 'followup_answer'" class="reply-context">回复追问：{{ Array.from(conversation.messages.find((item) => item.kind === 'followup' && item.id === entry.followupId)?.body || '原追问已不可见').slice(0, 36).join('') }}</span>
+                      <p class="thread-message">{{ entry.status === 'removed' ? '这条追问已撤销或下架。' : entry.body }}</p>
+                      <span v-if="entry.status !== 'published' && entry.status !== 'removed'" class="text-14 text-muted">{{ STATUS_META[entry.status]?.text }}</span>
+                      <button v-if="entry.kind === 'followup' && entry.status === 'published' && user?.role === 'hr' && user.id === conversation.hrId" type="button" class="feed-action thread-reply-action" @click="selectReply(conversation, entry.id)">回复这条追问</button>
+                      <div class="thread-meta">
+                        <span class="text-14 leading-[22px] text-muted">{{ formatTime(entry.createdAt) }}</span>
                         <button
+                          v-if="user && entry.author.id === user.id && ['published', 'pending_machine', 'pending_human'].includes(entry.status)"
                           class="feed-action"
-                          :class="{ 'is-active': entry.liked }"
-                          aria-label="点赞"
-                          @click="toggleAnswerLike(entry)"
+                          aria-label="撤销"
+                          @click="withdrawEntry(entry)"
                         >
-                          <FeedIcon name="like" :filled="entry.liked" />
-                          <span>{{ entry.likeCount }}</span>
+                          <span>撤销</span>
                         </button>
-                        <div v-if="!ownerMode" class="relative flex items-center">
-                          <button class="feed-action" aria-label="更多" @click.stop="toggleMenu(entry.key)">
-                            <FeedIcon name="dots" />
+                        <template v-if="entry.kind === 'followup_answer' && entry.status === 'published'">
+                          <button
+                            class="feed-action"
+                            :class="{ 'is-active': entry.liked }"
+                            aria-label="点赞"
+                            @click="toggleAnswerLike(entry)"
+                          >
+                            <FeedIcon name="like" :filled="entry.liked" />
+                            <span>{{ entry.likeCount }}</span>
                           </button>
-                          <div v-if="menuOpen === entry.key" class="more-menu" @click.stop>
-                            <button class="more-item" @click="report('answer', entry.id)">举报</button>
+                          <div v-if="!ownerMode" class="relative flex items-center">
+                            <button class="feed-action" aria-label="更多" @click.stop="toggleMenu(entry.key)">
+                              <FeedIcon name="dots" />
+                            </button>
+                            <div v-if="menuOpen === entry.key" class="more-menu" @click.stop>
+                              <button class="more-item" @click="report('answer', entry.id)">举报</button>
+                            </div>
                           </div>
-                        </div>
-                      </template>
+                        </template>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <!-- 线程输入框：题主追问；该 HR 回复最新一条追问 -->
-                <div v-if="canWriteConversation(conversation)" class="flex flex-col gap-1">
-                  <textarea
-                    v-model="threadDrafts[conversation.hrId]"
-                    rows="1"
-                    class="composer-input"
-                    :placeholder="conversationPlaceholder()"
-                    @focus="onComposerFocus(`thread-${conversation.hrId}`)"
-                    @blur="onComposerBlur"
-                  />
-                  <div v-if="focusedComposer === `thread-${conversation.hrId}`" class="mt-2 flex justify-end">
-                    <button
-                      class="primary-btn"
-                      :disabled="!(threadDrafts[conversation.hrId] ?? '').trim() || submitting"
-                      @mousedown.prevent
-                      @click="submitThread(conversation)"
-                    >
-                      {{ submitting ? "提交中…" : "发送" }}
-                    </button>
+                  <!-- 线程输入框：题主追问；该 HR 回复最新一条追问 -->
+                  <div v-if="canWriteConversation(conversation)" class="flex flex-col gap-1">
+                    <label v-if="user?.role === 'hr'" class="text-14 text-muted">
+                      回复对象
+                      <select :value="replyTargetId(conversation) ?? ''" class="composer-input" aria-label="选择要回复的学生追问" @change="changeReplyTarget(conversation, $event)">
+                        <option v-if="replyTargetId(conversation) == null" value="" disabled>原追问已不可回复，请重新选择</option>
+                        <option v-for="followup in replyableFollowups(conversation)" :key="followup.id" :value="followup.id">{{ Array.from(followup.body).slice(0, 36).join('') }}{{ Array.from(followup.body).length > 36 ? '…' : '' }}</option>
+                      </select>
+                    </label>
+                    <textarea
+                      v-model="threadDrafts[conversation.key]"
+                      rows="1"
+                      class="composer-input"
+                      :placeholder="conversationPlaceholder()"
+                      @focus="focusConversation(conversation)"
+                      @blur="onComposerBlur"
+                    />
+                    <div v-if="focusedComposer === `thread-${conversation.key}`" class="mt-2 flex justify-end">
+                      <button
+                        class="primary-btn"
+                        :disabled="!(threadDrafts[conversation.key] ?? '').trim() || submitting"
+                        @mousedown.prevent
+                        @click="submitThread(conversation)"
+                      >
+                        {{ submitting ? "提交中…" : "发送" }}
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                <!-- 展开态末尾：收起该 HR 会话（Figma Frame 38，右对齐 14/22） -->
-                <div class="flex h-[22px] items-center justify-end">
-                  <button type="button" class="hr-collapse" @click="toggleHr(conversation.hrId)">收起详情</button>
-                </div>
+                  <!-- 展开态末尾：收起该回答的追问（Figma Frame 38，右对齐 14/22） -->
+                  <div class="flex h-[22px] items-center justify-end">
+                    <button type="button" class="hr-collapse" @click="toggleThreadDetails(conversation.key)">收起追问</button>
+                  </div>
+                </template>
               </div>
             </div>
           </div>
         </div>
       </div>
     </div>
+    <ReportDialog
+      v-if="reportOpen"
+      v-model:show="reportOpen"
+      :target-type="reportTarget.targetType"
+      :target-id="reportTarget.targetId"
+    />
   </article>
 </template>
+
+<style scoped>
+.feed-card {
+  position: relative;
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  background: var(--color-bg-surface);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+@media (hover: hover) {
+  .feed-card:hover {
+    border-color: #d4dce8;
+    box-shadow: 0 8px 24px -18px rgba(23, 32, 51, 0.45);
+    transform: translateY(-1px);
+  }
+}
+
+.question-card {
+  padding: 20px 22px 12px;
+  border-radius: 12px;
+  background: var(--color-bg-surface);
+}
+
+.card-meta,
+.title-row,
+.question-footer,
+.author-row,
+.question-actions {
+  display: flex;
+  align-items: center;
+}
+
+.card-meta {
+  min-width: 0;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.topic-tags {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.topic-tag {
+  flex-shrink: 0;
+  max-width: 140px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: var(--color-bg-hover);
+  padding: 3px 8px;
+  color: var(--color-text-regular);
+  font-size: 12px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topic-tag-more {
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.topic-tag-more:hover {
+  color: var(--color-brand);
+  background: var(--color-brand-soft);
+}
+
+.card-time {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.title-row {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.question-heading {
+  min-width: 0;
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 30px;
+  overflow-wrap: anywhere;
+}
+
+.question-title-link {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.question-title-link:hover {
+  color: var(--color-brand);
+}
+
+.status-badge {
+  flex-shrink: 0;
+  margin-top: 3px;
+  border-radius: 5px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.status-badge--success { background: var(--color-success-soft); color: var(--color-success); }
+.status-badge--warning { background: var(--color-warning-soft); color: var(--color-warning); }
+.status-badge--danger { background: var(--color-danger-soft); color: var(--color-danger); }
+.status-badge--neutral { background: var(--color-bg-hover); color: var(--color-text-muted); }
+
+.recommendation-reason {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 9px 0 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.recommendation-reason > span {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
+  border-radius: 50%;
+  background: var(--color-brand);
+}
+
+.excerpt-block {
+  margin-top: 10px;
+}
+
+.question-excerpt {
+  margin: 0;
+  color: var(--color-text-regular);
+  font-size: 15px;
+  line-height: 26px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.question-excerpt--full {
+  color: var(--color-text-primary);
+  animation: excerpt-reveal 180ms ease-out;
+}
+
+@keyframes excerpt-reveal {
+  from { opacity: 0.45; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.read-more {
+  min-height: 32px;
+  padding: 5px 0 0;
+  color: var(--color-brand);
+  font-size: 13px;
+}
+
+.read-more:hover {
+  color: var(--color-brand-dark);
+}
+
+.author-row {
+  min-width: 0;
+  gap: 12px;
+  margin-top: 10px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.question-footer {
+  min-width: 0;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  border-top: 1px solid var(--color-border-subtle);
+  padding-top: 10px;
+}
+
+.discussion-toggle {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 36px;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--color-bg-hover);
+  padding: 7px 10px;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 22px;
+  text-align: left;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.feed-card--summary .discussion-toggle {
+  flex-wrap: wrap;
+  border: 1px solid var(--color-brand-border);
+  background: var(--color-brand-soft);
+  color: var(--color-text-regular);
+  text-decoration: none;
+}
+
+.feed-card--summary .discussion-toggle:is(:hover, :focus-visible) {
+  background: #e3edff;
+  color: var(--color-brand);
+}
+
+.feed-card--summary .discussion-toggle:active {
+  border-color: var(--color-brand);
+  background: #d9e7ff;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .feed-card--summary .discussion-toggle {
+    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, translate 100ms ease;
+  }
+
+  .feed-card--summary .discussion-toggle:active {
+    translate: 0 1px;
+  }
+
+  .feed-card--summary .discussion-arrow {
+    transition: translate 160ms ease;
+  }
+
+  .feed-card--summary .discussion-toggle:is(:hover, :focus-visible) .discussion-arrow {
+    translate: 3px 0;
+  }
+}
+
+.detail-entry-label {
+  color: var(--color-brand);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.feed-action.is-active svg {
+  animation: action-pop 180ms ease-out;
+}
+
+.feed-action.is-pending {
+  opacity: 0.65;
+  cursor: progress;
+}
+
+.feed-action.is-pending svg {
+  animation: action-pulse 700ms ease-in-out infinite;
+}
+
+@keyframes action-pop {
+  0% { transform: scale(0.82); }
+  70% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+@keyframes action-pulse {
+  0%, 100% { opacity: 0.5; transform: scale(0.92); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+.discussion-toggle:hover {
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+}
+
+.discussion-arrow {
+  color: var(--color-brand);
+  font-size: 15px;
+}
+
+.question-actions {
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+.more-trigger {
+  min-width: 34px;
+}
+
+.answer-panel {
+  position: relative;
+  border-top: 1px solid var(--color-border-default);
+  border-radius: 0 0 12px 12px;
+  background: var(--color-bg-feed);
+}
+
+.answer-thread {
+  margin-top: 10px;
+  border-top: 1px solid var(--color-border-default);
+  padding: 18px 0 8px;
+}
+
+.hr-row {
+  width: 100%;
+  min-width: 0;
+  gap: 9px;
+  border-radius: 8px;
+  padding: 9px 10px;
+}
+
+.hr-row:hover {
+  background: var(--color-bg-hover);
+}
+
+.hr-avatar {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--color-brand-soft);
+  color: var(--color-brand);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.hr-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: min(45%, 220px);
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.hr-identity {
+  flex-shrink: 0;
+  border-radius: 4px;
+  background: var(--color-brand-soft);
+  padding: 1px 5px;
+  color: var(--color-brand);
+  font-size: 11px;
+  line-height: 17px;
+}
+
+.hr-expand-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  border: 1px solid var(--color-brand-border);
+  border-radius: 6px;
+  background: var(--color-brand-soft);
+  padding: 3px 9px;
+  color: var(--color-brand);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.hr-expand-label::after {
+  content: "↓";
+  font-size: 14px;
+}
+
+.hr-row:hover .hr-expand-label {
+  border-color: #bdd2f6;
+  background: #e3edff;
+}
+
+.thread-entry {
+  position: relative;
+  border: 1px solid var(--color-border-subtle);
+  border-left: 3px solid #cbd5e1;
+  border-radius: 8px;
+  background: var(--color-bg-surface);
+  padding: 11px 13px;
+}
+
+.thread-entry--followup {
+  background: #f7f8fa;
+}
+
+.thread-entry--answer {
+  border-left-color: var(--color-brand);
+}
+
+.thread-author {
+  color: var(--color-text-regular);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.reply-context {
+  display: block;
+  margin-top: 3px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.thread-message {
+  margin: 5px 0 0;
+  color: var(--color-text-primary);
+  font-size: 15px;
+  line-height: 25px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.thread-meta {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+}
+
+.thread-meta .feed-action,
+.thread-reply-action {
+  min-height: 28px;
+  padding: 3px 6px;
+  font-size: 12px;
+}
+
+.thread-reply-action {
+  margin-top: 4px;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+@media (max-width: 640px) {
+  .question-card {
+    padding: 16px 16px 10px;
+  }
+
+  .question-heading {
+    font-size: 19px;
+    line-height: 28px;
+  }
+
+  .question-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .feed-card--summary .question-footer {
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .feed-card--summary .question-actions {
+    margin-left: auto;
+  }
+
+  .discussion-toggle {
+    justify-content: flex-start;
+  }
+
+  .discussion-arrow {
+    margin-left: auto;
+  }
+
+  .question-actions {
+    justify-content: space-between;
+  }
+
+  .question-actions .feed-action {
+    min-width: 44px;
+    min-height: 40px;
+  }
+
+  .hr-row {
+    flex-wrap: wrap;
+  }
+
+  .hr-expand-label {
+    width: auto;
+    margin-left: 41px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feed-card {
+    transition: none;
+  }
+
+  .feed-card:hover {
+    transform: none;
+  }
+
+  .question-excerpt--full,
+  .feed-action.is-active svg,
+  .feed-action.is-pending svg {
+    animation: none;
+  }
+}
+</style>

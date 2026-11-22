@@ -1,10 +1,17 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from "vue";
+import { computed, nextTick, onActivated, onMounted, ref, watch } from "vue";
+import { onBeforeRouteLeave, useRoute } from "vue-router";
+import { storeToRefs } from "pinia";
 import { api, type FeedFilterValue, type QuestionFeedItem } from "../api";
+import { useUserStore } from "@/stores/user";
 import FeedCard from "@/components/FeedCard.vue";
 import FeedCardSkeleton from "@/components/FeedCardSkeleton.vue";
 import FeedFilterPanel from "@/components/FeedFilterPanel.vue";
 
+defineOptions({ name: "QuestionListView" });
+
+const route = useRoute();
+const { user } = storeToRefs(useUserStore());
 const items = ref<QuestionFeedItem[]>([]);
 const cursor = ref<string | null>(null);
 const loading = ref(false);
@@ -52,6 +59,7 @@ const emptyText = computed(() => {
 
 // 筛选条件变化时上一个请求可能还没回来，用序号丢弃过期响应
 let requestSeq = 0;
+let openedQuestionId: number | null = null;
 
 async function load(reset = false) {
   const seq = ++requestSeq;
@@ -151,10 +159,43 @@ onMounted(() => {
   void load(true);
   void loadTagSlugs();
 });
+
+watch(() => user.value?.id, () => {
+  openedQuestionId = null;
+  refreshFeed();
+}, { flush: "sync" });
+
+onBeforeRouteLeave((to) => {
+  openedQuestionId = to.query.from === "feed" ? Number(to.params.id) : null;
+});
+
+onActivated(async () => {
+  const id = openedQuestionId;
+  openedQuestionId = null;
+  const item = items.value.find((question) => question.id === id);
+  if (!item) return;
+  try {
+    const { question } = await api.getQuestionContent(item.id);
+    const index = items.value.indexOf(item);
+    if (index < 0) return;
+    items.value[index] = {
+      ...item,
+      answerCount: question.answerCount,
+      followupCount: question.followupCount,
+      replyCount: question.answerCount + question.followupCount,
+    };
+  } catch {
+    // 列表仍可使用，用户可重新加载获取最新数据。
+  }
+});
 </script>
 
 <template>
   <div class="feed-page mx-auto w-full">
+    <div v-if="!user" class="guest-notice">
+      <span>游客浏览中，登录后可参与问答和互动</span>
+      <router-link :to="{ path: '/login', query: { redirect: route.fullPath } }">立即登录 →</router-link>
+    </div>
     <FeedFilterPanel class="mb-5" @change="applyFilters" @refresh="refreshFeed" />
 
     <p v-if="error" class="m-0 mb-3 text-14 text-danger">{{ error }}</p>
@@ -204,6 +245,28 @@ onMounted(() => {
 /* 内容不足一屏时也把页面撑满，配合全局常驻滚动条避免显隐抖动 */
 .feed-page {
   min-height: calc(100vh - 120px);
+}
+
+.guest-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  border: 1px solid var(--color-brand-border);
+  border-radius: 10px;
+  background: var(--color-brand-soft);
+  padding: 11px 14px;
+  color: var(--color-text-regular);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.guest-notice a {
+  flex-shrink: 0;
+  color: var(--color-brand);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .list-locked > :deep(.feed-skeleton) {

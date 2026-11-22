@@ -1,5 +1,7 @@
 package com.careerq.dataobject;
 
+import com.careerq.moderation.LegacyStatus;
+
 import java.time.LocalDateTime;
 
 public class QuestionDO {
@@ -94,6 +96,11 @@ public class QuestionDO {
 
     public void setVisibility(String visibility) {
         this.visibility = visibility;
+    }
+
+    /** 兼容旧调用方的聚合状态；真实状态以 moderationStatus 与 visibility 为准。 */
+    public String getStatus() {
+        return LegacyStatus.of(moderationStatus, visibility).value();
     }
 
     public String getRiskLevel() {

@@ -13,6 +13,16 @@ import java.util.Optional;
 
 public interface AnswerDao {
 
+    @Update("""
+            update answers set visibility = 'REMOVED',
+                moderation_status = case when #{source} = 'author' then 'WITHDRAWN' else 'REJECTED' end,
+                removal_source = #{source}, removed_by = #{actorId}, removed_at = #{removedAt},
+                moderated_at = #{removedAt}, updated_at = #{removedAt}
+            where id = #{id} and visibility <> 'REMOVED'
+            """)
+    int markRemoved(@Param("id") Long id, @Param("source") String source,
+                    @Param("actorId") Long actorId, @Param("removedAt") LocalDateTime removedAt);
+
     @Insert("""
             insert into answers (
                 question_id, followup_id, author_id, body, length_type, moderation_status, visibility,
@@ -59,6 +69,15 @@ public interface AnswerDao {
     @Select("select count(*) from answers where author_id = #{authorId} and created_at >= #{since}")
     long countByAuthorSince(@Param("authorId") Long authorId, @Param("since") LocalDateTime since);
 
+    @Select("""
+            select exists (
+                select 1 from answers a
+                where a.followup_id = #{followupId} and a.question_id = #{questionId}
+                  and a.visibility = 'VISIBLE'
+            )
+            """)
+    boolean hasVisibleReply(@Param("questionId") Long questionId, @Param("followupId") Long followupId);
+
     @Select("select count(*) from answers a where a.author_id = #{authorId} and a.visibility = 'VISIBLE' and exists (select 1 from questions q where q.id = a.question_id and q.scope = 'public')")
     long countVisibleByAuthor(Long authorId);
 
@@ -72,6 +91,9 @@ public interface AnswerDao {
                 <foreach collection="questionIds" item="questionId" open="(" separator="," close=")">
                     #{questionId}
                 </foreach>
+                and (followup_id is null or exists (select 1 from followups f
+                     where f.id = answers.followup_id and f.question_id = answers.question_id
+                       and f.scope = 'public' and f.root_answer_id is not null))
                 group by question_id
             ) latest on latest.answer_id = a.id
             order by a.question_id
@@ -81,14 +103,26 @@ public interface AnswerDao {
                                                     @Param("questionIds") List<Long> questionIds);
 
     @Select("""
-            <script>
-            select * from answers where question_id = #{questionId}
+<script>
+            select a.* from answers a where a.question_id = #{questionId}
+            and (a.followup_id is null or exists (select 1 from followups f
+                 where f.id = a.followup_id and f.question_id = a.question_id
+                   and f.scope = 'public' and f.root_answer_id is not null))
             and (
-                visibility = 'VISIBLE'
-                or (#{authorId} is not null and author_id = #{authorId} and visibility in ('HIDDEN', 'REMOVED'))
+                a.visibility = 'VISIBLE'
+                or (#{authorId} is not null and a.author_id = #{authorId} and a.visibility in ('HIDDEN', 'REMOVED'))
                 or #{operator} = true
+                or (a.followup_id is null and a.visibility = 'REMOVED' and exists (
+                    select 1 from followups f where f.question_id = a.question_id and f.root_answer_id = a.id and f.scope = 'public'
+                      and (f.visibility = 'VISIBLE'
+                           or (#{authorId} is not null and f.sender_id = #{authorId} and f.visibility in ('HIDDEN', 'REMOVED'))
+                           or (f.visibility = 'REMOVED' and exists (
+                               select 1 from answers child where child.followup_id = f.id and child.question_id = f.question_id
+                                 and (child.visibility = 'VISIBLE'
+                                      or (#{authorId} is not null and child.author_id = #{authorId}
+                                          and child.visibility in ('HIDDEN', 'REMOVED'))))))))
             )
-            order by id
+            order by a.created_at, a.id
             </script>
             """)
     List<AnswerDO> findVisible(@Param("questionId") Long questionId,
@@ -138,6 +172,9 @@ public interface AnswerDao {
     @Update("""
             <script>
             update answers set visibility = #{visibility}, moderation_reason = #{reason},
+                removal_source = case when #{visibility} = 'REMOVED' then 'operator' else null end,
+                removed_by = case when #{visibility} = 'REMOVED' then #{actorId} else null end,
+                removed_at = case when #{visibility} = 'REMOVED' then current_timestamp else null end,
                 moderated_at = current_timestamp, updated_at = current_timestamp
             where id = #{id} and moderation_status in
             <foreach collection="expectedStatus" item="item" open="(" separator="," close=")">#{item}</foreach>
@@ -149,7 +186,16 @@ public interface AnswerDao {
                            @Param("expectedStatus") List<String> expectedStatus,
                            @Param("expectedVisibility") List<String> expectedVisibility,
                            @Param("visibility") String visibility,
-                           @Param("reason") String reason);
+                           @Param("reason") String reason,
+                           @Param("actorId") Long actorId);
+
+    @Update("""
+            update answers set moderation_status = 'APPROVED', visibility = 'VISIBLE',
+                moderation_reason = #{reason}, removal_source = null, removed_by = null, removed_at = null,
+                moderated_at = current_timestamp, updated_at = current_timestamp
+            where id = #{id} and visibility = 'REMOVED' and removal_source = 'operator'
+            """)
+    int restoreOperatorRemoval(@Param("id") Long id, @Param("reason") String reason);
 
     @Update("""
             update answers set moderation_status = 'L3', visibility = 'HIDDEN',
@@ -167,10 +213,11 @@ public interface AnswerDao {
 
     @Update("""
             update answers set moderation_status = 'WITHDRAWN', visibility = 'REMOVED',
+                removal_source = 'author', removed_by = #{actorId}, removed_at = current_timestamp,
                 moderated_at = current_timestamp, updated_at = current_timestamp
             where id = #{id} and visibility in ('VISIBLE', 'HIDDEN')
             """)
-    int withdraw(Long id);
+    int withdraw(@Param("id") Long id, @Param("actorId") Long actorId);
 
     @Update("update answers set like_count = like_count + 1, updated_at = current_timestamp where id = #{id}")
     int incrementLike(Long id);

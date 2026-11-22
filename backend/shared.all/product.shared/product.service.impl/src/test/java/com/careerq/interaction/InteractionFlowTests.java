@@ -11,6 +11,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.Map;
+import com.fasterxml.jackson.databind.JsonNode;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -73,6 +78,53 @@ class InteractionFlowTests {
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "targetType", targetType, "targetId", targetId, "type", type))))
                 .andExpect(status().isOk());
+    }
+
+    private JsonNode feedItem(MockHttpSession session, String sort, long questionId) throws Exception {
+        var request = get("/api/v1/feed/questions").param("sort", sort).param("limit", "50")
+                .param("q", "如何准备后端实习面试");
+        if (session != null) request.session(session);
+        var response = mockMvc.perform(request).andExpect(status().isOk()).andReturn();
+        var items = objectMapper.readTree(response.getResponse().getContentAsString()).path("data").path("items");
+        for (var item : items) if (item.path("id").asLong() == questionId) return item;
+        throw new AssertionError("目标问题未出现在 " + sort + " 列表中");
+    }
+
+    @Test
+    void feedRestoresSavedInteractionsAndIsolatesViewers() throws Exception {
+        String phone = "13978000001";
+        MockHttpSession student = register(phone);
+        MockHttpSession other = register("13978000002");
+        long questionId = createQuestion(student);
+        postInteraction(student, "question", questionId, "like");
+        postInteraction(student, "question", questionId, "favorite");
+        var relogin = mockMvc.perform(post("/api/v1/auth/login").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("phone", phone, "code", "123456"))))
+                .andExpect(status().isOk()).andReturn();
+        student = (MockHttpSession) relogin.getRequest().getSession(false);
+        for (String sort : java.util.List.of("latest", "hot", "recommend")) {
+            var own = feedItem(student, sort, questionId);
+            assertTrue(own.path("viewer").path("liked").asBoolean());
+            assertTrue(own.path("viewer").path("favorited").asBoolean());
+            assertEquals(1, own.path("likeCount").asInt());
+            assertEquals(1, own.path("favoriteCount").asInt());
+            for (MockHttpSession viewer : new MockHttpSession[]{other, null}) {
+                var flags = feedItem(viewer, sort, questionId).path("viewer");
+                assertFalse(flags.isMissingNode());
+                assertFalse(flags.path("liked").asBoolean());
+                assertFalse(flags.path("favorited").asBoolean());
+            }
+        }
+        deleteInteraction(student, "question", questionId, "like");
+        var afterUnlike = feedItem(student, "latest", questionId);
+        assertFalse(afterUnlike.path("viewer").path("liked").asBoolean());
+        assertTrue(afterUnlike.path("viewer").path("favorited").asBoolean());
+        assertEquals(0, afterUnlike.path("likeCount").asInt());
+        deleteInteraction(student, "question", questionId, "favorite");
+        var afterCancel = feedItem(student, "latest", questionId);
+        assertFalse(afterCancel.path("viewer").path("favorited").asBoolean());
+        assertEquals(0, afterCancel.path("favoriteCount").asInt());
     }
 
     @Test

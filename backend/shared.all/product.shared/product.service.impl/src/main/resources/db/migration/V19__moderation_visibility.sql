@@ -1,4 +1,4 @@
--- V11: 审核态（moderation_status）与可见态（visibility）解耦
+-- V19: 审核态（moderation_status）与可见态（visibility）解耦
 -- 说明：questions / answers / followups 不再保留 status，统一由审核态与可见态表达。
 -- 依赖旧 status 的索引会随列删除由数据库自动清理（MySQL 与 H2 行为一致）。
 
@@ -42,12 +42,13 @@ SET moderation_status = CASE status
     END;
 
 UPDATE answers
-SET moderation_status = CASE status
-        WHEN 'published' THEN 'APPROVED'
-        WHEN 'pending_machine' THEN 'L2'
-        WHEN 'pending_human' THEN 'L3'
-        WHEN 'rejected' THEN 'REJECTED'
-        WHEN 'removed' THEN 'APPROVED'
+SET moderation_status = CASE
+        WHEN status = 'removed' AND removal_source = 'author' THEN 'WITHDRAWN'
+        WHEN status = 'published' THEN 'APPROVED'
+        WHEN status = 'pending_machine' THEN 'L2'
+        WHEN status = 'pending_human' THEN 'L3'
+        WHEN status = 'rejected' THEN 'REJECTED'
+        WHEN status = 'removed' THEN 'APPROVED'
         ELSE 'APPROVED'
     END,
     visibility = CASE status
@@ -87,6 +88,7 @@ WHERE q.status = 'removed'
 
 UPDATE answers a SET moderation_status = 'REJECTED'
 WHERE a.status = 'removed'
+  AND (a.removal_source IS NULL OR a.removal_source <> 'author')
   AND EXISTS (SELECT 1 FROM moderation_records r
               WHERE r.target_type = 'answer' AND r.target_id = a.id AND r.decision = 'reject');
 
@@ -127,6 +129,9 @@ DROP INDEX idx_questions_scope_status ON questions;
 DROP INDEX idx_questions_public_created ON questions;
 DROP INDEX idx_answers_question_status ON answers;
 DROP INDEX idx_answers_followup ON answers;
+DROP INDEX idx_followups_hr_status_question ON followups;
+DROP INDEX idx_followups_root_status ON followups;
+DROP INDEX idx_answers_followup_author_status ON answers;
 
 ALTER TABLE questions DROP COLUMN status;
 ALTER TABLE answers DROP COLUMN status;
@@ -140,5 +145,9 @@ CREATE INDEX idx_followups_l3 ON followups (moderation_status, risk_level, creat
 CREATE INDEX idx_questions_visible ON questions (scope, visibility, created_at);
 CREATE INDEX idx_answers_visible ON answers (question_id, visibility, created_at);
 CREATE INDEX idx_followups_visible ON followups (question_id, visibility, created_at);
+
+CREATE INDEX idx_followups_hr_question ON followups (hr_id, question_id, created_at);
+CREATE INDEX idx_answers_followup_author ON answers (followup_id, author_id, question_id);
+CREATE INDEX idx_followups_root ON followups (root_answer_id, id);
 
 CREATE INDEX idx_moderation_operator ON moderation_records (operator_id, stage, created_at);

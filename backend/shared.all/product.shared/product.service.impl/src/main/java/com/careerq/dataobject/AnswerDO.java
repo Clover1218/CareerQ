@@ -1,5 +1,7 @@
 package com.careerq.dataobject;
 
+import com.careerq.moderation.LegacyStatus;
+
 import java.time.LocalDateTime;
 
 public class AnswerDO {
@@ -27,6 +29,12 @@ public class AnswerDO {
     private LocalDateTime moderatedAt;
 
     private int reviewAttempts;
+
+    private String removalSource;
+
+    private Long removedBy;
+
+    private LocalDateTime removedAt;
 
     private int likeCount;
 
@@ -96,6 +104,11 @@ public class AnswerDO {
         this.visibility = visibility;
     }
 
+    /** 兼容旧调用方的聚合状态；真实状态以 moderationStatus 与 visibility 为准。 */
+    public String getStatus() {
+        return LegacyStatus.of(moderationStatus, visibility).value();
+    }
+
     public String getRiskLevel() {
         return riskLevel;
     }
@@ -126,6 +139,30 @@ public class AnswerDO {
 
     public void setReviewAttempts(int reviewAttempts) {
         this.reviewAttempts = reviewAttempts;
+    }
+
+    public String getRemovalSource() {
+        return removalSource;
+    }
+
+    public void setRemovalSource(String removalSource) {
+        this.removalSource = removalSource;
+    }
+
+    public Long getRemovedBy() {
+        return removedBy;
+    }
+
+    public void setRemovedBy(Long removedBy) {
+        this.removedBy = removedBy;
+    }
+
+    public LocalDateTime getRemovedAt() {
+        return removedAt;
+    }
+
+    public void setRemovedAt(LocalDateTime removedAt) {
+        this.removedAt = removedAt;
     }
 
     public int getLikeCount() {

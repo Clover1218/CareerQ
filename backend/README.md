@@ -75,6 +75,10 @@ mvn -f backend/pom.xml -pl shared.all/product.shared/product.service.impl spring
 - Flyway 管理，脚本在 `src/main/resources/db/migration/`。
 - 约定：迁移脚本保持 MySQL 方言中立，确保 H2（MySQL 模式）与 MySQL 8 都能执行。
 - 已有 V1–V9 迁移按原校验内容保留：V8 为公开 Feed 筛选索引，V9 为 HR 回复追问增加关联字段。历史表结构不等于现行功能；不改写已执行迁移，也不自动清除已有数据库数据。
+- V10 为追问绑定目标 HR；V11 为 HR 待回复追问统计添加索引。已执行的迁移均保持原样。
+- V12 建立追问的目标主回答关联；V13 停用仍缺少该关联的记录及其回复，并校正受影响问题的发布数量。当前接口必须传具体回答，不再接受只指定 HR 的追问。
+- V17 新增学生通知表及事件去重索引，并依据现有有效公开回答与非本人点赞补入真实消息；旧迁移保持原样，更新前备份数据库。
+- V18 新建独立 HR 原创帖子与标签关联表，第一阶段只提供本人草稿、列表、提交待审和撤回；不开放历史 posts 表，也不改已有迁移。
 
 ## 当前主要接口
 
@@ -92,7 +96,15 @@ mvn -f backend/pom.xml -pl shared.all/product.shared/product.service.impl spring
 | POST | `/api/v1/questions/{id}/followups/{followupId}/answers` | 回复指定的已发布学生追问（沿用回答审核） | HR |
 | GET | `/api/v1/hr/question-pool` | HR 待回答池（没有已发布或审核中的回答） | HR |
 | GET | `/api/v1/hr/answered-public-questions?cursor=&limit=` | 已回答或回答审核中的公开问题（不区分 HR） | HR |
-| GET | `/api/v1/hr/answered-questions?cursor=&limit=` | 当前 HR 提交过回答的公开问题 | HR |
+| GET | `/api/v1/hr/answered-questions?cursor=&limit=&pendingFollowupsOnly=&cursorAt=` | 本人回答记录、待回复/审核中追问统计；支持待回复筛选与时间游标 | HR |
+| GET/PATCH | `/api/v1/hr/profile` | HR 本人职业资料与编辑，认证状态只读 | HR |
+| GET | `/api/v1/hr/stats` | 已发布主回答、追问回复、获赞、有用统计 | HR |
+| GET | `/api/v1/hr/answers?kind=&status=&cursor=&limit=5` | 本人逐条回答记录、类型与状态筛选，末页游标为空 | HR |
+| GET | `/api/v1/hr/answers/{id}` | 本人单条回答/回复安全记录 | HR |
+| GET | `/api/v1/hr/notifications?category=&unreadOnly=&cursor=&limit=5` | HR 站内通知分类、未读和分页 | HR |
+| GET | `/api/v1/hr/notifications/unread-count` | 当前 HR 真实未读数量 | HR |
+| POST | `/api/v1/hr/notifications/{id}/read` | 幂等标记本人消息已读 | HR |
+| POST | `/api/v1/hr/notifications/read-all` | 按 throughId 快照批量标为已读 | HR |
 | POST | `/api/v1/interactions` | 点赞/收藏/有用 | 登录 |
 | POST | `/api/v1/questions/{id}/followups` | 对公开问题追问 | STUDENT |
 | GET | `/api/v1/questions/{id}/followups` | 获取问题追问 | 公开/问题可见者 |
@@ -106,6 +118,16 @@ mvn -f backend/pom.xml -pl shared.all/product.shared/product.service.impl spring
 | GET | `/api/v1/admin/reports` | 举报队列 | OPERATOR/ADMIN |
 | POST | `/api/v1/admin/reports/{id}/handle` | 处理举报（dismiss/remove） | OPERATOR/ADMIN |
 | GET | `/api/v1/admin/metrics` | 审核/举报计数 | OPERATOR/ADMIN |
+
+回答与追问回复的移除通过 `removalSource` 区分作者撤销（`author`）与运营下架（`operator`）；旧记录来源不明时为 `unknown`。V14 添加内部来源、操作者、时间字段并校正已有回答计数。直接下架与举报下架统一处理，已发布内容仅扣一次，待审/驳回内容不扣，重复处理保留首次来源；公开接口只返回来源，不暴露操作者身份。详见接口契约。
+
+学生追问复用规则审核，返回 `published` / `pending_human` / `rejected`；待审和驳回仅作者可见，待审项进入运营审核队列。只有发布或人工通过后计入公开追问数并通知目标 HR，下架/撤回已发布追问时扣数；待审撤回不扣数、不再允许审核发布。本次不改表结构和已有迁移。
+
+学生注册选填的学校、专业、年级会保存到既有用户资料列，重新登录后仍可读取。学生写请求可携带 `X-CareerQ-Student-Id` 校验页面身份与真实会话是否一致，错号返回 HTTP 409 / code 40902 且不执行写入；该头不替代 Cookie、CSRF、角色与对象归属检查。详见接口契约。
+
+`/feed/questions` 三种排序均附带每条问题的 `viewer` 互动状态，当前页通过一次批量查询读取当前会话的标记，游客全为 false。点赞、收藏及取消继续使用现有互动接口保存，前端刷新后直接恢复已选状态，无需新增数据库迁移。
+
+学生 `/student/notifications` 提供回复、收到的赞、审核与下架消息，以及未读计数、单条和快照批量已读。业务与通知同事务，学生和 HR 的接口及收件箱独立。`/me/favorites` 新增上下文定位字段并在分页前过滤不可见内容。提问草稿在前端按账号保存在本机；详见[学生端功能收尾](../docs/学生端功能收尾-开发说明.md)。
 
 ## 演示数据（demo profile）
 
@@ -146,7 +168,7 @@ OpenAPI 契约：[`../docs/openapi.json`](../docs/openapi.json)（可用 `script
 
 ## 后续开发
 
-HR 原创职业观点帖、真实消息和真实 HR 认证仍待实现；运营页面按审核与举报职责开发。当前接口仅面向公开问题、回答和学生追问，不提供旧内容工作流。模块分工与交付标准见[三人全栈模块开发计划](../docs/三人全栈模块开发计划.md)。
+HR 原创帖子第一阶段已提供 `/api/v1/hr/posts` 本人列表/详情、`POST /drafts`、`PUT /{id}/draft`、提交审核、撤回及删除草稿，带 clientKey 幂等与版本冲突检查。非拦截内容统一待审核，运营审核和公开展示/学生互动在后续阶段接入，见[分阶段说明](../docs/HR原创帖子-分阶段开发.md)。学生和 HR 的站内消息已接入；站外推送、真实认证和独立运营页面继续后置。历史内容工作流不重新开放，模块分工见[三人全栈模块开发计划](../docs/三人全栈模块开发计划.md)。
 
 ## 当前进度
 
