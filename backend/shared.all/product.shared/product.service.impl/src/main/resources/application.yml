@@ -59,6 +59,9 @@ spring:
       path: /h2-console
 
 careerq:
+  moderation:
+    # 未接入 AI 时跳过 L2 调用，按“通过”处理并进入 L3；接入 AI 后改为 false
+    l2-auto-pass: true
   sms:
     dev-mode: true
     dev-code: "123456"
@@ -84,5 +87,8 @@ server:
         secure: true
 
 careerq:
+  moderation:
+    # 生产未接入 AI 前保持自动通过；接入后必须改为 false
+    l2-auto-pass: ${MODERATION_L2_AUTO_PASS:true}
   sms:
     dev-mode: false

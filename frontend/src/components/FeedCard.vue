@@ -16,8 +16,8 @@ import FeedIcon from "./FeedIcon.vue";
 
 const props = defineProps<{
   item: QuestionFeedItem;
-  /** 我的问答列表：问题状态，用于标题右侧状态标签 */
-  status?: string;
+  /** 我的问答列表：派生展示状态，用于标题右侧状态标签 */
+  displayStatus?: string;
   /** 我的问答列表：作者视角，隐藏编辑器并将提问时间常驻 */
   ownerMode?: boolean;
   /** 我的问答列表：是否显示「撤回」操作 */
@@ -151,23 +151,23 @@ const conversations = computed<Conversation[]>(() => {
 });
 
 const STATUS_META: Record<string, { text: string; color: string }> = {
-  published: { text: "已发表", color: "#34C759" },
-  pending_machine: { text: "待审核", color: "#FF383C" },
-  pending_human: { text: "待审核", color: "#FF383C" },
-  rejected: { text: "未通过", color: "var(--color-danger)" },
-  removed: { text: "已撤回", color: "var(--color-text-muted)" },
+  PUBLISHED: { text: "已发表", color: "#34C759" },
+  REVIEWING: { text: "审核中", color: "#FF383C" },
+  REJECTED: { text: "未通过", color: "var(--color-danger)" },
+  REMOVED: { text: "已下架", color: "var(--color-text-muted)" },
+  WITHDRAWN: { text: "已撤回", color: "var(--color-text-muted)" },
 };
 
 const statusMeta = computed(() => {
-  if (!props.status) return null;
-  return STATUS_META[props.status] ?? { text: props.status, color: "var(--color-text-muted)" };
+  if (!props.displayStatus) return null;
+  return STATUS_META[props.displayStatus] ?? { text: props.displayStatus, color: "var(--color-text-muted)" };
 });
 
-// 审核中/未通过的问题不能点赞收藏，按作者视角展示计数但禁用操作
+// 仅作者可见的未公开状态不能点赞收藏，已可见的复审中内容仍可互动
 const interactive = computed(
   () =>
     !props.ownerMode ||
-    !["pending_machine", "pending_human", "rejected", "removed"].includes(props.status ?? ""),
+    !["REJECTED", "REMOVED", "WITHDRAWN"].includes(props.displayStatus ?? ""),
 );
 
 function formatTime(value: string): string {
@@ -238,7 +238,7 @@ async function loadThread() {
           body: answer.body,
           author: answer.author,
           hr: true,
-          status: answer.status,
+          displayStatus: answer.displayStatus,
           likeCount: answer.likeCount,
           liked: answer.liked,
           createdAt: answer.createdAt,
@@ -252,7 +252,7 @@ async function loadThread() {
           body: followup.body,
           author: followup.author,
           hr: followup.hr,
-          status: followup.status,
+          displayStatus: followup.displayStatus,
           likeCount: 0,
           liked: false,
           createdAt: followup.createdAt,

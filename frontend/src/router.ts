@@ -7,6 +7,8 @@ import QuestionDetailView from "./views/QuestionDetailView.vue";
 import AskView from "./views/AskView.vue";
 import MyQaView from "./views/MyQaView.vue";
 import HrWorkspaceView from "./views/HrWorkspaceView.vue";
+import AdminReviewView from "./views/AdminReviewView.vue";
+import AdminReviewWorkspaceView from "./views/AdminReviewWorkspaceView.vue";
 
 export const router = createRouter({
   history: createWebHistory("/careerq/"),
@@ -24,6 +26,18 @@ export const router = createRouter({
     { path: "/me", name: "my-qa", component: MyQaView, meta: { requiresAuth: true } },
     { path: "/ask", component: AskView, meta: { requiresAuth: true, role: "student" } },
     { path: "/hr", name: "hr-workbench", component: HrWorkspaceView, meta: { requiresAuth: true, role: "hr" } },
+    {
+      path: "/admin",
+      name: "admin-review",
+      component: AdminReviewView,
+      meta: { requiresAuth: true, roles: ["operator", "admin"] },
+    },
+    {
+      path: "/admin/workspace",
+      name: "admin-review-workspace",
+      component: AdminReviewWorkspaceView,
+      meta: { requiresAuth: true, roles: ["operator", "admin"] },
+    },
     { path: "/:pathMatch(.*)*", redirect: "/" },
   ],
 });
@@ -43,6 +57,9 @@ router.beforeEach(async (to) => {
     return { path: "/login", query: { redirect: to.fullPath } };
   }
   if (to.meta.role && user.role !== to.meta.role) {
+    return "/";
+  }
+  if (Array.isArray(to.meta.roles) && !(to.meta.roles as string[]).includes(user.role)) {
     return "/";
   }
   return true;

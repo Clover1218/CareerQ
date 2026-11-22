@@ -24,7 +24,7 @@ public final class AnswerDtos {
             Long followupId,
             String body,
             String lengthType,
-            String status,
+            String displayStatus,
             UserBrief author,
             int likeCount,
             int usefulCount,

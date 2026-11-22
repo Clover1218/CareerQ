@@ -16,7 +16,17 @@ public class AnswerDO {
 
     private String lengthType;
 
-    private String status;
+    private String moderationStatus;
+
+    private String visibility;
+
+    private String riskLevel;
+
+    private String moderationReason;
+
+    private LocalDateTime moderatedAt;
+
+    private int reviewAttempts;
 
     private int likeCount;
 
@@ -70,12 +80,52 @@ public class AnswerDO {
         this.lengthType = lengthType;
     }
 
-    public String getStatus() {
-        return status;
+    public String getModerationStatus() {
+        return moderationStatus;
     }
 
-    public void setStatus(String status) {
-        this.status = status;
+    public void setModerationStatus(String moderationStatus) {
+        this.moderationStatus = moderationStatus;
+    }
+
+    public String getVisibility() {
+        return visibility;
+    }
+
+    public void setVisibility(String visibility) {
+        this.visibility = visibility;
+    }
+
+    public String getRiskLevel() {
+        return riskLevel;
+    }
+
+    public void setRiskLevel(String riskLevel) {
+        this.riskLevel = riskLevel;
+    }
+
+    public String getModerationReason() {
+        return moderationReason;
+    }
+
+    public void setModerationReason(String moderationReason) {
+        this.moderationReason = moderationReason;
+    }
+
+    public LocalDateTime getModeratedAt() {
+        return moderatedAt;
+    }
+
+    public void setModeratedAt(LocalDateTime moderatedAt) {
+        this.moderatedAt = moderatedAt;
+    }
+
+    public int getReviewAttempts() {
+        return reviewAttempts;
+    }
+
+    public void setReviewAttempts(int reviewAttempts) {
+        this.reviewAttempts = reviewAttempts;
     }
 
     public int getLikeCount() {

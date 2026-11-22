@@ -93,7 +93,7 @@ class PublicOnlyAccessTests {
                                 "scope", "public"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.scope").value("public"))
-                .andExpect(jsonPath("$.data.status").value("published"));
+                .andExpect(jsonPath("$.data.displayStatus").value("REVIEWING"));
     }
 
     @Test
@@ -122,11 +122,11 @@ class PublicOnlyAccessTests {
                 .andReturn().getResponse().getContentAsString()).path("data").path("id").asLong();
         long hrId = objectMapper.readTree(mockMvc.perform(get("/api/v1/me").session(hr))
                 .andReturn().getResponse().getContentAsString()).path("data").path("id").asLong();
-        jdbc.update("insert into questions (scope, author_id, title, body, status, answer_count, created_at, updated_at) "
-                + "values ('private', ?, 'retired title', 'retired body', 'published', 1, current_timestamp, current_timestamp)", studentId);
+        jdbc.update("insert into questions (scope, author_id, title, body, moderation_status, visibility, risk_level, answer_count, created_at, updated_at) "
+                + "values ('private', ?, 'retired title', 'retired body', 'APPROVED', 'HIDDEN', 'UNRATED', 1, current_timestamp, current_timestamp)", studentId);
         long questionId = jdbc.queryForObject("select id from questions where author_id = ?", Long.class, studentId);
-        jdbc.update("insert into answers (question_id, author_id, body, status, created_at, updated_at) "
-                + "values (?, ?, 'retired answer', 'published', current_timestamp, current_timestamp)", questionId, hrId);
+        jdbc.update("insert into answers (question_id, author_id, body, moderation_status, visibility, risk_level, created_at, updated_at) "
+                + "values (?, ?, 'retired answer', 'APPROVED', 'VISIBLE', 'NORMAL', current_timestamp, current_timestamp)", questionId, hrId);
         long answerId = jdbc.queryForObject("select id from answers where question_id = ?", Long.class, questionId);
         jdbc.update("insert into interactions (user_id, target_type, target_id, type, created_at) "
                 + "values (?, 'question', ?, 'favorite', current_timestamp)", studentId, questionId);

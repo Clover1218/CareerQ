@@ -34,6 +34,7 @@ const ROLE_LABEL: Record<string, string> = {
   admin: "管理员",
 };
 const roleLabel = computed(() => ROLE_LABEL[user.value?.role ?? "student"] ?? "学生");
+const isAdminPage = computed(() => ["admin-review", "admin-review-workspace"].includes(String(route.name)));
 const avatarInitial = computed(() => (user.value?.nickname ?? "学").trim().slice(0, 1));
 // 悬停头像时展示的简要资料（学校 · 专业 · 年级）
 const profileSummary = computed(() =>
@@ -98,6 +99,16 @@ watch(showLogoutConfirm, (open) => {
   document.body.style.overflow = open ? "hidden" : "";
 });
 
+// 后台是独立界面：不留顶栏高度，也不预留页面滚动条
+watch(
+  isAdminPage,
+  (admin) => {
+    document.body.classList.toggle("admin-mode", admin);
+    document.documentElement.classList.toggle("admin-mode", admin);
+  },
+  { immediate: true },
+);
+
 onMounted(() => {
   window.addEventListener("keydown", onKeydown);
 });
@@ -105,6 +116,8 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener("keydown", onKeydown);
   document.body.style.overflow = "";
+  document.body.classList.remove("admin-mode");
+  document.documentElement.classList.remove("admin-mode");
 });
 
 onMounted(refresh);
@@ -118,12 +131,15 @@ watch(() => route.fullPath, refresh);
       <n-dialog-provider>
         <n-notification-provider>
           <n-loading-bar-provider>
-            <header class="topbar">
+            <header v-if="!isAdminPage" class="topbar">
               <div class="brand" @click="router.push('/')">CareerQ</div>
               <nav class="nav">
                 <router-link to="/">公开问答</router-link>
                 <router-link v-if="user?.role === 'student'" to="/me">我的问答</router-link>
                 <router-link v-if="user?.role === 'hr'" to="/hr">HR 工作台</router-link>
+                <router-link v-if="user?.role === 'operator' || user?.role === 'admin'" to="/admin">
+                  管理面板
+                </router-link>
                 <router-link v-if="user?.role === 'student' || !user" to="/ask">提问</router-link>
               </nav>
               <div class="account">
@@ -157,7 +173,7 @@ watch(() => route.fullPath, refresh);
                 </template>
               </div>
             </header>
-            <main :class="['my-qa', 'hr-workbench'].includes(String(route.name)) ? 'wide-shell' : 'container'">
+            <main :class="isAdminPage ? 'admin-shell' : ['my-qa', 'hr-workbench'].includes(String(route.name)) ? 'wide-shell' : 'container'">
               <router-view v-slot="{ Component, route: currentRoute }">
                 <keep-alive include="HrWorkspaceView">
                   <component

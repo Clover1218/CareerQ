@@ -49,7 +49,7 @@ class InteractionFlowTests {
                                 "tags", java.util.List.of("实习"),
                                 "scope", "public"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("published"))
+                .andExpect(jsonPath("$.data.displayStatus").value("REVIEWING"))
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString())
                 .path("data").path("id").asLong();

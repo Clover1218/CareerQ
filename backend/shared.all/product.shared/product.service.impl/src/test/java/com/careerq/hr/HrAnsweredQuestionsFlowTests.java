@@ -78,7 +78,7 @@ class HrAnsweredQuestionsFlowTests {
                                 "tags", List.of("回答记录测试"),
                                 "scope", "public"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("published"))
+                .andExpect(jsonPath("$.data.displayStatus").value("REVIEWING"))
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString()).path("data").path("id").asLong();
     }
@@ -141,7 +141,7 @@ class HrAnsweredQuestionsFlowTests {
                 .andExpect(jsonPath("$.data.items.length()").value(1))
                 .andExpect(jsonPath("$.data.items[0].question.id").value(newerQuestion))
                 .andExpect(jsonPath("$.data.items[0].myAnswer.body").value("这是 HR 对较新问题的回答。"))
-                .andExpect(jsonPath("$.data.items[0].myAnswer.status").value("published"))
+                .andExpect(jsonPath("$.data.items[0].myAnswer.displayStatus").value("REVIEWING"))
                 .andExpect(jsonPath("$.data.items[0].question.followupCount").value(0))
                 .andExpect(jsonPath("$.data.nextCursor").value(newerQuestion));
 
@@ -246,7 +246,7 @@ class HrAnsweredQuestionsFlowTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("body", "请加微信联系我继续沟通。"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("pending_human"))
+                .andExpect(jsonPath("$.data.displayStatus").value("REVIEWING"))
                 .andReturn();
         long pendingReplyId = objectMapper.readTree(pendingReply.getResponse().getContentAsString())
                 .path("data").path("id").asLong();
@@ -254,7 +254,7 @@ class HrAnsweredQuestionsFlowTests {
         mockMvc.perform(get("/api/v1/questions/{id}", questionId).session(hr))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.answers[2].id").value((int) pendingReplyId))
-                .andExpect(jsonPath("$.data.answers[2].status").value("pending_human"));
+                .andExpect(jsonPath("$.data.answers[2].displayStatus").value("REVIEWING"));
         mockMvc.perform(get("/api/v1/questions/{id}", questionId).session(student))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.answers.length()").value(2));
@@ -262,7 +262,7 @@ class HrAnsweredQuestionsFlowTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(4))
                 .andExpect(jsonPath("$.data.items[3].id").value((int) pendingReplyId))
-                .andExpect(jsonPath("$.data.items[3].status").value("pending_human"));
+                .andExpect(jsonPath("$.data.items[3].displayStatus").value("REVIEWING"));
     }
 
     @Test
@@ -289,7 +289,7 @@ class HrAnsweredQuestionsFlowTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("body", "请加微信联系我"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("pending_human"));
+                .andExpect(jsonPath("$.data.displayStatus").value("REVIEWING"));
 
         MvcResult pending = mockMvc.perform(get("/api/v1/hr/question-pool").session(hr).param("limit", "50"))
                 .andExpect(status().isOk())
@@ -310,7 +310,7 @@ class HrAnsweredQuestionsFlowTests {
         mockMvc.perform(get("/api/v1/hr/answered-questions").session(hr).param("limit", "50"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].question.id").value(questionId))
-                .andExpect(jsonPath("$.data.items[0].myAnswer.status").value("pending_human"));
+                .andExpect(jsonPath("$.data.items[0].myAnswer.displayStatus").value("REVIEWING"));
     }
 
     private boolean containsQuestion(JsonNode items, long questionId) {

@@ -14,16 +14,22 @@ import com.careerq.dataobject.AnswerDO;
 import com.careerq.dataobject.FollowupDO;
 import com.careerq.dataobject.HrProfileDO;
 import com.careerq.dataobject.QuestionDO;
+import com.careerq.moderation.DisplayStatus;
+import com.careerq.moderation.ModerationPlan;
 import com.careerq.security.AuthUser;
 import com.careerq.service.AnswerService;
 import com.careerq.service.ModerationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.Set;
+
 @Service
 public class AnswerServiceImpl implements AnswerService {
 
-    private static final String PUBLISHED = "published";
+    private static final String VISIBLE = "VISIBLE";
+    private static final Set<String> ACTIVE_STATUSES = Set.of("L1", "L2", "L3", "APPROVED");
 
     private final AnswerDao answerDao;
     private final FollowupDao followupDao;
@@ -68,7 +74,7 @@ public class AnswerServiceImpl implements AnswerService {
             throw new BusinessException(ErrorCode.INVALID_PARAM, "当前问题不可回答");
         }
         if (followupId != null) {
-            if (!PUBLISHED.equals(question.getStatus())) {
+            if (!VISIBLE.equals(question.getVisibility())) {
                 throw new BusinessException(ErrorCode.CONFLICT, "当前问题不可回复追问");
             }
             FollowupDO followup = followupDao.findByIdForUpdate(followupId)
@@ -76,15 +82,20 @@ public class AnswerServiceImpl implements AnswerService {
             if (!questionId.equals(followup.getQuestionId())
                     || !"student".equals(followup.getSenderRole())
                     || !"public".equals(followup.getScope())
-                    || !PUBLISHED.equals(followup.getStatus())) {
+                    || !VISIBLE.equals(followup.getVisibility())) {
                 throw new BusinessException(ErrorCode.NOT_FOUND, "追问不存在或不可回复");
             }
             if (!hr.getId().equals(followup.getHrId())) {
                 throw new BusinessException(ErrorCode.NOT_FOUND, "只能回复发给自己线程的追问");
             }
-        } else if (!PUBLISHED.equals(question.getStatus())) {
+        } else if (!VISIBLE.equals(question.getVisibility())) {
             throw new BusinessException(ErrorCode.CONFLICT, "问题当前不可回答");
         }
+
+        boolean highFrequency = answerDao.countByAuthorSince(
+                hr.getId(), LocalDateTime.now().minusHours(1)) >= 10;
+        ModerationPlan plan = moderationService.evaluate("answer", null, request.body(),
+                question.getTitle(), hr.getRole(), highFrequency);
 
         AnswerDO answer = new AnswerDO();
         answer.setQuestionId(questionId);
@@ -92,13 +103,15 @@ public class AnswerServiceImpl implements AnswerService {
         answer.setAuthorId(hr.getId());
         answer.setBody(request.body());
         answer.setLengthType(normalizeLengthType(request.lengthType()));
-        answer.setStatus(moderationService.decide(request.body()));
+        answer.setModerationStatus(plan.moderationStatus().name());
+        answer.setVisibility(plan.visibility().name());
+        answer.setRiskLevel(plan.riskLevel().name());
+        answer.setModerationReason(plan.reason());
+        answer.setModeratedAt(LocalDateTime.now());
         answerDao.insert(answer);
-        if (!PUBLISHED.equals(answer.getStatus())) {
-            moderationService.recordMachine("answer", answer.getId(), answer.getStatus());
-        }
+        moderationService.recordPlan("answer", answer.getId(), plan);
 
-        if (PUBLISHED.equals(answer.getStatus())) {
+        if (VISIBLE.equals(answer.getVisibility())) {
             questionDao.recordAnswer(questionId);
         }
         return toView(answer);
@@ -112,18 +125,20 @@ public class AnswerServiceImpl implements AnswerService {
         if (!author.getId().equals(answer.getAuthorId())) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "只能撤销自己的回答");
         }
-        if ("removed".equals(answer.getStatus())) {
+        if ("WITHDRAWN".equals(answer.getModerationStatus())) {
             throw new BusinessException(ErrorCode.CONFLICT, "回答已撤销");
         }
-        if (!java.util.Set.of("published", "pending_human", "pending_machine").contains(answer.getStatus())) {
+        if (!ACTIVE_STATUSES.contains(answer.getModerationStatus())
+                || !Set.of("VISIBLE", "HIDDEN").contains(answer.getVisibility())) {
             throw new BusinessException(ErrorCode.CONFLICT, "当前状态不可撤销");
         }
-        boolean published = PUBLISHED.equals(answer.getStatus());
-        answerDao.updateStatus(answerId, "removed");
-        if (published) {
+        boolean visible = VISIBLE.equals(answer.getVisibility());
+        answerDao.withdraw(answerId);
+        if (visible) {
             questionDao.decrementAnswer(answer.getQuestionId());
         }
-        answer.setStatus("removed");
+        answer.setModerationStatus("WITHDRAWN");
+        answer.setVisibility("REMOVED");
         return toView(answer);
     }
 
@@ -134,7 +149,7 @@ public class AnswerServiceImpl implements AnswerService {
                 answer.getFollowupId(),
                 answer.getBody(),
                 answer.getLengthType(),
-                answer.getStatus(),
+                DisplayStatus.of(answer.getModerationStatus(), answer.getVisibility()).name(),
                 authorOf(answer.getAuthorId()),
                 answer.getLikeCount(),
                 answer.getUsefulCount(),

@@ -66,7 +66,7 @@ function mapAnsweredQuestion(entry: HrAnsweredQuestion): WorkItem {
   return {
     ...mapQuestion(entry.question),
     myAnswer: entry.myAnswer,
-    hasPendingAnswer: entry.myAnswer.status === "pending_human" || entry.myAnswer.status === "pending_machine",
+    hasPendingAnswer: entry.myAnswer.displayStatus === "REVIEWING",
   };
 }
 
@@ -143,11 +143,11 @@ function formatTime(value: string) {
 
 function answerStatus(status: string) {
   const labels: Record<string, string> = {
-    published: "已发布",
-    pending_machine: "审核中",
-    pending_human: "审核中",
-    rejected: "未通过",
-    removed: "已下架",
+    PUBLISHED: "已发布",
+    REVIEWING: "审核中",
+    REJECTED: "未通过",
+    REMOVED: "已下架",
+    WITHDRAWN: "已撤回",
   };
   return labels[status] ?? status;
 }
@@ -244,8 +244,8 @@ onActivated(async () => {
           <div v-if="item.myAnswer" class="my-answer-preview">
             <div class="my-answer-heading">
               <strong>{{ item.myAnswer.followupId == null ? '我的回答' : '我对追问的回复' }}</strong>
-              <span class="answer-status" :class="`answer-${item.myAnswer.status}`">
-                {{ answerStatus(item.myAnswer.status) }}
+              <span class="answer-status" :class="`answer-${item.myAnswer.displayStatus}`">
+                {{ answerStatus(item.myAnswer.displayStatus) }}
               </span>
             </div>
             <p>{{ item.myAnswer.body }}</p>

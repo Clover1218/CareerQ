@@ -1,6 +1,7 @@
 package com.careerq.service.impl;
 
 import com.careerq.dao.UserDao;
+import com.careerq.dao.UserPermissionDao;
 import com.careerq.dataobject.UserDO;
 import com.careerq.security.AuthUser;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -16,15 +17,18 @@ import org.springframework.stereotype.Service;
 public class CareerQUserDetailsServiceImpl implements UserDetailsService {
 
     private final UserDao userDao;
+    private final UserPermissionDao userPermissionDao;
 
-    public CareerQUserDetailsServiceImpl(UserDao userDao) {
+    public CareerQUserDetailsServiceImpl(UserDao userDao, UserPermissionDao userPermissionDao) {
         this.userDao = userDao;
+        this.userPermissionDao = userPermissionDao;
     }
 
     @Override
     public UserDetails loadUserByUsername(String phoneHash) throws UsernameNotFoundException {
         UserDO user = userDao.findByPhoneHash(phoneHash)
                 .orElseThrow(() -> new UsernameNotFoundException("user not found"));
-        return AuthUser.of(user.getId(), user.getRole(), user.getNickname(), user.getPhoneHash());
+        return AuthUser.of(user.getId(), user.getRole(), user.getNickname(), user.getPhoneHash(),
+                userPermissionDao.findPermissions(user.getId()));
     }
 }

@@ -149,13 +149,13 @@ public class InteractionServiceImpl implements InteractionService {
         Long questionId = targetId;
         if ("answer".equals(targetType)) {
             AnswerDO answer = answerDao.findById(targetId)
-                    .filter(item -> "published".equals(item.getStatus()))
+                    .filter(item -> "VISIBLE".equals(item.getVisibility()))
                     .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "回答不存在"));
             questionId = answer.getQuestionId();
         }
         QuestionDO question = questionDao.findById(questionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
-        if (!"public".equals(question.getScope()) || !"published".equals(question.getStatus())) {
+        if (!"public".equals(question.getScope()) || !"VISIBLE".equals(question.getVisibility())) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "互动目标不存在");
         }
     }

@@ -98,7 +98,7 @@ class MeFlowTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1))
                 .andExpect(jsonPath("$.data.items[0].id").value(publicId))
-                .andExpect(jsonPath("$.data.items[0].status").value("published"))
+                .andExpect(jsonPath("$.data.items[0].displayStatus").value("REVIEWING"))
                 .andExpect(jsonPath("$.data.items[0].body").value("公开问题正文"));
 
         mockMvc.perform(get("/api/v1/me/questions").session(student).param("scope", "public"))
@@ -122,7 +122,7 @@ class MeFlowTests {
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "body", "这是一条用于统计的回答。", "lengthType", "detailed"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("published"))
+                .andExpect(jsonPath("$.data.displayStatus").value("REVIEWING"))
                 .andReturn();
         long answerId = objectMapper.readTree(answerResult.getResponse().getContentAsString())
                 .path("data").path("id").asLong();
@@ -164,7 +164,7 @@ class MeFlowTests {
 
         mockMvc.perform(get("/api/v1/questions/{id}", questionId).session(author))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.question.status").value("pending_human"))
+                .andExpect(jsonPath("$.data.question.displayStatus").value("REVIEWING"))
                 .andExpect(jsonPath("$.data.question.body").value("正文包含加微信，进入人工审核。"));
 
         MockHttpSession stranger = login("13800000905");

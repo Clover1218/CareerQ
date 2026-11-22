@@ -116,7 +116,7 @@ mvn -f backend/pom.xml install -DskipTests
 mvn -f backend/pom.xml -pl shared.all/product.shared/product.service.impl spring-boot:run
 ```
 
-演示账号（dev 验证码固定 `123456`）：学生 `13800000001`、HR `13800000002`、运营 `13800000003`。
+演示账号（dev 验证码固定 `123456`）：学生 `13800000001`、HR `13800000002`、运营 `13800000003`、运营 `13800000008`、仲裁运营 `13800000007`。
 数据仅在库为空时写入，重复启动不会重复插入。
 
 ## 冒烟测试

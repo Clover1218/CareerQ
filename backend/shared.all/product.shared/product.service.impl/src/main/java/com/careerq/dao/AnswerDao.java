@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -14,11 +15,11 @@ public interface AnswerDao {
 
     @Insert("""
             insert into answers (
-                question_id, followup_id, author_id, body, length_type, status, like_count, useful_count, created_at,
-                updated_at
+                question_id, followup_id, author_id, body, length_type, moderation_status, visibility,
+                risk_level, moderation_reason, moderated_at, like_count, useful_count, created_at, updated_at
             ) values (
-                #{questionId}, #{followupId}, #{authorId}, #{body}, #{lengthType}, #{status}, #{likeCount},
-                #{usefulCount}, #{createdAt}, #{updatedAt}
+                #{questionId}, #{followupId}, #{authorId}, #{body}, #{lengthType}, #{moderationStatus}, #{visibility},
+                #{riskLevel}, #{moderationReason}, #{moderatedAt}, #{likeCount}, #{usefulCount}, #{createdAt}, #{updatedAt}
             )
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id")
@@ -33,14 +34,33 @@ public interface AnswerDao {
     @Select("select a.* from answers a where a.id = #{id} and exists (select 1 from questions q where q.id = a.question_id and q.scope = 'public') for update")
     Optional<AnswerDO> findByIdForUpdate(Long id);
 
-    @Select("select a.* from answers a where a.status = #{status} and exists (select 1 from questions q where q.id = a.question_id and q.scope = 'public') order by a.id")
-    List<AnswerDO> findByStatusOrderByIdAsc(String status);
+    @Select("select count(*) from answers a where a.moderation_status = #{status} and exists (select 1 from questions q where q.id = a.question_id and q.scope = 'public')")
+    long countByModerationStatus(String status);
 
-    @Select("select count(*) from answers a where a.status = #{status} and exists (select 1 from questions q where q.id = a.question_id and q.scope = 'public')")
-    long countByStatus(String status);
+    @Select("select count(*) from answers a where a.visibility = #{visibility} and exists (select 1 from questions q where q.id = a.question_id and q.scope = 'public')")
+    long countByVisibility(String visibility);
 
-    @Select("select count(*) from answers a where a.author_id = #{authorId} and a.status = 'published' and exists (select 1 from questions q where q.id = a.question_id and q.scope = 'public')")
-    long countPublishedByAuthor(Long authorId);
+    @Select("""
+            select count(*) from answers a
+            where a.moderation_status = #{status} and a.visibility = #{visibility}
+              and exists (select 1 from questions q where q.id = a.question_id and q.scope = 'public')
+            """)
+    long countByModerationStatusAndVisibility(@Param("status") String status,
+                                              @Param("visibility") String visibility);
+
+    @Select("""
+            select a.* from answers a
+            where a.moderation_status = 'L3'
+              and exists (select 1 from questions q where q.id = a.question_id and q.scope = 'public')
+            order by a.id
+            """)
+    List<AnswerDO> findPending();
+
+    @Select("select count(*) from answers where author_id = #{authorId} and created_at >= #{since}")
+    long countByAuthorSince(@Param("authorId") Long authorId, @Param("since") LocalDateTime since);
+
+    @Select("select count(*) from answers a where a.author_id = #{authorId} and a.visibility = 'VISIBLE' and exists (select 1 from questions q where q.id = a.question_id and q.scope = 'public')")
+    long countVisibleByAuthor(Long authorId);
 
     @Select("""
             <script>
@@ -60,31 +80,97 @@ public interface AnswerDao {
     List<AnswerDO> findLatestByAuthorAndQuestionIds(@Param("authorId") Long authorId,
                                                     @Param("questionIds") List<Long> questionIds);
 
-    @Select("select * from answers where question_id = #{questionId} and status = #{status} order by id")
-    List<AnswerDO> findByQuestionIdAndStatusOrderByIdAsc(@Param("questionId") Long questionId,
-                                                        @Param("status") String status);
-
     @Select("""
+            <script>
             select * from answers where question_id = #{questionId}
-            and (status = 'published' or author_id = #{authorId} and status in ('pending_human', 'rejected'))
+            and (
+                visibility = 'VISIBLE'
+                or (#{authorId} is not null and author_id = #{authorId} and visibility in ('HIDDEN', 'REMOVED'))
+                or #{operator} = true
+            )
             order by id
+            </script>
             """)
-    List<AnswerDO> findVisible(@Param("questionId") Long questionId, @Param("authorId") Long authorId);
+    List<AnswerDO> findVisible(@Param("questionId") Long questionId,
+                               @Param("authorId") Long authorId,
+                               @Param("operator") boolean operator);
 
-    @Select("select exists (select 1 from answers where question_id = #{questionId} and status = 'pending_human')")
-    boolean hasPending(Long questionId);
+    @Select("select exists (select 1 from answers where question_id = #{questionId} and moderation_status in ('L1', 'L2', 'L3'))")
+    boolean hasInProgress(Long questionId);
 
     @Select("""
             select exists (
                 select 1 from answers
                 where question_id = #{questionId} and author_id = #{authorId}
-                  and followup_id is null and status = 'published'
+                  and followup_id is null and visibility = 'VISIBLE'
             )
             """)
-    boolean hasPublishedRootAnswer(@Param("questionId") Long questionId, @Param("authorId") Long authorId);
+    boolean hasVisibleRootAnswer(@Param("questionId") Long questionId, @Param("authorId") Long authorId);
 
-    @Update("update answers set status = #{status}, updated_at = current_timestamp where id = #{id}")
-    int updateStatus(@Param("id") Long id, @Param("status") String status);
+    @Update("""
+            update answers set moderation_status = #{moderationStatus}, visibility = #{visibility},
+                risk_level = #{riskLevel}, moderation_reason = #{reason}, moderated_at = current_timestamp,
+                updated_at = current_timestamp
+            where id = #{id}
+            """)
+    int updateModeration(@Param("id") Long id,
+                         @Param("moderationStatus") String moderationStatus,
+                         @Param("visibility") String visibility,
+                         @Param("riskLevel") String riskLevel,
+                         @Param("reason") String reason);
+
+    @Update("""
+            <script>
+            update answers set moderation_status = #{toStatus}, visibility = #{visibility},
+                risk_level = #{riskLevel}, moderation_reason = #{reason}, moderated_at = current_timestamp,
+                review_attempts = review_attempts + 1, updated_at = current_timestamp
+            where id = #{id} and moderation_status in
+            <foreach collection="expected" item="item" open="(" separator="," close=")">#{item}</foreach>
+            </script>
+            """)
+    int updateModerationIfStatusIn(@Param("id") Long id,
+                                   @Param("expected") List<String> expected,
+                                   @Param("toStatus") String toStatus,
+                                   @Param("visibility") String visibility,
+                                   @Param("riskLevel") String riskLevel,
+                                   @Param("reason") String reason);
+
+    @Update("""
+            <script>
+            update answers set visibility = #{visibility}, moderation_reason = #{reason},
+                moderated_at = current_timestamp, updated_at = current_timestamp
+            where id = #{id} and moderation_status in
+            <foreach collection="expectedStatus" item="item" open="(" separator="," close=")">#{item}</foreach>
+              and visibility in
+            <foreach collection="expectedVisibility" item="item" open="(" separator="," close=")">#{item}</foreach>
+            </script>
+            """)
+    int updateVisibilityIf(@Param("id") Long id,
+                           @Param("expectedStatus") List<String> expectedStatus,
+                           @Param("expectedVisibility") List<String> expectedVisibility,
+                           @Param("visibility") String visibility,
+                           @Param("reason") String reason);
+
+    @Update("""
+            update answers set moderation_status = 'L3', visibility = 'HIDDEN',
+                moderation_reason = #{reason}, moderated_at = current_timestamp, updated_at = current_timestamp
+            where id = #{id} and moderation_status in ('APPROVED', 'REJECTED')
+            """)
+    int undoModerationIf(@Param("id") Long id, @Param("reason") String reason);
+
+    @Select("""
+            select count(*) from answers a
+            where a.moderation_status = 'L3' and a.review_attempts >= 2
+              and exists (select 1 from questions q where q.id = a.question_id and q.scope = 'public')
+            """)
+    long countArbitration();
+
+    @Update("""
+            update answers set moderation_status = 'WITHDRAWN', visibility = 'REMOVED',
+                moderated_at = current_timestamp, updated_at = current_timestamp
+            where id = #{id} and visibility in ('VISIBLE', 'HIDDEN')
+            """)
+    int withdraw(Long id);
 
     @Update("update answers set like_count = like_count + 1, updated_at = current_timestamp where id = #{id}")
     int incrementLike(Long id);

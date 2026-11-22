@@ -4,6 +4,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+import java.util.List;
+
 /**
  * 认证相关请求/响应 DTO。
  */
@@ -53,7 +55,8 @@ public final class AuthDtos {
             String avatarUrl,
             String school,
             String major,
-            String grade) {
+            String grade,
+            List<String> permissions) {
     }
 
     public record LoginResult(UserView user) {

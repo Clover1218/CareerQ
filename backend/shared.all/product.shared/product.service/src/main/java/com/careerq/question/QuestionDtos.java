@@ -28,7 +28,7 @@ public final class QuestionDtos {
     public record QuestionView(
             Long id,
             String scope,
-            String status,
+            String displayStatus,
             String title,
             String body,
             List<String> tags,
@@ -47,7 +47,7 @@ public final class QuestionDtos {
             Long followupId,
             String body,
             String lengthType,
-            String status,
+            String displayStatus,
             LocalDateTime createdAt) {
     }
 
@@ -116,7 +116,7 @@ public final class QuestionDtos {
             String body,
             UserBrief author,
             boolean hr,
-            String status,
+            String displayStatus,
             int likeCount,
             boolean liked,
             LocalDateTime createdAt) {

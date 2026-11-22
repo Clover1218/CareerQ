@@ -110,12 +110,12 @@ class ReplyWithdrawFlowTests {
 
         mockMvc.perform(post("/api/v1/answers/{id}/withdraw", answerId).session(hr).with(csrf()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("removed"));
+                .andExpect(jsonPath("$.data.displayStatus").value("WITHDRAWN"));
 
         mockMvc.perform(post("/api/v1/questions/{qid}/followups/{fid}/withdraw", questionId, followupId)
                         .session(student).with(csrf()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("removed"));
+                .andExpect(jsonPath("$.data.displayStatus").value("WITHDRAWN"));
     }
 
     @Test

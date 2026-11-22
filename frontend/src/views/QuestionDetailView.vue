@@ -23,14 +23,17 @@ const answerFormRef = ref<HTMLElement | null>(null);
 const questionId = Number(route.params.id);
 const openedFromHr = computed(() => route.query.from === "hr");
 const hrFollowups = computed(() => detail.value?.followups.filter(
-  (followup) => followup.senderRole === "student" && followup.status === "published",
+  (followup) => followup.senderRole === "student" && followup.displayStatus !== "REJECTED"
+    && followup.displayStatus !== "WITHDRAWN" && followup.displayStatus !== "REMOVED",
 ) ?? []);
 const mainAnswers = computed(() => detail.value?.answers.filter((answer) => answer.followupId == null) ?? []);
 // 追问必须指定一位已回答主问题的 HR
 const hrTargets = computed(() => {
   const targets = new Map<number, string>();
   for (const answer of mainAnswers.value) {
-    if (answer.status === "published") targets.set(answer.author.id, answer.author.nickname);
+    if (!["REJECTED", "REMOVED", "WITHDRAWN"].includes(answer.displayStatus)) {
+      targets.set(answer.author.id, answer.author.nickname);
+    }
   }
   return [...targets].map(([id, nickname]) => ({ id, nickname }));
 });
@@ -114,9 +117,9 @@ async function submitAnswer() {
     }
     answerBody.value = "";
     await load();
-    answerNotice.value = submittedAnswer.status === "published"
+    answerNotice.value = submittedAnswer.displayStatus === "PUBLISHED"
       ? "回复已发布。"
-      : "回复已提交，正在等待审核。";
+      : "回复已提交，正在等待复核。";
   } catch (e: any) {
     answerError.value = e.message;
   } finally {
@@ -149,8 +152,11 @@ async function markUseful(answerId: number) {
 }
 
 const reviewStatus: Record<string, string> = {
-  pending_human: "待审核",
-  rejected: "审核未通过",
+  REVIEWING: "审核中",
+  PUBLISHED: "已发布",
+  REJECTED: "审核未通过",
+  REMOVED: "已下架",
+  WITHDRAWN: "已撤回",
 };
 
 onMounted(load);
@@ -168,7 +174,7 @@ onMounted(load);
     </div>
     <div class="row" style="margin: 8px 0">
       <span class="tag">公开</span>
-      <span class="tag">{{ reviewStatus[detail.question.status] ?? detail.question.status }}</span>
+      <span class="tag">{{ reviewStatus[detail.question.displayStatus] ?? detail.question.displayStatus }}</span>
       <span v-for="t in detail.question.tags" :key="t" class="tag">{{ t }}</span>
       <span class="muted">{{ detail.question.author.nickname }}</span>
     </div>
@@ -185,8 +191,8 @@ onMounted(load);
         <span>{{ a.lengthType === "one_liner" ? "一句话建议" : "详细经验" }}</span>
       </div>
       <p class="question-body">{{ a.body }}</p>
-      <span v-if="a.status !== 'published'" class="tag">{{ reviewStatus[a.status] }}</span>
-      <button v-if="me && a.status === 'published'" @click="markUseful(a.id)">有用（{{ a.usefulCount }}）</button>
+      <span v-if="a.displayStatus !== 'PUBLISHED'" class="tag">{{ reviewStatus[a.displayStatus] }}</span>
+      <button v-if="me && !['REJECTED', 'REMOVED', 'WITHDRAWN'].includes(a.displayStatus)" @click="markUseful(a.id)">有用（{{ a.usefulCount }}）</button>
     </div>
   </div>
 
@@ -196,9 +202,9 @@ onMounted(load);
     <div v-for="f in detail.followups" :key="f.id" class="followup-thread">
       <div class="followup">
         <strong>{{ f.senderRole === "hr" ? "HR" : "学生" }}：</strong>{{ f.body }}
-        <span v-if="f.status !== 'published'" class="tag">{{ reviewStatus[f.status] }}</span>
+        <span v-if="f.displayStatus !== 'PUBLISHED'" class="tag">{{ reviewStatus[f.displayStatus] }}</span>
         <button
-          v-if="me?.role === 'hr' && detail.question.scope === 'public' && f.senderRole === 'student' && f.status === 'published'"
+          v-if="me?.role === 'hr' && detail.question.scope === 'public' && f.senderRole === 'student' && !['REJECTED', 'REMOVED', 'WITHDRAWN'].includes(f.displayStatus)"
           type="button"
           class="link muted"
           @click="selectFollowup(f.id)"
@@ -213,8 +219,8 @@ onMounted(load);
           <span>{{ reply.lengthType === "one_liner" ? "一句话建议" : "详细经验" }}</span>
         </div>
         <p class="question-body">{{ reply.body }}</p>
-        <span v-if="reply.status !== 'published'" class="tag">{{ reviewStatus[reply.status] }}</span>
-        <button v-if="me && reply.status === 'published'" @click="markUseful(reply.id)">
+        <span v-if="reply.displayStatus !== 'PUBLISHED'" class="tag">{{ reviewStatus[reply.displayStatus] }}</span>
+        <button v-if="me && !['REJECTED', 'REMOVED', 'WITHDRAWN'].includes(reply.displayStatus)" @click="markUseful(reply.id)">
           有用（{{ reply.usefulCount }}）
         </button>
       </div>

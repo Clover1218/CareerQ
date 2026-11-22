@@ -44,6 +44,10 @@ export const useUserStore = defineStore("user", () => {
 
   const role = computed(() => user.value?.role ?? null);
 
+  const canArbitrate = computed(
+    () => role.value === "admin" || (user.value?.permissions ?? []).includes("arbitrate"),
+  );
+
   const isAuthenticated = computed(() => user.value !== null);
   const nickname = computed(() => user.value?.nickname ?? anonymousName.value);
 
@@ -90,6 +94,7 @@ export const useUserStore = defineStore("user", () => {
     user,
     userId,
     role,
+    canArbitrate,
     isAuthenticated,
     anonymousName,
     nickname,
