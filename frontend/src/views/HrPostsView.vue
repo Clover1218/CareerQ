@@ -76,7 +76,6 @@ onMounted(load);
 
 <template>
   <section class="hr-post-page">
-    <div class="post-breadcrumb"><router-link to="/hr/profile">← HR 个人中心</router-link><router-link to="/hr">前往工作台 ↗</router-link></div>
     <header class="post-page-heading"><div><p class="post-eyebrow">HR 分享 · 创作管理</p><h1>我的帖子</h1><p>把招聘经验与职业思考，整理成一篇自己的分享。</p></div><button type="button" class="post-primary" @click="create">＋ 写一篇分享</button></header>
     <p class="post-stage-note">草稿仅本人可见。帖子审核通过后会出现在「HR 分享」。</p>
     <nav class="post-filters" aria-label="帖子状态"><button v-for="filter in filters" :key="filter.value" type="button" :class="{ active: status === filter.value }" :aria-pressed="status === filter.value" :disabled="busy" @click="navigate(filter.value)">{{ filter.label }}</button><button type="button" :disabled="busy" @click="load">刷新</button></nav>

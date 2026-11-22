@@ -43,8 +43,16 @@
   color: inherit;
 }
 
-.hr-share-card:hover {
+.hr-share-card:is(:hover, :focus-within) {
   border-color: var(--color-brand-border);
+}
+
+.hr-share-card > a:is(:hover, :focus-visible) {
+  background: var(--color-bg-feed);
+}
+
+.hr-share-card > a:active {
+  background: var(--color-brand-soft);
 }
 
 .hr-share-card h2 {
@@ -55,7 +63,7 @@
   overflow-wrap: anywhere;
 }
 
-.hr-share-card a:hover h2 {
+.hr-share-card a:is(:hover, :focus-visible) h2 {
   color: var(--color-brand-dark);
 }
 
@@ -117,7 +125,21 @@
   font-weight: 600;
 }
 
-.hr-share-read { margin-left: auto; }
+.hr-share-read {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hr-share-card { transition: border-color 150ms ease, translate 100ms ease; }
+  .hr-share-card > a { transition: background-color 150ms ease; }
+  .hr-share-arrow { transition: translate 160ms ease; }
+
+  .hr-share-card a:is(:hover, :focus-visible) .hr-share-arrow { translate: 3px 0; }
+  .hr-share-card:active { translate: 0 1px; }
+}
 
 .hr-share-back {
   display: inline-block;

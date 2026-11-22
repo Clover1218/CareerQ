@@ -24,6 +24,8 @@ const focusedRecord = ref<HrAnswerRecord | null>(null);
 const focusedError = ref("");
 const focusedLoading = ref(false);
 const focusedMode = computed(() => typeof route.query.answer === "string");
+const fromMessages = computed(() => route.query.from === "hr-messages");
+const showAnswers = computed(() => focusedMode.value || route.query.tab === "answers" || route.hash === "#my-answers");
 const visibleRecords = computed(() => focusedMode.value ? focusedRecord.value ? [focusedRecord.value] : [] : records.value);
 let focusSequence = 0;
 const kind = ref<HrAnswerKind>("all");
@@ -35,12 +37,6 @@ const pageNumber = computed(() => cursors.value.length);
 const displayName = computed(() => profile.value?.nickname ?? userStore.user?.nickname ?? "HR 答主");
 const avatarUrl = computed(() => profile.value?.avatarUrl ?? userStore.user?.avatarUrl);
 const verification = computed(() => ({ approved: "认证通过（演示）", verified: "认证通过（演示）", pending: "认证待完善", rejected: "认证未通过" }[profile.value?.verifyStatus ?? "pending"] ?? "认证待完善"));
-const profileComplete = computed(() => {
-  const p = profile.value;
-  return !!p
-    && [p.nickname, p.companyDisplay, p.industry, p.position, p.bio].every(value => !!value?.trim())
-    && p.specialties.some(value => !!value.trim());
-});
 const statCards = computed(() => [
   { label: "主回答", value: stats.value?.rootAnswerCount },
   { label: "追问回复", value: stats.value?.followupReplyCount },
@@ -116,6 +112,13 @@ function returnToMessages() {
   if (typeof window.history.state?.back === "string" && window.history.state.back.startsWith("/hr/messages")) router.back();
   else void router.push("/hr/messages");
 }
+function selectSection(section: "profile" | "answers") {
+  if (showAnswers.value === (section === "answers")) return;
+  void router.push({ name: "hr-profile", query: section === "answers" ? { tab: "answers" } : {} });
+}
+function showAllRecords() {
+  void router.replace({ name: "hr-profile", query: { tab: "answers", from: fromMessages.value ? "hr-messages" : undefined } });
+}
 async function nextPage() {
   if (loading.value || nextCursor.value == null) return;
   const cursor = nextCursor.value;
@@ -144,12 +147,7 @@ function toggleExpanded(id: number) {
   expandedIds.value = expandedIds.value.includes(id) ? expandedIds.value.filter(value => value !== id) : [...expandedIds.value, id];
 }
 function formatTime(time: string) { return time.replace("T", " ").slice(0, 16); }
-async function scrollToRecords() {
-  await nextTick();
-  document.getElementById("my-answers")?.scrollIntoView({ block: "start", behavior: "smooth" });
-}
-watch(() => route.hash, hash => { if (hash === "#my-answers") void scrollToRecords(); });
-onMounted(async () => { await loadAll(); if (route.hash === "#my-answers") await scrollToRecords(); });
+onMounted(loadAll);
 onActivated(async () => {
   if (!activated) { activated = true; return; }
   await loadAll();
@@ -158,7 +156,7 @@ onActivated(async () => {
     await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
     window.scrollTo(0, returnScroll);
     returnScroll = null;
-  } else if (route.hash === "#my-answers") await scrollToRecords();
+  }
 });
 
 const editing = ref(false);
@@ -212,75 +210,82 @@ async function uploadAvatar(event: Event) {
 
 <template>
   <section class="hr-personal">
-    <div class="page-intro"><button v-if="route.query.from === 'hr-messages'" type="button" class="return-messages" @click="returnToMessages">← 返回消息中心</button><span v-else>我的个人中心</span><span><router-link to="/hr/posts">我的帖子 ↗</router-link> · <router-link to="/hr">前往 HR 工作台 ↗</router-link></span></div>
-    <header class="identity-card">
-      <button class="profile-avatar" type="button" :disabled="uploading" aria-label="更换头像" @click="avatarInput?.click()">
-        <img v-if="avatarUrl" :src="avatarUrl" alt="" /><span v-else>{{ displayName.trim().slice(0, 1) }}</span>
-        <span class="avatar-edit">{{ uploading ? '上传中' : '更换头像' }}</span>
-      </button>
-      <input ref="avatarInput" type="file" accept="image/png,image/jpeg,image/webp" hidden @change="uploadAvatar" />
-      <div class="identity-copy">
-        <div class="identity-title"><h1>{{ displayName }}</h1><span class="hr-badge">HR 答主</span></div>
-        <p class="career-line">{{ [profile?.industry, profile?.position, profile?.companyDisplay].filter(Boolean).join(' · ') || '完善职业资料，让你的经验被更好地理解。' }}</p>
-        <p class="profile-bio">{{ profile?.bio || '分享招聘经验，认真回答每一个职业困惑。' }}</p>
-      </div>
-      <button type="button" class="edit-profile" :disabled="!profile" @click="editProfile">编辑资料</button>
+    <header class="page-intro">
+      <button v-if="fromMessages" type="button" class="return-messages" @click="returnToMessages">← 返回消息中心</button>
+      <h1>个人中心</h1>
     </header>
-    <p v-if="profileError" class="inline-error" role="alert">{{ profileError }} <button @click="loadProfile">重试</button></p>
-    <div class="contribution-stats" aria-label="我的贡献统计">
-      <div v-for="stat in statCards" :key="stat.label" class="stat-card"><strong>{{ stat.value ?? '—' }}</strong><span>{{ stat.label }}</span></div>
-    </div>
-    <p class="stats-caption">统计当前公开可见、已发布的回答与回复。</p>
-    <p v-if="statsError" class="inline-error" role="alert">{{ statsError }} <button @click="loadStats">重试</button></p>
 
-    <div class="personal-layout">
-      <section id="my-answers" class="answer-records">
-        <div class="section-title"><div><h2>我的回答</h2><p>每一次分享，都记录在这里。</p></div><span class="small-label">每页 5 条</span></div>
-        <div v-if="focusedMode" class="focused-record-banner"><span>正在查看通知对应的回答记录</span><button type="button" @click="router.replace('/hr/profile')">查看全部记录</button></div>
-        <p v-if="focusedError" class="inline-error" role="alert">{{ focusedError }} <button type="button" @click="loadFocusedRecord">重试</button></p>
-        <div v-if="!focusedMode" class="record-filters">
-          <div class="record-tabs" role="group" aria-label="回答类型"><button v-for="option in kindOptions" :key="option.value" type="button" :class="{ active: kind === option.value }" :aria-pressed="kind === option.value" @click="kind = option.value">{{ option.label }}</button></div>
-          <label class="status-filter"><span class="sr-only">回答状态</span><select v-model="status" aria-label="回答状态"><option value="all">全部状态</option><option value="published">已发布</option><option value="reviewing">审核中</option><option value="rejected">未通过</option><option value="withdrawn">作者已撤销</option><option value="downlisted">运营已下架</option><option value="removed">全部已移除</option></select></label>
-        </div>
-        <p v-if="listError" class="inline-error" role="alert">{{ listError }} <button @click="loadRecords(cursors.at(-1) ?? null)">重试</button></p>
-        <div class="record-list" :aria-busy="loading">
-          <div v-if="focusedMode ? focusedLoading : loading && !records.length" class="records-empty">正在读取你的回答…</div>
-          <div v-else-if="!focusedMode && !records.length && !listError" class="records-empty"><strong>{{ kind === 'all' && status === 'all' ? '你的经验，值得被分享' : '这个筛选下暂时没有回答' }}</strong><p>{{ kind === 'all' && status === 'all' ? '从一个熟悉的问题开始，写下你的第一条回答。' : '试试其他类型或状态。' }}</p><router-link v-if="kind === 'all' && status === 'all'" to="/hr">去工作台看看 →</router-link></div>
-          <article v-for="record in visibleRecords" :id="`my-answer-${record.id}`" :key="record.id" class="answer-record">
-            <div class="record-meta"><span class="record-kind">{{ record.followupId == null ? '主回答' : '追问回复' }}</span><span class="record-status" :class="`state-${record.status}`">{{ answerStatusLabel(record) }}</span><time>{{ formatTime(record.createdAt) }}</time></div>
-            <h3><button v-if="record.canViewQuestion" type="button" @click="openContext(record)">{{ record.questionTitle }}</button><span v-else>{{ record.questionTitle }}</span></h3>
-            <p v-if="record.status === 'removed'" class="removed-copy">{{ removedAnswerText(record, record.followupId == null ? '这条回答' : '这条回复') }}</p>
-            <p v-else class="record-body" :class="{ collapsed: record.body.length > 180 && !expandedIds.includes(record.id) }">{{ record.body }}</p>
-            <button v-if="record.status !== 'removed' && record.body.length > 180" class="expand-answer" type="button" @click="toggleExpanded(record.id)">{{ expandedIds.includes(record.id) ? '收起' : '展开内容' }}</button>
-            <div class="record-footer"><div class="record-feedback"><template v-if="record.status === 'published' && record.canViewQuestion"><span>{{ record.likeCount }} 点赞</span><span>{{ record.usefulCount }} 有用</span></template><span v-else-if="record.status === 'pending_human' || record.status === 'pending_machine'">审核通过后将公开展示</span><span v-else-if="record.status === 'rejected'">内容未通过审核，可重新组织后提交</span><span v-else>记录仅供本人查看</span></div><div class="record-actions"><button v-if="record.canViewQuestion" type="button" @click="openContext(record)">查看上下文</button><button v-if="canWithdrawAnswer(record)" class="withdraw-record" type="button" :disabled="withdrawingAnswerId !== null" @click="requestWithdrawal(record)">{{ withdrawingAnswerId === record.id ? '撤销中…' : '撤销' }}</button></div></div>
-          </article>
-        </div>
-        <div v-if="!focusedMode && (records.length || pageNumber > 1)" class="record-pagination"><button type="button" :disabled="loading || pageNumber <= 1" @click="previousPage">上一页</button><span>第 {{ pageNumber }} 页</span><button type="button" :disabled="loading || nextCursor == null" @click="nextPage">下一页</button></div>
-        <p v-if="!focusedMode && !loading && !listError && records.length && nextCursor == null" class="end-caption">回答记录已经看完咯</p>
-      </section>
-      <aside class="career-aside">
-        <section class="career-card">
-          <h2>职业资料</h2>
-          <dl>
-            <div><dt>所属行业</dt><dd>{{ profile?.industry || '待完善' }}</dd></div>
-            <div><dt>职业方向</dt><dd>{{ profile?.position || '待完善' }}</dd></div>
-            <div><dt>企业展示名</dt><dd>{{ profile?.companyDisplay || '待完善' }}</dd></div>
-            <div><dt>身份状态</dt><dd>{{ verification }}</dd></div>
-          </dl>
-          <h3>擅长领域</h3>
-          <div v-if="profile?.specialties.length" class="specialties">
-            <span v-for="tag in profile.specialties" :key="tag">{{ tag }}</span>
-          </div>
-          <p v-if="profile && !profileComplete" class="aside-empty">
-            {{ profile.specialties.length ? '还有职业资料未填写完整，补充后让学生更全面地了解你的经验。' : '添加你熟悉的领域，让学生了解你的经验。' }}
-          </p>
-          <button type="button" class="complete-profile" :disabled="!profile" @click="editProfile">
-            {{ profileComplete ? '编辑资料 →' : '完善职业资料 →' }}
-          </button>
-        </section>
-        <section class="workbench-link"><span>继续分享经验</span><p>发现新的问题，跟进学生追问。</p><router-link to="/hr">进入 HR 工作台 →</router-link></section>
-      </aside>
+    <div class="profile-sections" role="group" aria-label="个人中心栏目">
+      <button type="button" :class="{ active: !showAnswers }" :aria-pressed="!showAnswers" @click="selectSection('profile')">
+        个人资料
+      </button>
+      <button type="button" :class="{ active: showAnswers }" :aria-pressed="showAnswers" @click="selectSection('answers')">
+        回答记录
+      </button>
     </div>
+
+    <section v-if="!showAnswers" class="career-card" aria-label="个人资料">
+      <div class="identity-card">
+        <button class="profile-avatar" type="button" :disabled="uploading" aria-label="更换头像" @click="avatarInput?.click()">
+          <img v-if="avatarUrl" :src="avatarUrl" alt="" />
+          <span v-else>{{ Array.from(displayName.trim() || 'H')[0] }}</span>
+          <span class="avatar-edit">{{ uploading ? '上传中' : '更换头像' }}</span>
+        </button>
+        <input ref="avatarInput" type="file" accept="image/png,image/jpeg,image/webp" hidden @change="uploadAvatar" />
+        <h2>{{ displayName }}</h2>
+        <button type="button" class="edit-profile" :disabled="!profile" @click="editProfile">编辑资料</button>
+      </div>
+      <p v-if="profileError" class="inline-error" role="alert">{{ profileError }} <button type="button" @click="loadProfile">重试</button></p>
+      <p v-else-if="!profile" class="profile-loading" role="status">正在读取职业资料…</p>
+      <dl v-else class="career-fields">
+        <div><dt>所属行业</dt><dd>{{ profile.industry || '待完善' }}</dd></div>
+        <div><dt>职业方向</dt><dd>{{ profile.position || '待完善' }}</dd></div>
+        <div><dt>企业展示名</dt><dd>{{ profile.companyDisplay || '待完善' }}</dd></div>
+        <div><dt>身份状态</dt><dd>{{ verification }}</dd></div>
+        <div class="career-field-wide">
+          <dt>擅长领域</dt>
+          <dd v-if="profile.specialties.length" class="specialties">
+            <span v-for="tag in profile.specialties" :key="tag">{{ tag }}</span>
+          </dd>
+          <dd v-else>待完善</dd>
+        </div>
+        <div class="career-field-wide">
+          <dt>个人简介</dt>
+          <dd class="profile-bio">{{ profile.bio || '待完善' }}</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section v-else id="my-answers" class="answer-records" aria-label="回答记录">
+      <template v-if="!focusedMode">
+        <div class="contribution-stats" aria-label="我的贡献统计">
+          <div v-for="stat in statCards" :key="stat.label" class="stat-card"><strong>{{ stat.value ?? '—' }}</strong><span>{{ stat.label }}</span></div>
+        </div>
+        <p class="stats-caption">统计当前公开可见、已发布的回答与回复。</p>
+        <p v-if="statsError" class="inline-error" role="alert">{{ statsError }} <button type="button" @click="loadStats">重试</button></p>
+      </template>
+      <div v-if="focusedMode" class="focused-record-banner"><span>通知关联的回答</span><button type="button" @click="showAllRecords">查看全部记录</button></div>
+      <p v-if="focusedError" class="inline-error" role="alert">{{ focusedError }} <button type="button" @click="loadFocusedRecord">重试</button></p>
+      <div v-if="!focusedMode" class="record-filters">
+        <div class="record-tabs" role="group" aria-label="回答类型"><button v-for="option in kindOptions" :key="option.value" type="button" :class="{ active: kind === option.value }" :aria-pressed="kind === option.value" @click="kind = option.value">{{ option.label }}</button></div>
+        <label class="status-filter"><span class="sr-only">回答状态</span><select v-model="status" aria-label="回答状态"><option value="all">全部状态</option><option value="published">已发布</option><option value="reviewing">审核中</option><option value="rejected">未通过</option><option value="withdrawn">作者已撤销</option><option value="downlisted">运营已下架</option><option value="removed">全部已移除</option></select></label>
+      </div>
+      <p v-if="!focusedMode && listError" class="inline-error" role="alert">{{ listError }} <button type="button" @click="loadRecords(cursors.at(-1) ?? null)">重试</button></p>
+      <div class="record-list" :aria-busy="focusedMode ? focusedLoading : loading">
+        <div v-if="focusedMode ? focusedLoading : loading && !records.length" class="records-empty">正在读取你的回答…</div>
+        <div v-else-if="!focusedMode && !records.length && !listError" class="records-empty">{{ kind === 'all' && status === 'all' ? '暂无回答记录' : '没有符合筛选条件的回答' }}</div>
+        <article v-for="record in visibleRecords" :id="`my-answer-${record.id}`" :key="record.id" class="answer-record">
+          <div class="record-meta"><span class="record-kind">{{ record.followupId == null ? '主回答' : '追问回复' }}</span><span class="record-status" :class="`state-${record.status}`">{{ answerStatusLabel(record) }}</span><time>{{ formatTime(record.createdAt) }}</time></div>
+          <h3>{{ record.questionTitle }}</h3>
+          <p v-if="record.status === 'removed'" class="removed-copy">{{ removedAnswerText(record, record.followupId == null ? '这条回答' : '这条回复') }}</p>
+          <p v-else class="record-body" :class="{ collapsed: record.body.length > 180 && !expandedIds.includes(record.id) }">{{ record.body }}</p>
+          <button v-if="record.status !== 'removed' && record.body.length > 180" class="expand-answer" type="button" @click="toggleExpanded(record.id)">{{ expandedIds.includes(record.id) ? '收起' : '展开内容' }}</button>
+          <div class="record-footer"><div class="record-feedback"><template v-if="record.status === 'published' && record.canViewQuestion"><span>{{ record.likeCount }} 点赞</span><span>{{ record.usefulCount }} 有用</span></template><span v-else-if="record.status === 'pending_human' || record.status === 'pending_machine'">审核通过后将公开展示</span><span v-else-if="record.status === 'rejected'">内容未通过审核，可重新组织后提交</span><span v-else>记录仅供本人查看</span></div><div class="record-actions"><button v-if="record.canViewQuestion" type="button" @click="openContext(record)">查看上下文</button><button v-if="canWithdrawAnswer(record)" class="withdraw-record" type="button" :disabled="withdrawingAnswerId !== null" @click="requestWithdrawal(record)">{{ withdrawingAnswerId === record.id ? '撤销中…' : '撤销' }}</button></div></div>
+        </article>
+      </div>
+      <div v-if="!focusedMode && (records.length || pageNumber > 1)" class="record-pagination"><button type="button" :disabled="loading || pageNumber <= 1" @click="previousPage">上一页</button><span>第 {{ pageNumber }} 页</span><button type="button" :disabled="loading || nextCursor == null" @click="nextPage">下一页</button></div>
+      <p v-if="!focusedMode && !loading && !listError && records.length && nextCursor == null" class="end-caption">回答记录已经看完咯</p>
+    </section>
     <n-modal v-model:show="editing" preset="card" title="编辑 HR 资料" :mask-closable="!saving" :closable="!saving" :close-on-esc="!saving" style="width: 560px; max-width: calc(100vw - 32px)">
       <form class="hr-profile-form" @submit.prevent="saveProfile"><p class="form-note">使用公开昵称和职业信息。企业展示名可以填写概括称呼。</p><label>公开昵称<input v-model="draft.nickname" maxlength="64" required :disabled="saving" /></label><div class="form-two-cols"><label>所属行业<input v-model="draft.industry" maxlength="64" placeholder="例如：互联网" :disabled="saving" /></label><label>职业方向<input v-model="draft.position" maxlength="64" placeholder="例如：校园招聘" :disabled="saving" /></label></div><label>企业展示名<input v-model="draft.companyDisplay" maxlength="128" placeholder="例如：某互联网企业" :disabled="saving" /></label><label>擅长领域<input v-model="draft.specialtiesText" maxlength="160" placeholder="简历优化、面试准备、校园招聘" :disabled="saving" /><small>用顿号或逗号分隔，最多 6 项。</small></label><label>个人简介<textarea v-model="draft.bio" maxlength="500" rows="4" placeholder="介绍你熟悉的领域，以及可以提供的经验。" :disabled="saving" /><small>{{ draft.bio.length }} / 500</small></label><p v-if="saveError" class="inline-error" role="alert">{{ saveError }}</p><div class="form-actions"><button type="button" :disabled="saving" @click="editing = false">取消</button><button type="submit" class="save-profile" :disabled="saving">{{ saving ? '保存中…' : '保存资料' }}</button></div></form>
     </n-modal>
@@ -288,42 +293,108 @@ async function uploadAvatar(event: Event) {
 </template>
 
 <style scoped>
-.hr-personal { max-width: 1120px; margin: 0 auto; padding: 30px 28px 64px; color: var(--text); }
+.hr-personal { max-width: 900px; margin: 0 auto; padding: 30px 28px 64px; color: var(--text); }
 .return-messages { padding: 0; border: 0; background: none; font: inherit; color: #2f6fed; cursor: pointer; }
 .focused-record-banner { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; padding: 13px 15px; margin-bottom: 15px; background: #edf3ff; border-radius: 7px; color: #6883ad; font-size: 12px; }
 .focused-record-banner button { border: 0; padding: 0; background: none; color: #2f6fed; cursor: pointer; font-size: 12px; }
-.page-intro { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; color: #737d8d; font-size: 13px; }
-.page-intro a { color: var(--primary); text-decoration: none; }
-.identity-card { display: flex; align-items: center; gap: 22px; padding: 30px; background: #fff; border: 1px solid var(--border); border-radius: 14px; }
-.profile-avatar { position: relative; display: grid; place-items: center; width: 82px; height: 82px; flex: 0 0 82px; padding: 0; overflow: hidden; border: 0; border-radius: 50%; background: #2f6fed; color: #fff; font-size: 32px; font-weight: 700; cursor: pointer; }
+.page-intro { margin-bottom: 18px; font-size: 13px; }
+.page-intro h1 { margin: 0; font-size: clamp(23px, 4vw, 30px); line-height: 1.35; }
+.page-intro .return-messages { margin-bottom: 10px; }
+
+.profile-sections {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--color-bg-feed);
+}
+
+.profile-sections button {
+  min-height: 40px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 7px 16px;
+  background: none;
+  color: var(--color-text-regular);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.profile-sections button:hover { background: var(--color-bg-hover); }
+.profile-sections button.active {
+  border-color: var(--color-brand-border);
+  background: var(--color-brand-soft);
+  color: var(--color-brand-dark);
+}
+
+.career-card {
+  padding: 24px;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.identity-card { display: flex; align-items: center; gap: 16px; }
+.identity-card h2 { flex: 1; min-width: 0; margin: 0; font-size: 24px; line-height: 1.4; overflow-wrap: anywhere; }
+.profile-avatar { position: relative; display: grid; place-items: center; width: 70px; height: 70px; flex: 0 0 70px; padding: 0; overflow: hidden; border: 0; border-radius: 50%; background: #2f6fed; color: #fff; font-size: 28px; font-weight: 700; cursor: pointer; }
 .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .profile-avatar .avatar-edit { position: absolute; bottom: 0; left: 0; width: 100%; padding: 3px 0 5px; font-size: 10px; font-weight: 400; background: #163d8b99; }
-.identity-copy { flex: 1; min-width: 0; }
-.identity-title { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
-.identity-title h1 { margin: 0; font-size: 26px; line-height: 1.4; overflow-wrap: anywhere; }
-.hr-badge { padding: 4px 9px; border-radius: 5px; background: #edf3ff; color: #2f6fed; font-size: 11px; font-weight: 600; }
-.career-line { margin: 9px 0 0; font-size: 13px; line-height: 1.7; color: #687386; overflow-wrap: anywhere; }
-.profile-bio { margin: 8px 0 0; font-size: 13px; line-height: 1.8; color: #536075; white-space: pre-wrap; overflow-wrap: anywhere; }
-.edit-profile { align-self: flex-start; margin-top: 7px; padding: 9px 16px; border: 1px solid #d5dce7; border-radius: 6px; background: #fff; color: #344259; white-space: nowrap; font-size: 13px; cursor: pointer; }
-.contribution-stats { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 20px; border: 1px solid var(--border); border-radius: 12px; background: #fff; padding: 21px 0; }
+.edit-profile { padding: 9px 13px; border: 1px solid var(--color-brand-border); border-radius: 7px; background: var(--color-brand-soft); color: var(--color-brand-dark); white-space: nowrap; font-size: 13px; cursor: pointer; }
+.edit-profile:hover:not(:disabled) { border-color: var(--color-brand); }
+
+.career-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin: 20px 0 0;
+  border-top: 1px solid var(--color-border-subtle);
+  padding-top: 20px;
+}
+
+.career-fields dt { color: var(--color-text-muted); font-size: 13px; }
+.career-fields dd { margin: 5px 0 0; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.career-field-wide { grid-column: 1 / -1; }
+.profile-bio { white-space: pre-wrap; }
+.profile-loading { margin: 18px 0 0; color: var(--color-text-muted); font-size: 13px; }
+.specialties { display: flex; flex-wrap: wrap; gap: 6px; }
+.specialties span { padding: 3px 8px; border-radius: 5px; background: var(--color-brand-soft); color: var(--color-brand-dark); font-size: 12px; }
+
+.contribution-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--border); border-radius: 12px; background: #fff; padding: 21px 0; }
 .stat-card { display: grid; gap: 7px; text-align: center; border-right: 1px solid #edf0f5; }.stat-card:last-child { border: 0; }
 .stat-card strong { font-size: 25px; font-weight: 650; font-variant-numeric: tabular-nums; }.stat-card span { color: #788397; font-size: 12px; }
 .stats-caption { margin: 8px 2px 25px; font-size: 11px; color: #8490a2; }
-.personal-layout { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 22px; align-items: start; }
-.answer-records { min-width: 0; scroll-margin-top: 90px; }.section-title { display: flex; justify-content: space-between; align-items: center; margin: 0 0 18px; }
-.section-title h2 { margin: 0; font-size: 19px; }.section-title p { margin: 7px 0 0; color: #8791a2; font-size: 12px; }.small-label { color: #8a95a5; font-size: 11px; }
+.answer-records { min-width: 0; scroll-margin-top: calc(var(--topbar-height, 57px) + 12px); }
 .record-filters { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 15px; }
 .record-tabs { display: flex; padding: 4px; gap: 2px; background: #edf0f5; border-radius: 7px; }.record-tabs button { padding: 7px 12px; border: 0; background: transparent; color: #717d91; font-size: 12px; cursor: pointer; white-space: nowrap; }.record-tabs button.active { background: #fff; color: #2f6fed; border-radius: 5px; box-shadow: 0 1px 3px #2439580d; }
 .status-filter select { padding: 8px 26px 8px 10px; max-width: 135px; border: 1px solid #dfe4ed; border-radius: 6px; background: #fff; font: inherit; font-size: 12px; color: #657187; }
 .record-list { display: flex; flex-direction: column; gap: 13px; }.answer-record { padding: 20px 22px; border: 1px solid #e5e9f0; border-radius: 10px; background: #fff; scroll-margin-top: 90px; }.record-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; font-size: 11px; }.record-kind { color: #52617a; }.record-status { padding: 3px 7px; background: #f0f2f6; border-radius: 4px; color: #7a8595; }.state-published { background: #edf7f0; color: #4d8763; }.state-pending_human,.state-pending_machine { background: #fff7e6; color: #a77b2e; }.state-rejected { background: #fff0ef; color: #ba625b; }.record-meta time { margin-left: auto; color: #929bad; }
-.answer-record h3 { margin: 13px 0 10px; font-size: 15px; line-height: 1.6; font-weight: 600; overflow-wrap: anywhere; }.answer-record h3 button { display: block; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }.answer-record h3 button:hover { color: #2f6fed; }
+.answer-record h3 { margin: 13px 0 10px; font-size: 15px; line-height: 1.6; font-weight: 600; overflow-wrap: anywhere; }
 .record-body { margin: 0; color: #59667a; font-size: 13px; line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; }.record-body.collapsed { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }.removed-copy { color: #8590a2; font-size: 13px; }
 .expand-answer { margin-top: 7px; padding: 0; border: 0; background: none; color: #2f6fed; font-size: 12px; cursor: pointer; }.record-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 18px; padding-top: 13px; border-top: 1px solid #f0f2f6; }.record-feedback { display: flex; flex-wrap: wrap; gap: 14px; color: #8a95a5; font-size: 11px; }.record-actions { display: flex; gap: 14px; }.record-actions button { padding: 0; border: 0; background: none; color: #2f6fed; font-size: 12px; cursor: pointer; }.record-actions .withdraw-record { color: #9c6c6c; }
 .record-pagination { display: flex; justify-content: center; align-items: center; gap: 17px; margin-top: 25px; font-size: 12px; color: #748096; }.record-pagination button { padding: 7px 13px; border: 1px solid #dce2eb; border-radius: 5px; background: #fff; color: #52617a; cursor: pointer; }.hr-personal button:disabled { opacity: .5; cursor: default; }.end-caption { margin: 12px 0 0; text-align: center; font-size: 11px; color: #9aa3b1; }
-.records-empty { padding: 65px 15px; text-align: center; background: #fff; border: 1px solid #e5e9f0; border-radius: 10px; color: #8590a2; font-size: 13px; }.records-empty strong { color: #5b6980; font-size: 16px; }.records-empty p { margin: 12px 0 20px; line-height: 1.8; }.records-empty a { color: #2f6fed; text-decoration: none; }
-.career-aside { display: flex; flex-direction: column; gap: 16px; }.career-card { padding: 22px; border: 1px solid var(--border); border-radius: 10px; background: #fff; }.career-card h2 { margin: 0 0 22px; font-size: 15px; }.career-card dl { margin: 0; display: grid; gap: 19px; }.career-card dt { color: #8c97a7; font-size: 11px; }.career-card dd { margin: 6px 0 0; color: #536078; font-size: 12px; overflow-wrap: anywhere; }.career-card h3 { margin: 25px 0 12px; font-size: 12px; font-weight: 500; color: #8c97a7; }.specialties { display: flex; flex-wrap: wrap; gap: 7px; }.specialties span { padding: 4px 7px; border-radius: 4px; background: #f0f4fb; color: #637da7; font-size: 11px; overflow-wrap: anywhere; }.aside-empty { margin: 0; color: #9aa3b1; font-size: 12px; line-height: 1.8; }.complete-profile { margin-top: 22px; padding: 0; background: none; border: 0; color: #2f6fed; font-size: 12px; cursor: pointer; }.workbench-link { padding: 21px; border-radius: 10px; background: #eef3fc; }.workbench-link > span { font-size: 13px; color: #526c94; }.workbench-link p { margin: 10px 0 17px; color: #8292ac; font-size: 12px; line-height: 1.7; }.workbench-link a { color: #2f6fed; font-size: 12px; text-decoration: none; }
+.records-empty { padding: 42px 15px; text-align: center; background: #fff; border: 1px solid #e5e9f0; border-radius: 10px; color: var(--color-text-muted); font-size: 14px; }
 .inline-error { font-size: 12px; color: #b35c57; line-height: 1.8; }.inline-error button { padding: 0; background: none; border: 0; color: #2f6fed; cursor: pointer; }
 .hr-profile-form { display: flex; flex-direction: column; gap: 16px; }.hr-profile-form label { display: flex; flex-direction: column; gap: 8px; color: #536078; font-size: 13px; }.hr-profile-form input,.hr-profile-form textarea { box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid #dce2eb; border-radius: 6px; color: #344259; font: inherit; font-size: 13px; }.hr-profile-form input:focus,.hr-profile-form textarea:focus { outline: 2px solid #2f6fed33; border-color: #2f6fed; }.hr-profile-form textarea { resize: vertical; }.hr-profile-form small { font-size: 11px; color: #929cad; }.form-note { margin: 0; color: #8c97a7; font-size: 12px; line-height: 1.8; }.form-two-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }.form-actions { display: flex; justify-content: flex-end; gap: 10px; }.form-actions button { padding: 9px 19px; border: 1px solid #dce2eb; border-radius: 6px; background: #fff; color: #5c697e; cursor: pointer; }.form-actions .save-profile { color: #fff; background: #2f6fed; border-color: #2f6fed; }
-@media (max-width: 820px) { .hr-personal { padding: 22px 18px 45px; }.personal-layout { grid-template-columns: 1fr; }.career-aside { display: grid; grid-template-columns: 1fr 1fr; align-items: start; }.identity-card { padding: 23px; gap: 16px; }.profile-avatar { width: 65px; height: 65px; flex-basis: 65px; }.identity-title h1 { font-size: 23px; } }
-@media (max-width: 520px) { .hr-personal { padding: 20px 12px 40px; }.identity-card { flex-wrap: wrap; padding: 20px; }.identity-copy { flex-basis: calc(100% - 85px); }.edit-profile { margin: 0 0 0 auto; }.career-aside { grid-template-columns: 1fr; }.record-filters { align-items: stretch; flex-direction: column; }.status-filter select { width: 100%; max-width: none; }.record-tabs button { flex: 1; }.answer-record { padding: 17px; }.record-footer { align-items: flex-start; }.record-meta time { width: 100%; margin: 0; }.stat-card strong { font-size: 22px; }.stat-card span { font-size: 11px; }.form-two-cols { grid-template-columns: 1fr; } }
+@media (max-width: 520px) {
+  .hr-personal { padding: 20px 12px 40px; }
+  .career-card { padding: 16px; }
+  .career-fields { gap: 16px; }
+  .identity-card { gap: 12px; }
+  .identity-card h2 { font-size: 20px; }
+  .profile-avatar { width: 56px; height: 56px; flex-basis: 56px; font-size: 23px; }
+  .profile-avatar .avatar-edit { padding-bottom: 3px; }
+  .edit-profile { padding-inline: 8px; }
+  .record-filters { align-items: stretch; flex-direction: column; }
+  .status-filter select { width: 100%; max-width: none; }
+  .record-tabs button { flex: 1; }
+  .answer-record { padding: 17px; }
+  .record-footer { align-items: flex-start; }
+  .record-meta time { width: 100%; margin: 0; }
+  .stat-card strong { font-size: 22px; }
+  .stat-card span { font-size: 11px; }
+  .form-two-cols { grid-template-columns: minmax(0, 1fr); }
+}
 </style>

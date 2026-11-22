@@ -73,12 +73,50 @@ const statusLabels: Record<string, string> = {
 
 <style scoped>
 .followup-thread { scroll-margin-top: 80px; }
-.followup-thread + .followup-thread { margin-top: 18px; }
-.highlighted { border-radius: 6px; outline: 2px solid #c6d8f4; outline-offset: 5px; background: #f6f9ff; }
-.followup-heading { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
-.followup-body { margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.followup-answer { margin: 10px 0 0 14px; padding: 4px 0 4px 12px; border-left: 2px solid #9bc4ac; }
+.followup-thread + .followup-thread { margin-top: 14px; }
+.highlighted { border-radius: 8px; outline: 2px solid #c6d8f4; outline-offset: 3px; background: #f6f9ff; }
+
+.followup-thread > .followup {
+  margin: 0;
+  border: 1px solid var(--color-border-subtle);
+  border-left: 3px solid #a8b7ca;
+  border-radius: 9px;
+  background: #fff;
+  padding: 12px 14px;
+}
+
+.followup-heading { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.followup-heading strong { color: var(--color-text-primary); font-size: 13px; font-weight: 600; }
+.followup-heading > span { color: var(--color-text-muted); font-size: 12px; }
+.followup-body { margin: 8px 0 0; color: var(--color-text-regular); font-size: 14px; line-height: 25px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.followup-thread > .followup > .tag { display: inline-block; margin-top: 7px; }
+
+.followup-answer {
+  margin: 11px 0 0;
+  border: 1px solid var(--color-border-subtle);
+  border-left: 3px solid var(--color-brand);
+  border-radius: 9px;
+  background: #fff;
+  padding: 12px 14px;
+}
+
 .answer-head, .followup-heading, .question-body { overflow-wrap: anywhere; }
-.answer-head, .reply-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.withdraw-answer { margin-left: 8px; color: #9b4141; border-color: #e4c9c9; }
+.answer-head { color: var(--color-text-muted); font-size: 11px; line-height: 18px; }
+.answer-head, .reply-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.followup-answer .question-body { margin: 8px 0 0; color: var(--color-text-regular); font-size: 14px; line-height: 25px; }
+.reply-actions { margin-top: 9px; }
+.reply-actions button,
+.followup-thread .link {
+  min-height: 30px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 3px 7px;
+  color: var(--color-text-regular);
+  font-size: 12px;
+}
+.reply-actions button:hover,
+.followup-thread .link:hover { background: var(--color-brand-soft); color: var(--color-brand); }
+.reply-actions .withdraw-answer { margin-left: 0; color: var(--color-danger); }
+.followup-thread > .followup > .link { margin-top: 7px; color: var(--color-brand); }
 </style>

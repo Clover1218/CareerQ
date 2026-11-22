@@ -268,6 +268,20 @@ function openProfileEditor() {
   showProfileModal.value = true;
 }
 
+async function requestProfileEditor() {
+  if (!profile.value) await loadProfile();
+  if (route.query.edit === "profile" && profile.value) openProfileEditor();
+}
+
+function onProfileModalChange(show: boolean) {
+  showProfileModal.value = show;
+  if (!show && route.query.edit === "profile") {
+    const query = { ...route.query };
+    delete query.edit;
+    void router.replace({ path: "/me", query });
+  }
+}
+
 async function saveProfile() {
   if (savingProfile.value) return;
   savingProfile.value = true;
@@ -278,7 +292,7 @@ async function saveProfile() {
       grade: profileDraft.grade,
     });
     await userStore.fetchUserInfo(true);
-    showProfileModal.value = false;
+    onProfileModalChange(false);
     message.success("资料已更新");
   } catch (e) {
     message.error(errorText(e, "资料更新失败"));
@@ -287,15 +301,16 @@ async function saveProfile() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   // 从个人信息弹窗点「历史浏览」会带 ?tab=history，进来直接切到历史标签
   if (route.query.tab === "history") {
     activeTab.value = "history";
     historyEntries.value = getViewHistory(user.value?.id ?? null);
   }
-  void loadProfile();
   void loadStats();
   void loadQuestions(true);
+  await loadProfile();
+  if (route.query.edit === "profile") openProfileEditor();
 });
 
 watch(
@@ -307,6 +322,11 @@ watch(
     }
   },
 );
+
+watch(() => route.query.edit, edit => {
+  if (edit === "profile") void requestProfileEditor();
+  else showProfileModal.value = false;
+});
 </script>
 
 <template>
@@ -353,7 +373,7 @@ watch(
         accept="image/png,image/jpeg,image/webp"
         @change="onAvatarChange"
       />
-      <div class="flex flex-wrap items-center gap-4 text-14 text-muted"><span>我的求职提问与学习记录</span><router-link to="/messages" class="text-brand">查看消息 →</router-link></div>
+      <div class="flex flex-wrap items-center gap-4 text-14 text-muted"><span>我的求职提问与学习记录</span></div>
     </div>
   </section>
 
@@ -392,7 +412,7 @@ watch(
       </div>
     </div>
 
-    <div class="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_247px] lg:gap-2.5">
+    <div class="mt-5">
       <div class="flex flex-col gap-5" style="min-height: 480px">
         <template v-if="activeTab === 'questions'">
           <p v-if="error" class="m-0 text-14 text-danger">{{ error }}</p>
@@ -477,51 +497,13 @@ watch(
         </template>
       </div>
 
-      <aside class="profile-aside order-first lg:order-none">
-        <section class="rounded-card border border-line bg-surface p-4">
-          <div class="flex items-center justify-between">
-            <h2 class="m-0 text-16 font-semibold text-ink">个人资料</h2>
-            <button class="aux-btn text-12" @click="openProfileEditor">编辑 &gt;</button>
-          </div>
-          <div class="mt-3 flex items-center gap-3">
-            <span class="myqa-avatar myqa-avatar--sm" aria-hidden="true">
-              <img v-if="avatarUrl" :src="avatarUrl" alt="" />
-              <template v-else>{{ avatarInitial }}</template>
-            </span>
-            <div class="min-w-0">
-              <p class="m-0 truncate text-14 font-medium text-ink">{{ displayName }}</p>
-              <button
-                class="aux-btn text-12"
-                type="button"
-                :disabled="uploadingAvatar"
-                @click="pickAvatar"
-              >
-                {{ uploadingAvatar ? "上传中…" : "更换头像" }}
-              </button>
-            </div>
-          </div>
-          <dl class="m-0 mt-3 flex flex-col gap-2.5">
-            <div class="flex items-center gap-2">
-              <FeedIcon name="school" :size="24" class="shrink-0 text-regular" />
-              <dd class="m-0 truncate text-14 text-ink">{{ profile?.school || "学校待完善" }}</dd>
-            </div>
-            <div class="flex items-center gap-2">
-              <FeedIcon name="book" :size="24" class="shrink-0 text-regular" />
-              <dd class="m-0 truncate text-14 text-ink">{{ profile?.major || "专业待完善" }}</dd>
-            </div>
-            <div class="flex items-center gap-2">
-              <FeedIcon name="calendar" :size="24" class="shrink-0 text-regular" />
-              <dd class="m-0 truncate text-14 text-ink">{{ profile?.grade || "年级待完善" }}</dd>
-            </div>
-          </dl>
-        </section>
-      </aside>
     </div>
   </div>
 
   <n-modal
-    v-model:show="showProfileModal"
+    :show="showProfileModal"
     preset="card"
+    @update:show="onProfileModalChange"
     title="编辑个人资料"
     style="width: 420px; max-width: calc(100vw - 32px)"
   >
@@ -539,7 +521,7 @@ watch(
         <input v-model="profileDraft.grade" maxlength="32" placeholder="如：大三" />
       </label>
       <div class="mt-2 flex justify-end gap-2">
-        <button @click="showProfileModal = false">取消</button>
+        <button @click="onProfileModalChange(false)">取消</button>
         <button class="primary-btn" :disabled="savingProfile" @click="saveProfile">
           {{ savingProfile ? "保存中…" : "保存" }}
         </button>

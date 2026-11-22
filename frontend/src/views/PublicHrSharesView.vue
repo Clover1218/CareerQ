@@ -49,7 +49,7 @@ onBeforeUnmount(() => controller.abort());
             <div class="hr-share-tags" aria-label="帖子标签">
               <span v-for="tag in share.tags" :key="tag">{{ tag }}</span>
             </div>
-            <span class="hr-share-read" aria-hidden="true">阅读全文 →</span>
+            <span class="hr-share-read" aria-hidden="true">阅读全文 <span class="hr-share-arrow">→</span></span>
           </div>
         </router-link>
       </article>
