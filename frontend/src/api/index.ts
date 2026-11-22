@@ -264,6 +264,14 @@ export interface HrNotification {
 export interface HrUnreadCounts { total: number; followup: number; system: number; snapshotId: number }
 export interface HrNotificationPage extends PageResult<HrNotification> { snapshotId: number }
 
+export type HrPostStatus = "draft" | "pending_human" | "rejected" | "withdrawn" | "published" | "removed";
+export interface HrPost {
+  id: number; title: string; body: string; tags: string[]; status: HrPostStatus; version: number;
+  createdAt: string; updatedAt: string; submittedAt?: string | null;
+}
+export interface HrPostSummary extends Omit<HrPost, "body"> { excerpt: string }
+export interface HrPostContent { title: string; body: string; tags: string[] }
+
 export type StudentMessageCategory = "all" | "reply" | "like" | "system";
 export interface StudentNotification {
   id: number; type: string; category: "reply" | "like" | "system";
@@ -316,6 +324,29 @@ export interface PageResult<T> {
 }
 
 export const api = {
+  hrPosts(ownerId: number, status = "all", cursor?: number | null): Promise<PageResult<HrPostSummary>> {
+    const params = new URLSearchParams({ status, limit: "5" });
+    if (cursor != null) params.set("cursor", String(cursor));
+    return request(`/hr/posts?${params}`, { headers: { "X-CareerQ-Hr-Id": String(ownerId) } });
+  },
+  hrPost(ownerId: number, id: number): Promise<HrPost> {
+    return request(`/hr/posts/${id}`, { headers: { "X-CareerQ-Hr-Id": String(ownerId) } });
+  },
+  createHrPostDraft(ownerId: number, clientKey: string, content: HrPostContent): Promise<HrPost> {
+    return request("/hr/posts/drafts", { method: "POST", headers: { "X-CareerQ-Hr-Id": String(ownerId) }, body: { clientKey, ...content } });
+  },
+  saveHrPostDraft(ownerId: number, id: number, version: number, content: HrPostContent): Promise<HrPost> {
+    return request(`/hr/posts/${id}/draft`, { method: "PUT", headers: { "X-CareerQ-Hr-Id": String(ownerId) }, body: { version, ...content } });
+  },
+  submitHrPost(ownerId: number, id: number, version: number): Promise<HrPost> {
+    return request(`/hr/posts/${id}/submit`, { method: "POST", headers: { "X-CareerQ-Hr-Id": String(ownerId) }, body: { version } });
+  },
+  withdrawHrPost(ownerId: number, id: number, version: number): Promise<HrPost> {
+    return request(`/hr/posts/${id}/withdraw`, { method: "POST", headers: { "X-CareerQ-Hr-Id": String(ownerId) }, body: { version } });
+  },
+  deleteHrPostDraft(ownerId: number, id: number, version: number): Promise<void> {
+    return request(`/hr/posts/${id}/draft`, { method: "DELETE", headers: { "X-CareerQ-Hr-Id": String(ownerId) }, body: { version } });
+  },
   studentNotifications(category: StudentMessageCategory = "all", unreadOnly = false, cursor?: number | null): Promise<StudentNotificationPage> {
     const params = new URLSearchParams({ category, unreadOnly: String(unreadOnly), limit: "5" });
     if (cursor != null) params.set("cursor", String(cursor));

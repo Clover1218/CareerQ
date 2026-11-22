@@ -10,6 +10,8 @@ import HrWorkspaceView from "./views/HrWorkspaceView.vue";
 import HrProfileView from "./views/HrProfileView.vue";
 import HrMessagesView from "./views/HrMessagesView.vue";
 import StudentMessagesView from "./views/StudentMessagesView.vue";
+import HrPostsView from "./views/HrPostsView.vue";
+import HrPostEditorView from "./views/HrPostEditorView.vue";
 
 export const router = createRouter({
   history: createWebHistory("/careerq/"),
@@ -30,6 +32,9 @@ export const router = createRouter({
     { path: "/hr", name: "hr-workbench", component: HrWorkspaceView, meta: { requiresAuth: true, role: "hr" } },
     { path: "/hr/profile", name: "hr-profile", component: HrProfileView, meta: { requiresAuth: true, role: "hr" } },
     { path: "/hr/messages", name: "hr-messages", component: HrMessagesView, meta: { requiresAuth: true, role: "hr" } },
+    { path: "/hr/posts", name: "hr-posts", component: HrPostsView, meta: { requiresAuth: true, role: "hr" } },
+    { path: "/hr/posts/new", name: "hr-post-new", component: HrPostEditorView, meta: { requiresAuth: true, role: "hr" } },
+    { path: "/hr/posts/:id", name: "hr-post-editor", component: HrPostEditorView, meta: { requiresAuth: true, role: "hr" } },
     { path: "/:pathMatch(.*)*", redirect: "/" },
   ],
 });

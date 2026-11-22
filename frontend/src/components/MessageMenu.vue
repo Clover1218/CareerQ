@@ -107,6 +107,7 @@ function open(category: MessageCategory) {
   position: relative;
   display: flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
 /* 透明桥接区：填满「消息」与面板之间的 8px 间隙，鼠标移入面板时不会误触离开 */
@@ -121,6 +122,7 @@ function open(category: MessageCategory) {
 
 .msg-trigger {
   display: inline-flex;
+  white-space: nowrap;
   align-items: center;
   gap: 6px;
   border: 0;

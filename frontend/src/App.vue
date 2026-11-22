@@ -17,8 +17,8 @@ const themeOverrides: GlobalThemeOverrides = {
     borderRadius: "6px",
     fontFamily: '"MiSans", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif',
     textColorBase: "#111827",
-    borderColor: "#E5E7EB",
-    bodyColor: "#F8F9FA",
+    borderColor: "#E3E8EF",
+    bodyColor: "#F5F7FA",
   },
 };
 
@@ -26,6 +26,13 @@ const router = useRouter();
 const route = useRoute();
 const userStore = useUserStore();
 const { user } = storeToRefs(userStore);
+const topbar = ref<HTMLElement | null>(null);
+let topbarObserver: ResizeObserver | undefined;
+
+function syncTopbarHeight() {
+  if (!topbar.value) return;
+  document.documentElement.style.setProperty("--topbar-height", `${topbar.value.getBoundingClientRect().height}px`);
+}
 
 // 顶栏账号：角色文案、头像兜底首字、点击进入学生主页（/me）
 const ROLE_LABEL: Record<string, string> = {
@@ -110,6 +117,9 @@ watch(showLogoutConfirm, (open) => {
 });
 
 onMounted(() => {
+  syncTopbarHeight();
+  topbarObserver = new ResizeObserver(syncTopbarHeight);
+  if (topbar.value) topbarObserver.observe(topbar.value);
   window.addEventListener("keydown", onKeydown);
   window.addEventListener("focus", syncStudentSession);
   window.addEventListener("storage", onSessionStorage);
@@ -118,6 +128,8 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  topbarObserver?.disconnect();
+  document.documentElement.style.removeProperty("--topbar-height");
   window.removeEventListener("keydown", onKeydown);
   window.removeEventListener("focus", syncStudentSession);
   window.removeEventListener("storage", onSessionStorage);
@@ -137,12 +149,13 @@ watch(() => route.fullPath, refresh);
       <n-dialog-provider>
         <n-notification-provider>
           <n-loading-bar-provider>
-            <header class="topbar">
+            <header ref="topbar" class="topbar">
               <div class="brand" @click="router.push('/')">CareerQ</div>
               <nav class="nav">
                 <router-link to="/">公开问答</router-link>
                 <router-link v-if="user?.role === 'student'" to="/me">我的问答</router-link>
                 <router-link v-if="user?.role === 'hr'" to="/hr">HR 工作台</router-link>
+                <router-link v-if="user?.role === 'hr'" to="/hr/posts">我的帖子</router-link>
                 <router-link v-if="user?.role === 'student' || !user" to="/ask">提问</router-link>
               </nav>
               <div class="account">
@@ -176,12 +189,12 @@ watch(() => route.fullPath, refresh);
                 </template>
               </div>
             </header>
-            <main :class="['my-qa', 'student-messages', 'hr-workbench', 'hr-profile', 'hr-messages'].includes(String(route.name)) ? 'wide-shell' : 'container'">
+            <main :class="['my-qa', 'student-messages', 'hr-workbench', 'hr-profile', 'hr-messages', 'hr-posts', 'hr-post-new', 'hr-post-editor'].includes(String(route.name)) ? 'wide-shell' : 'container'">
               <router-view v-slot="{ Component, route: currentRoute }">
-                <keep-alive include="HrWorkspaceView,HrProfileView,HrMessagesView">
+                <keep-alive include="QuestionListView,HrWorkspaceView,HrProfileView,HrMessagesView">
                   <component
                     :is="Component"
-                    :key="user?.role === 'student' ? `student-${user.id}-${currentRoute.fullPath}` : ['hr-profile', 'hr-messages'].includes(String(currentRoute.name)) ? `${String(currentRoute.name)}-${user?.id}` : currentRoute.name === 'hr-workbench' ? 'hr-workbench' : currentRoute.fullPath"
+                    :key="currentRoute.path === '/' ? 'public-feed' : user?.role === 'student' ? `student-${user.id}-${currentRoute.fullPath}` : ['hr-posts', 'hr-post-new', 'hr-post-editor'].includes(String(currentRoute.name)) ? `${user?.id}-${currentRoute.fullPath}` : ['hr-profile', 'hr-messages'].includes(String(currentRoute.name)) ? `${String(currentRoute.name)}-${user?.id}` : currentRoute.name === 'hr-workbench' ? 'hr-workbench' : currentRoute.fullPath"
                   />
                 </keep-alive>
               </router-view>

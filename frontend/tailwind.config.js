@@ -12,6 +12,8 @@ export default {
         brand: {
           DEFAULT: "var(--color-brand)",
           dark: "var(--color-brand-dark)",
+          soft: "var(--color-brand-soft)",
+          line: "var(--color-brand-border)",
         },
         ink: "var(--color-text-primary)",
         regular: "var(--color-text-regular)",

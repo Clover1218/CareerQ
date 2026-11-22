@@ -38,6 +38,7 @@ const highlightedFollowupId = ref<number | null>(null);
 let appliedFollowupLink: string | null = null;
 
 const questionId = Number(route.params.id);
+const openedFromFeed = computed(() => route.query.from === "feed");
 const openedFromHr = computed(() => route.query.from === "hr");
 const openedFromHrProfile = computed(() => route.query.from === "hr-profile");
 const openedFromHrMessages = computed(() => route.query.from === "hr-messages");
@@ -60,6 +61,7 @@ const selectedFollowup = computed(() => hrFollowups.value.find(
   (followup) => followup.id === selectedFollowupId.value,
 ));
 const mainAnswers = computed(() => detail.value?.answers.filter((answer) => answer.followupId == null) ?? []);
+const likingAnswerId = ref<number | null>(null);
 const conversations = computed(() => detail.value ? buildAnswerThreads(detailThreadItems(detail.value)) : []);
 const selectedRootAnswerId = ref<number | null>(null);
 const selectedRootAnswer = computed(() => mainAnswers.value.find(
@@ -225,6 +227,10 @@ function changeFollowupTarget(event: Event) {
 
 function returnToPreviousPage() {
   const previousRoute = window.history.state?.back;
+  if (openedFromFeed.value && previousRoute === "/") {
+    router.back();
+    return;
+  }
   if (studentReturnTo.value) {
     if (previousRoute === studentReturnTo.value) router.back();
     else void router.push(studentReturnTo.value);
@@ -368,6 +374,44 @@ async function markUseful(answerId: number) {
   }
 }
 
+function requireAnswerInteractionLogin() {
+  if (me.value) return true;
+  void router.push({ path: "/login", query: { redirect: route.fullPath } });
+  return false;
+}
+
+async function toggleAnswerLike(answerId: number) {
+  const answer = detail.value?.answers.find((item) => item.id === answerId);
+  if (!answer || answer.status !== "published" || likingAnswerId.value !== null || !requireAnswerInteractionLogin()) return;
+  const viewerId = me.value?.id;
+  const next = !answer.liked;
+  likingAnswerId.value = answerId;
+  try {
+    if (next) await api.interact("answer", answerId, "like");
+    else await api.uninteract("answer", answerId, "like");
+    if (!active || viewerId !== me.value?.id) return;
+    const current = detail.value?.answers.find((item) => item.id === answerId);
+    if (current && current.liked !== next) {
+      current.liked = next;
+      current.likeCount = Math.max(0, current.likeCount + (next ? 1 : -1));
+    }
+  } catch (e) {
+    if (active) message.error(e instanceof Error ? e.message : "操作失败");
+  } finally {
+    likingAnswerId.value = null;
+  }
+}
+
+async function reportAnswer(answerId: number) {
+  if (!requireAnswerInteractionLogin()) return;
+  try {
+    await api.report("answer", answerId);
+    message.success("举报已提交，我们会尽快处理");
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : "举报失败");
+  }
+}
+
 const reviewStatus: Record<string, string> = {
   pending_machine: "待审核",
   pending_human: "待审核",
@@ -379,16 +423,18 @@ onMounted(load);
 
 <template>
   <p v-if="error" class="error">{{ error }}</p>
-  <button v-if="error && openedFromHrMessages" type="button" class="link muted" @click="returnToPreviousPage">返回消息中心</button>
+  <button v-if="error && (openedFromHrMessages || openedFromFeed)" type="button" class="link muted" @click="returnToPreviousPage">
+    {{ openedFromHrMessages ? "返回消息中心" : "返回列表" }}
+  </button>
 
   <div v-if="detail" class="card">
-    <div class="between">
+    <div class="between detail-heading">
       <h2 style="margin: 0">{{ detail.question.title }}</h2>
       <button type="button" class="link muted" @click="returnToPreviousPage">
         {{ studentReturnTo ? studentReturnLabel : openedFromHrMessages ? "返回消息中心" : openedFromHrProfile ? "返回个人中心" : openedFromHr ? "返回 HR 工作台" : "返回列表" }}
       </button>
     </div>
-    <div class="row" style="margin: 8px 0">
+    <div class="row detail-meta" style="margin: 8px 0">
       <span class="tag">公开</span>
       <span class="tag">{{ reviewStatus[detail.question.status] ?? detail.question.status }}</span>
       <span v-for="t in detail.question.tags" :key="t" class="tag">{{ t }}</span>
@@ -412,6 +458,12 @@ onMounted(load);
         <span v-if="reviewStatus[conversation.rootAnswer.status]" class="tag">{{ reviewStatus[conversation.rootAnswer.status] }}</span>
         <div class="floor-actions">
           <button v-if="me && conversation.rootAnswer.status === 'published'" @click="markUseful(conversation.rootAnswer.id)">有用（{{ detail.answers.find((answer) => answer.id === conversation.rootAnswerId)?.usefulCount ?? 0 }}）</button>
+          <template v-if="conversation.rootAnswer.status === 'published'">
+            <button type="button" :aria-pressed="conversation.rootAnswer.liked" :disabled="likingAnswerId !== null" @click="toggleAnswerLike(conversation.rootAnswer.id)">
+              {{ conversation.rootAnswer.liked ? '已点赞' : '点赞' }}（{{ conversation.rootAnswer.likeCount }}）
+            </button>
+            <button type="button" @click="reportAnswer(conversation.rootAnswer.id)">举报</button>
+          </template>
           <button v-if="canStudentFollowup && conversation.rootAnswer.status === 'published'" type="button" @click="askAboutAnswer(conversation.rootAnswer.id)">追问这条回答</button>
           <button v-if="me?.role === 'hr' && me.id === conversation.rootAnswer.author.id && canWithdrawAnswer(conversation.rootAnswer)" type="button" class="withdraw-answer" :disabled="withdrawingAnswerId !== null" @click="requestWithdrawal(conversation.rootAnswer)">
             {{ withdrawingAnswerId === conversation.rootAnswer.id ? '撤销中…' : '撤销这条回答' }}
@@ -431,8 +483,9 @@ onMounted(load);
           :withdrawing-answer-id="withdrawingAnswerId"
           :highlighted-answer-id="highlightedAnswerId"
           :withdrawing-followup-id="withdrawingFollowupId"
+          :liking-answer-id="likingAnswerId"
           @reply="selectFollowup" @useful="markUseful" @withdraw="requestWithdrawal"
-          @withdraw-followup="requestFollowupWithdrawal"
+          @withdraw-followup="requestFollowupWithdrawal" @like="toggleAnswerLike" @report="reportAnswer"
         />
       </div>
     </article>
@@ -502,6 +555,14 @@ onMounted(load);
 </template>
 
 <style scoped>
+.detail-heading h2, .detail-meta, .question-body, .answer-head {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.detail-heading button { flex-shrink: 0; }
+.answer-head { flex-wrap: wrap; }
+
 .answer-modes {
   display: inline-flex;
   gap: 2px;
