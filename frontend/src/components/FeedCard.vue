@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { useDialog, useMessage } from "naive-ui";
@@ -39,6 +39,10 @@ const userStore = useUserStore();
 const { user } = storeToRefs(userStore);
 
 const expanded = ref(false);
+const excerptBlockRef = ref<HTMLElement | null>(null);
+const excerptRef = ref<HTMLElement | null>(null);
+const excerptOverflows = ref(false);
+let excerptObserver: ResizeObserver | undefined;
 const threadOpen = ref(false);
 const loadingContent = ref(false);
 const loadingThread = ref(false);
@@ -230,6 +234,20 @@ async function loadThread() {
     loadingThread.value = false;
   }
 }
+
+async function measureExcerpt() {
+  await nextTick();
+  const element = excerptRef.value;
+  if (!element || expanded.value) return;
+  excerptOverflows.value = element.scrollHeight > element.clientHeight + 1;
+}
+
+watch(() => props.item.excerpt, () => {
+  if (!expanded.value) void measureExcerpt();
+});
+watch(expanded, value => {
+  if (!value) void measureExcerpt();
+});
 
 // 只切换正文折叠，卡片其余结构（作者/时间/操作行）保持同一套 DOM
 async function toggleExpand() {
@@ -510,11 +528,19 @@ function onComposerBlur() {
 
 onMounted(() => {
   document.addEventListener("click", closeMenu);
+  if (excerptBlockRef.value) {
+    excerptObserver = new ResizeObserver(() => {
+      if (!expanded.value) void measureExcerpt();
+    });
+    excerptObserver.observe(excerptBlockRef.value);
+  }
+  void measureExcerpt();
   // 本人列表及旧摘要没有 viewer，显示时读取服务端状态。
   if (user.value && props.item.viewer == null && interactive.value) void ensureContent();
 });
 onBeforeUnmount(() => {
   document.removeEventListener("click", closeMenu);
+  excerptObserver?.disconnect();
   if (blurTimer) clearTimeout(blurTimer);
 });
 </script>
@@ -550,11 +576,13 @@ onBeforeUnmount(() => {
         <span aria-hidden="true"></span>因为你关注「{{ item.matchedTags.join("、") }}」
       </p>
 
-      <div class="excerpt-block">
-        <p v-if="!expanded" class="question-excerpt line-clamp-3">{{ item.excerpt }}</p>
-        <p v-else class="question-excerpt question-excerpt--full">{{ content?.question.body ?? item.excerpt }}</p>
-        <div v-if="ownerMode" class="flex justify-end">
-          <button class="aux-btn read-more" @click="toggleExpand">{{ expanded ? "收起内容 ↑" : "阅读全文 ↓" }}</button>
+      <div ref="excerptBlockRef" class="excerpt-block">
+        <p v-if="!expanded" ref="excerptRef" class="question-excerpt line-clamp-3">{{ item.excerpt }}</p>
+        <p v-else ref="excerptRef" class="question-excerpt question-excerpt--full">{{ content?.question.body ?? item.excerpt }}</p>
+        <div v-if="ownerMode || expanded || excerptOverflows" class="flex justify-end">
+          <button type="button" class="aux-btn read-more" @click="toggleExpand">
+            {{ expanded ? "收起问题 ↑" : ownerMode ? "阅读全文 ↓" : "展开问题 ↓" }}
+          </button>
         </div>
       </div>
 
@@ -569,9 +597,10 @@ onBeforeUnmount(() => {
           <span>{{ replyLabel }}</span>
           <span class="discussion-arrow" aria-hidden="true">{{ threadOpen ? "↑" : "→" }}</span>
         </button>
-        <router-link v-else :to="detailLink" class="discussion-toggle">
+        <router-link v-else :to="detailLink" class="discussion-toggle" aria-label="查看问答详情">
           <FeedIcon name="comment" :size="18" />
-          <span>{{ replyLabel }}</span>
+          <span v-if="counts.answerCount || counts.followupCount">{{ replyLabel }}</span>
+          <span class="detail-entry-label">查看详情</span>
           <span class="discussion-arrow" aria-hidden="true">→</span>
         </router-link>
 
@@ -1015,6 +1044,25 @@ onBeforeUnmount(() => {
   line-height: 22px;
   text-align: left;
   transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.feed-card--summary .discussion-toggle {
+  flex-wrap: wrap;
+  border: 1px solid var(--color-brand-border);
+  background: var(--color-brand-soft);
+  color: var(--color-text-regular);
+  text-decoration: none;
+}
+
+.feed-card--summary .discussion-toggle:hover {
+  background: #e3edff;
+  color: var(--color-brand);
+}
+
+.detail-entry-label {
+  color: var(--color-brand);
+  font-weight: 650;
+  white-space: nowrap;
 }
 
 .discussion-toggle:hover {
