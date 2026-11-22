@@ -300,6 +300,20 @@ const reviewStatus: Record<string, string> = {
   pending_human: "待审核",
   rejected: "审核未通过",
 };
+const authorReviewNotice = computed(() => {
+  if (!detail.value || !me.value || detail.value.question.author.id !== me.value.id) return "";
+  const status = detail.value.question.status;
+  if (status === "pending_machine" || status === "pending_human") {
+    return "你的问题正在审核中，审核通过后才会出现在公开问答；可在「我的问答」查看进度。";
+  }
+  if (status === "rejected" || status === "public_rejected") {
+    return "你的问题未通过审核，不会公开展示；可修改内容后重新提问。";
+  }
+  if (status === "public_pending") {
+    return "公开稿正在审核中，通过后会出现在工单公开问答。";
+  }
+  return "";
+});
 
 onMounted(load);
 </script>
@@ -322,6 +336,7 @@ onMounted(load);
       <span class="muted">{{ detail.question.author.nickname }}</span>
     </div>
     <p class="question-body">{{ detail.question.body }}</p>
+    <p v-if="authorReviewNotice" class="review-notice">{{ authorReviewNotice }}</p>
   </div>
 
   <section v-if="detail" class="answer-floors">

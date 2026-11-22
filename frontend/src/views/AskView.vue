@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useRouter } from "vue-router";
+import { useMessage } from "naive-ui";
 import { api } from "../api";
 import TagPicker from "../components/TagPicker.vue";
 
 const router = useRouter();
+const message = useMessage();
 const title = ref("");
 const body = ref("");
 const tags = ref<string[]>([]);
@@ -25,6 +27,14 @@ async function submit() {
       tags: tags.value,
       scope: "public",
     });
+    if (created.status !== "published") {
+      // 机审未直接通过：明确告知作者需要人工审核，避免“发了但看不到”的疑惑
+      message.warning(
+        "问题已提交，正在人工审核；审核通过后才会出现在公开问答中，可在「我的问答」查看进度。",
+      );
+      router.push({ path: "/me", query: { tab: "questions" } });
+      return;
+    }
     router.push(`/questions/${created.id}`);
   } catch (e: any) {
     error.value = e.message;

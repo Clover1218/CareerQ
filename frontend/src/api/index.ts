@@ -293,6 +293,14 @@ export interface QuestionDetail {
   viewer: ViewerState;
 }
 
+export interface Favorite {
+  targetType: "question" | "answer" | "post" | string;
+  targetId: number;
+  title: string;
+  excerpt: string;
+  createdAt: string;
+}
+
 export interface PageResult<T> {
   items: T[];
   nextCursor: number | null;
@@ -333,6 +341,14 @@ export const api = {
   myStats(): Promise<MeStats> {
     return request<MeStats>("/me/stats");
   },
+  listFavorites(targetType?: string, cursor?: number | null): Promise<PageResult<Favorite>> {
+    const params = new URLSearchParams();
+    if (targetType) params.set("targetType", targetType);
+    if (cursor != null) params.set("cursor", String(cursor));
+    params.set("limit", "20");
+    return request<PageResult<Favorite>>(`/me/favorites?${params.toString()}`);
+  },
+
 
   myQuestions(cursor?: number | null): Promise<PageResult<Question>> {
     const params = new URLSearchParams();
