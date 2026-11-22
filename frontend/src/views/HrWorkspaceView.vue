@@ -215,7 +215,10 @@ onActivated(async () => {
         <h1>HR 工作台</h1>
         <p class="workspace-description">浏览学生的公开问题，分享经验，并跟进你回答过的问题。</p>
       </div>
-      <router-link class="role-stamp" to="/hr/profile"><span class="role-dot"></span>我的个人中心 →</router-link>
+      <div class="workspace-links">
+        <router-link class="role-stamp" to="/hr/profile"><span class="role-dot"></span>我的个人中心 →</router-link>
+        <router-link class="workspace-posts" to="/hr/posts">我的帖子 →</router-link>
+      </div>
     </header>
 
     <nav class="workspace-tabs" aria-label="问题分类">
@@ -370,6 +373,20 @@ onActivated(async () => {
   color: var(--color-text-regular);
   font-size: 15px;
   line-height: 1.6;
+}
+
+.workspace-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.workspace-posts {
+  padding: 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .role-stamp {
@@ -766,6 +783,8 @@ onActivated(async () => {
 
   .workspace-heading {
     align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
     padding-bottom: 20px;
   }
 

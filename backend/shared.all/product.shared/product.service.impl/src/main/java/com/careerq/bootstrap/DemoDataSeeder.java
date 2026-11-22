@@ -4,7 +4,9 @@ import com.careerq.dataobject.AnswerDO;
 import com.careerq.dao.AnswerDao;
 import com.careerq.dataobject.FollowupDO;
 import com.careerq.dao.FollowupDao;
+import com.careerq.dao.HrPostDao;
 import com.careerq.dao.HrProfileDao;
+import com.careerq.dataobject.HrPostDO;
 import com.careerq.dataobject.HrProfileDO;
 import com.careerq.dataobject.QuestionDO;
 import com.careerq.dao.QuestionDao;
@@ -38,7 +40,7 @@ import java.util.HexFormat;
  * 数据覆盖：同一问题多个 HR 回答；每个 HR 会话都至少有一轮「题主追问 + HR 回复」。
  */
 @Component
-@Profile("demo")
+@Profile("demo & !prod")
 public class DemoDataSeeder implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DemoDataSeeder.class);
@@ -49,19 +51,22 @@ public class DemoDataSeeder implements CommandLineRunner {
     private final FollowupDao followupDao;
     private final TagDao tagDao;
     private final HrProfileDao hrProfileDao;
+    private final HrPostDao hrPostDao;
 
     public DemoDataSeeder(UserDao userDao,
                           QuestionDao questionDao,
                           AnswerDao answerDao,
                           FollowupDao followupDao,
                           TagDao tagDao,
-                          HrProfileDao hrProfileDao) {
+                          HrProfileDao hrProfileDao,
+                          HrPostDao hrPostDao) {
         this.userDao = userDao;
         this.questionDao = questionDao;
         this.answerDao = answerDao;
         this.followupDao = followupDao;
         this.tagDao = tagDao;
         this.hrProfileDao = hrProfileDao;
+        this.hrPostDao = hrPostDao;
     }
 
     @Override
@@ -83,6 +88,32 @@ public class DemoDataSeeder implements CommandLineRunner {
         TagDO interview = requireTag("面试准备");
         TagDO autumn = requireTag("秋招");
         TagDO career = requireTag("职业规划");
+
+        seedShare(li, "demo-share-first-offer", "两份实习 Offer 怎么选？先问清这三件事", """
+                拿到两个 Offer 时，平台和薪资当然重要，但先了解你每天可能要做什么。可以分别和两边主管确认三个问题。
+
+                你会负责哪一块？请对方描述第一周和第一个月的工作。具体任务比「可以接触核心业务」更容易拿来比较。
+
+                谁会给你反馈？问清带教是谁、多久沟通一次，遇到卡住的问题可以找谁。你能不能及时获得反馈，往往比岗位名字更影响成长。
+
+                实习结束时怎么评价表现？如果重视转正，可接着确认岗位名额和考核时间。如果更重视探索方向，就比较哪一份能让你完整做完一次交付。
+
+                把两边的答案写在同一张纸上，再对照自己的优先级做决定。
+                """, 3, intern, career);
+        seedShare(wang, "demo-share-project-interview", "面试复盘怎么写，下一场才用得上", """
+                面试结束后先记下原问题，尤其是那些让你停顿很久的追问。比如「为什么用了这套方案」和「怎么证明结果有所改善」，对应的是两个不同的准备方向。
+
+                对每道卡住的题写一句你当时给的答案，再补一句你下次希望讲清楚的事实。选两道题重说一次，听听有没有讲清楚自己负责哪一块、为什么这样做、最后有什么结果。
+
+                如果想找同学帮忙，就请对方针对同一句话追问一次。能经得住追问，比背好一段自我介绍更实用。
+                """, 2, interview, intern);
+        seedShare(chen, "demo-share-resume-projects", "课程项目写进简历，先写清你的那一部分", """
+                读实习简历时，我经常看到「参与设计并实现了一个系统」。我更想知道的是：你接手了哪一块、遇到什么问题、做了哪个决定。
+
+                例如，同样是做校园二手交易平台，可以写自己负责商品列表，发现一次加载全部商品会拖慢页面，于是改成分页，并记录改动前后的加载时间。数据来自本地测试，就把测试条件一并说清楚。
+
+                投递前检查每段项目描述，留下你能讲清楚的两到三件事。少写一个技术名词，往往能多留一行给真正能展开讲的经历。
+                """, 1, resume, intern);
 
         // ---------- Q1：多 HR 同题 ----------
         QuestionDO q1 = newQuestion(student,
@@ -437,6 +468,22 @@ public class DemoDataSeeder implements CommandLineRunner {
                   HR   13800000006 张帆 / 小红书
                   运营 13800000003
                   验证码统一 123456""");
+    }
+
+    private void seedShare(UserDO author, String key, String title, String body, int daysAgo, TagDO... selectedTags) {
+        LocalDateTime publishedAt = LocalDateTime.now().minusDays(daysAgo);
+        HrPostDO post = new HrPostDO();
+        post.setAuthorId(author.getId());
+        post.setClientKey(key);
+        post.setTitle(title);
+        post.setBody(body.strip());
+        post.setCreatedAt(publishedAt);
+        post.setUpdatedAt(publishedAt);
+        post.setSubmittedAt(publishedAt);
+        hrPostDao.insertDemoPublished(post);
+        for (TagDO tag : selectedTags) {
+            hrPostDao.linkTag(post.getId(), tag.getId());
+        }
     }
 
     private QuestionDO newQuestion(UserDO author, String title, String body, TagDO... tags) {

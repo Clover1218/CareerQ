@@ -78,7 +78,7 @@ onMounted(load);
   <section class="hr-post-page">
     <div class="post-breadcrumb"><router-link to="/hr/profile">← HR 个人中心</router-link><router-link to="/hr">前往工作台 ↗</router-link></div>
     <header class="post-page-heading"><div><p class="post-eyebrow">HR 分享 · 创作管理</p><h1>我的帖子</h1><p>把招聘经验与职业思考，整理成一篇自己的分享。</p></div><button type="button" class="post-primary" @click="create">＋ 写一篇分享</button></header>
-    <p class="post-stage-note">当前支持保存草稿和提交审核。帖子审核与公开阅读将在后续阶段接入，待审核内容暂不会公开。</p>
+    <p class="post-stage-note">草稿仅本人可见。帖子审核通过后会出现在「HR 分享」。</p>
     <nav class="post-filters" aria-label="帖子状态"><button v-for="filter in filters" :key="filter.value" type="button" :class="{ active: status === filter.value }" :aria-pressed="status === filter.value" :disabled="busy" @click="navigate(filter.value)">{{ filter.label }}</button><button type="button" :disabled="busy" @click="load">刷新</button></nav>
     <details v-if="localDrafts.length" class="post-local-drafts"><summary>本机未同步内容与备份（{{ localDrafts.length }}）</summary><div v-for="item in localDrafts" :key="item.key"><span>{{ item.draft.title || '未命名草稿' }}</span><button type="button" @click="recover(item.draft)">另存为新帖</button><button type="button" @click="forget(item.key, item.draft)">删除备份</button></div></details>
     <p v-if="error" class="post-error" role="alert">{{ error }} <button type="button" @click="load">重试</button></p>

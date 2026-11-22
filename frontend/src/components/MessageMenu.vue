@@ -67,7 +67,13 @@ function open(category: MessageCategory) {
 
 <template>
   <div v-if="isHr || isStudent" class="msg-menu" @mouseenter="refreshUnread" @focusin="refreshUnread">
-    <button class="msg-trigger" type="button" aria-label="消息" @click="open({ key: 'all', label: '查看全部消息' })">
+    <button
+      class="msg-trigger"
+      type="button"
+      :aria-label="unreadTotal > 0 ? `消息（${unreadTotal} 条未读）` : '消息'"
+      title="消息"
+      @click="open({ key: 'all', label: '查看全部消息' })"
+    >
       <svg
         width="18"
         height="18"
@@ -77,12 +83,12 @@ function open(category: MessageCategory) {
         stroke-width="1.6"
         stroke-linecap="round"
         stroke-linejoin="round"
+        aria-hidden="true"
       >
         <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
         <path d="M13.7 21a2 2 0 0 1-3.4 0" />
       </svg>
-      <span>消息</span>
-      <span v-if="unreadTotal > 0" class="msg-badge">{{ unreadTotal > 99 ? '99+' : unreadTotal }}</span>
+      <span v-if="unreadTotal > 0" class="msg-badge" aria-hidden="true">{{ unreadTotal > 99 ? '99+' : unreadTotal }}</span>
     </button>
 
     <div class="msg-panel" role="menu">
@@ -121,13 +127,15 @@ function open(category: MessageCategory) {
 }
 
 .msg-trigger {
+  position: relative;
   display: inline-flex;
-  white-space: nowrap;
+  width: 42px;
+  height: 42px;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
   border: 0;
   background: none;
-  padding: 4px 8px;
+  padding: 0;
   border-radius: 999px;
   color: var(--color-text-regular);
   font-family: inherit;
@@ -145,6 +153,9 @@ function open(category: MessageCategory) {
 }
 
 .msg-badge {
+  position: absolute;
+  top: 1px;
+  right: 1px;
   display: inline-flex;
   align-items: center;
   justify-content: center;

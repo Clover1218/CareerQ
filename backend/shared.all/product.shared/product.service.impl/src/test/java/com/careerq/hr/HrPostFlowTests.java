@@ -47,6 +47,47 @@ class HrPostFlowTests {
                 .content(json.writeValueAsString(Map.of("version", version, "title", "修改后的分享", "body", body, "tags", List.of("面试准备")))))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("data");
     }
+
+    @Test
+    void publicSharePagesOnlyExposePublishedContent() throws Exception {
+        var hr = account("hr");
+        long firstPublished = draft(hr).path("id").asLong();
+        long secondPublished = draft(hr).path("id").asLong();
+        for (long id : List.of(firstPublished, secondPublished)) {
+            jdbc.update("update hr_posts set status = 'published' where id = ?", id);
+        }
+        for (String hiddenStatus : List.of("draft", "pending_human", "withdrawn", "rejected", "removed", "deleted")) {
+            long id = draft(hr).path("id").asLong();
+            jdbc.update("update hr_posts set status = ? where id = ?", hiddenStatus, id);
+            mvc.perform(get("/api/v1/hr-shares/{id}", id)).andExpect(status().isNotFound());
+        }
+
+        var first = json.readTree(mvc.perform(get("/api/v1/hr-shares").param("limit", "1"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("data");
+        assertEquals(1, first.path("items").size());
+        assertEquals(secondPublished, first.path("nextCursor").asLong());
+        JsonNode summary = first.path("items").get(0);
+        assertEquals(secondPublished, summary.path("id").asLong());
+        assertEquals("发帖测试", summary.path("authorNickname").asText());
+        assertEquals("面试准备", summary.path("tags").get(0).asText());
+        assertFalse(summary.has("body"));
+        assertFalse(summary.has("version"));
+        assertFalse(summary.has("authorId"));
+
+        var next = json.readTree(mvc.perform(get("/api/v1/hr-shares").param("limit", "1")
+                .param("cursor", String.valueOf(secondPublished)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("data");
+        assertEquals(firstPublished, next.path("items").get(0).path("id").asLong());
+        assertFalse(next.hasNonNull("nextCursor"));
+        var detail = json.readTree(mvc.perform(get("/api/v1/hr-shares/{id}", firstPublished))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("data");
+        assertEquals("分享岗位准备与项目表达经验。", detail.path("body").asText());
+        assertFalse(detail.has("version"));
+
+        write(hr, "/hr/posts/" + firstPublished + "/withdraw", Map.of("version", 1));
+        mvc.perform(get("/api/v1/hr-shares/{id}", firstPublished)).andExpect(status().isNotFound());
+    }
+
     @Test
     void authorIsolationRoleBoundaryAndIdentityGuard() throws Exception {
         var hr = account("hr"); var other = account("hr"); var student = account("student");

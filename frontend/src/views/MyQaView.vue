@@ -138,7 +138,7 @@ const feedEntries = computed(() =>
   questions.value.map((question) => ({ question, item: toFeedItem(question) })),
 );
 
-// 我的问答默认只展示前 3 条，其余折叠；展开时自动加载剩余分页
+// 我的提问默认只展示前 3 条，其余折叠；展开时自动加载剩余分页
 const COLLAPSED_LIMIT = 3;
 const expanded = ref(false);
 const expanding = ref(false);
@@ -353,7 +353,7 @@ watch(
         accept="image/png,image/jpeg,image/webp"
         @change="onAvatarChange"
       />
-      <div class="flex flex-wrap items-center gap-4 text-14 text-muted"><span>我的求职问答与学习记录</span><router-link to="/messages" class="text-brand">查看消息 →</router-link></div>
+      <div class="flex flex-wrap items-center gap-4 text-14 text-muted"><span>我的求职提问与学习记录</span><router-link to="/messages" class="text-brand">查看消息 →</router-link></div>
     </div>
   </section>
 

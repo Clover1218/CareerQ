@@ -13,6 +13,7 @@ public class HrPostDO {
     private LocalDateTime submittedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private String authorNickname;
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public Long getAuthorId() { return authorId; }
@@ -33,4 +34,6 @@ public class HrPostDO {
     public void setCreatedAt(LocalDateTime value) { createdAt = value; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime value) { updatedAt = value; }
+    public String getAuthorNickname() { return authorNickname; }
+    public void setAuthorNickname(String value) { authorNickname = value; }
 }

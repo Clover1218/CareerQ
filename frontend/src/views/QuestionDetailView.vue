@@ -7,6 +7,7 @@ import { api, type Followup, type QuestionDetail } from "../api";
 import { useUserStore } from "@/stores/user";
 import { addViewHistory } from "@/utils/history";
 import FollowupDiscussion from "@/components/FollowupDiscussion.vue";
+import ReportDialog from "@/components/ReportDialog.vue";
 import { buildAnswerThreads, detailThreadItems, type AnswerThread } from "@/utils/answerThreads";
 import { canWithdrawAnswer, useAnswerWithdrawal } from "@/composables/useAnswerWithdrawal";
 import { removedAnswerText } from "@/utils/answerRemoval";
@@ -62,6 +63,8 @@ const selectedFollowup = computed(() => hrFollowups.value.find(
 ));
 const mainAnswers = computed(() => detail.value?.answers.filter((answer) => answer.followupId == null) ?? []);
 const likingAnswerId = ref<number | null>(null);
+const reportOpen = ref(false);
+const reportAnswerId = ref(0);
 const conversations = computed(() => detail.value ? buildAnswerThreads(detailThreadItems(detail.value)) : []);
 const selectedRootAnswerId = ref<number | null>(null);
 const selectedRootAnswer = computed(() => mainAnswers.value.find(
@@ -402,14 +405,10 @@ async function toggleAnswerLike(answerId: number) {
   }
 }
 
-async function reportAnswer(answerId: number) {
+function reportAnswer(answerId: number) {
   if (!requireAnswerInteractionLogin()) return;
-  try {
-    await api.report("answer", answerId);
-    message.success("举报已提交，我们会尽快处理");
-  } catch (e) {
-    message.error(e instanceof Error ? e.message : "举报失败");
-  }
+  reportAnswerId.value = answerId;
+  reportOpen.value = true;
 }
 
 const reviewStatus: Record<string, string> = {
@@ -552,6 +551,7 @@ onMounted(load);
       {{ answerSubmitting ? '提交中…' : answerMode === 'question' ? '提交主问题回答' : '提交追问回复' }}
     </button>
   </div>
+  <ReportDialog v-if="reportOpen" v-model:show="reportOpen" target-type="answer" :target-id="reportAnswerId" />
 </template>
 
 <style scoped>
