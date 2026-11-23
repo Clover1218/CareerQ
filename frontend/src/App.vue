@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { dateZhCN, zhCN, type GlobalThemeOverrides } from "naive-ui";
 import { useUserStore } from "@/stores/user";
+import FeedIcon from "@/components/FeedIcon.vue";
 import MessageMenu from "@/components/MessageMenu.vue";
 import ProfileDrawer from "@/components/ProfileDrawer.vue";
 import { SESSION_SIGNAL_KEY, SESSION_REFRESH_EVENT } from "@/utils/sessionSync";
@@ -39,6 +40,7 @@ function syncTopbarHeight() {
 }
 
 const avatarInitial = computed(() => Array.from(user.value?.nickname.trim() || "学")[0]);
+const accountLabel = computed(() => user.value?.role === "student" || user.value?.role === "hr" ? "个人资料" : "账号");
 
 async function refresh() {
   await userStore.fetchUserInfo(user.value?.role === "student");
@@ -124,6 +126,14 @@ onMounted(() => {
   document.addEventListener("visibilitychange", syncStudentSession);
 });
 
+watch(topbar, (element, previous) => {
+  if (previous) topbarObserver?.unobserve(previous);
+  if (element) {
+    topbarObserver?.observe(element);
+    syncTopbarHeight();
+  }
+}, { flush: "post" });
+
 onUnmounted(() => {
   topbarObserver?.disconnect();
   document.documentElement.style.removeProperty("--topbar-height");
@@ -162,7 +172,6 @@ watch(() => route.fullPath, refresh);
                 <router-link v-if="user?.role === 'operator' || user?.role === 'admin'" to="/admin">
                   管理面板
                 </router-link>
-                <router-link v-if="user?.role === 'student' || !user" to="/ask">提问</router-link>
               </nav>
               <div class="account">
                 <router-link v-if="user?.role === 'student' || !user" class="topbar-ask" to="/ask">提问</router-link>
@@ -172,8 +181,8 @@ watch(() => route.fullPath, refresh);
                     ref="accountTrigger"
                     class="account-trigger"
                     type="button"
-                    :aria-label="`${user.nickname} 的个人菜单`"
-                    title="个人菜单"
+                    :aria-label="`${accountLabel}，${user.nickname}`"
+                    :title="accountLabel"
                     aria-haspopup="dialog"
                     :aria-expanded="showProfileDrawer"
                     @click="openProfileDrawer"
@@ -182,6 +191,8 @@ watch(() => route.fullPath, refresh);
                       <img v-if="user.avatarUrl" :src="user.avatarUrl" alt="" />
                       <template v-else>{{ avatarInitial }}</template>
                     </span>
+                    <span class="account-label">{{ accountLabel }}</span>
+                    <FeedIcon name="chevron" class="account-chevron" :size="12" />
                   </button>
                 </template>
                 <div v-else class="account-auth">

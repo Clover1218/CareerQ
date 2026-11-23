@@ -86,7 +86,7 @@ a {
 /* ---------------- 顶部导航 ---------------- */
 .topbar {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
   align-items: center;
   column-gap: 20px;
   min-height: 57px;
@@ -200,13 +200,15 @@ a {
 
 .account-trigger {
   display: inline-flex;
-  flex: 0 0 42px;
+  flex: 0 0 auto;
+  min-width: 42px;
   height: 42px;
   align-items: center;
   justify-content: center;
+  gap: 5px;
   border: 0;
   background: none;
-  padding: 0;
+  padding: 0 8px 0 5px;
   border-radius: 999px;
   font-family: inherit;
   color: var(--color-text-regular);
@@ -214,6 +216,17 @@ a {
   line-height: 22px;
   cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.account-label {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.account-chevron {
+  flex: 0 0 12px;
+  color: var(--color-text-muted);
 }
 
 .account-trigger:hover {
@@ -839,7 +852,7 @@ textarea {
 }
 
 /* ---------------- 响应式 ---------------- */
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   body {
     padding-top: var(--topbar-height, 85px);
   }
@@ -867,6 +880,14 @@ textarea {
   .account-auth {
     gap: 3px;
     padding-inline-start: 8px;
+  }
+
+  .account-label {
+    display: none;
+  }
+
+  .account-trigger {
+    padding: 0 6px;
   }
 
   .nav {

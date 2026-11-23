@@ -20,6 +20,7 @@ const profile = ref<Profile | null>(null);
 const stats = ref<MeStats | null>(null);
 const loading = ref(false);
 const isHr = computed(() => props.user?.role === "hr");
+const isStudent = computed(() => props.user?.role === "student");
 const hrProfile = ref<HrProfile | null>(null);
 const hrStats = ref<HrContributionStats | null>(null);
 const identityProfile = computed(() => isHr.value ? hrProfile.value : profile.value);
@@ -91,7 +92,7 @@ watch(
       ++loadSequence;
       profile.value = null; stats.value = null; hrProfile.value = null; hrStats.value = null;
     }
-    if (open) void load();
+    if (open && (isHr.value || isStudent.value)) void load();
   },
 );
 
@@ -121,11 +122,11 @@ function go(path: string) {
             <h2 class="drawer-name">{{ nickname }}</h2>
             <span class="drawer-role">{{ roleLabel }}</span>
             <p v-if="profileLines.length" class="drawer-meta">{{ profileLines.join(" · ") }}</p>
-            <p v-else class="drawer-meta drawer-meta--muted">{{ isHr ? '职业资料待完善' : '学校 / 专业 / 年级待完善' }}</p>
+            <p v-else-if="isHr || isStudent" class="drawer-meta drawer-meta--muted">{{ isHr ? '职业资料待完善' : '学校 / 专业 / 年级待完善' }}</p>
           </div>
 
           <!-- 数据统计 -->
-          <div class="drawer-stats" :class="{ 'drawer-stats--hr': isHr }">
+          <div v-if="isHr || isStudent" class="drawer-stats" :class="{ 'drawer-stats--hr': isHr }">
             <div v-for="item in statItems" :key="item.label" class="drawer-stat">
               <b>{{ item.value }}</b>
               <span>{{ item.label }}</span>
@@ -133,7 +134,7 @@ function go(path: string) {
           </div>
 
           <!-- 快捷入口 -->
-          <nav v-if="!isHr || route.name !== 'hr-profile'" class="drawer-menu" aria-label="个人菜单">
+          <nav v-if="isStudent || (isHr && route.name !== 'hr-profile')" class="drawer-menu" aria-label="个人菜单">
             <template v-if="isHr">
               <button type="button" class="drawer-menu-item" @click="go('/hr/profile')">
                 <span>个人中心</span>
@@ -141,9 +142,19 @@ function go(path: string) {
               </button>
             </template>
             <template v-else>
-              <button type="button" class="drawer-menu-item" @click="go(user?.role === 'student' ? '/me?edit=profile' : '/me')">
-                <span>个人资料</span>
-                <span class="drawer-arrow">›</span>
+              <button type="button" class="drawer-menu-item drawer-menu-item--detailed drawer-menu-item--primary" @click="go('/me')">
+                <span class="drawer-menu-copy">
+                  <span>查看个人中心</span>
+                  <small>我的提问、收藏与历史记录</small>
+                </span>
+                <span class="drawer-arrow" aria-hidden="true">›</span>
+              </button>
+              <button type="button" class="drawer-menu-item drawer-menu-item--detailed" @click="go('/me?edit=profile')">
+                <span class="drawer-menu-copy">
+                  <span>编辑个人资料</span>
+                  <small>学校、专业与年级</small>
+                </span>
+                <span class="drawer-arrow" aria-hidden="true">›</span>
               </button>
             </template>
           </nav>
@@ -329,6 +340,43 @@ function go(path: string) {
 .drawer-menu-item:hover {
   color: var(--color-text-primary);
   background: var(--color-bg-hover);
+}
+
+.drawer-menu-item--detailed {
+  min-height: 62px;
+  height: auto;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.drawer-menu-item--primary {
+  margin-bottom: 8px;
+  border: 1px solid var(--color-brand-border);
+  border-radius: 10px;
+  background: var(--color-brand-soft);
+  padding-right: 12px;
+  padding-left: 12px;
+}
+
+.drawer-menu-item--primary:hover {
+  background: #e3edff;
+}
+
+.drawer-menu-item--primary .drawer-menu-copy > span {
+  color: var(--color-brand);
+  font-weight: 600;
+}
+
+.drawer-menu-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.drawer-menu-copy small {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 18px;
 }
 
 .drawer-arrow {
