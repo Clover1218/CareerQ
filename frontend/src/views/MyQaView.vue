@@ -189,7 +189,7 @@ async function loadStats() {
 function canWithdraw(question: Question): boolean {
   return (
     (question.answerCount ?? 0) === 0 &&
-    ["pending_machine", "pending_human", "published"].includes(question.status)
+    ["REVIEWING", "PUBLISHED"].includes(question.displayStatus)
   );
 }
 
@@ -421,7 +421,7 @@ watch(() => route.query.edit, edit => {
             v-for="entry in visibleEntries"
             :key="entry.question.id"
             :item="entry.item"
-            :status="entry.question.status"
+            :display-status="entry.question.displayStatus"
             :withdrawable="canWithdraw(entry.question)"
             owner-mode
             @withdraw="confirmWithdraw(entry.question)"

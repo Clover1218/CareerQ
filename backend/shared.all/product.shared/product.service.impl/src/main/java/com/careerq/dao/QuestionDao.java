@@ -15,11 +15,13 @@ public interface QuestionDao {
 
     @Insert("""
             insert into questions (
-                scope, author_id, title, body, status, first_answer_at,
-                answer_count, useful_count, created_at, updated_at
+                scope, author_id, title, body, moderation_status, visibility, risk_level,
+                moderation_reason, moderated_at, first_answer_at, answer_count, useful_count,
+                created_at, updated_at
             ) values (
-                #{scope}, #{authorId}, #{title}, #{body}, #{status},
-                #{firstAnswerAt}, #{answerCount}, #{usefulCount}, #{createdAt}, #{updatedAt}
+                #{scope}, #{authorId}, #{title}, #{body}, #{moderationStatus}, #{visibility}, #{riskLevel},
+                #{moderationReason}, #{moderatedAt}, #{firstAnswerAt}, #{answerCount}, #{usefulCount},
+                #{createdAt}, #{updatedAt}
             )
             """)
     @Options(useGeneratedKeys = true, keyProperty = "id")
@@ -31,22 +33,35 @@ public interface QuestionDao {
     @Select("select * from questions where id = #{id} and scope = 'public' for update")
     Optional<QuestionDO> findByIdForUpdate(Long id);
 
-    @Select("select * from questions where scope = 'public' and status = #{status} order by id")
-    List<QuestionDO> findByStatusOrderByIdAsc(String status);
+    @Select("select count(*) from questions where scope = 'public' and moderation_status = #{status}")
+    long countByModerationStatus(String status);
 
-    @Select("select count(*) from questions where scope = 'public' and status = #{status}")
-    long countByStatus(String status);
+    @Select("select count(*) from questions where scope = 'public' and visibility = #{visibility}")
+    long countByVisibility(String visibility);
+
+    @Select("""
+            select count(*) from questions
+            where scope = 'public' and moderation_status = #{status} and visibility = #{visibility}
+            """)
+    long countByModerationStatusAndVisibility(@Param("status") String status,
+                                              @Param("visibility") String visibility);
+
+    @Select("select * from questions where scope = 'public' and moderation_status = 'L3' order by id")
+    List<QuestionDO> findPending();
+
+    @Select("select count(*) from questions where scope = 'public' and author_id = #{authorId} and created_at >= #{since}")
+    long countByAuthorSince(@Param("authorId") Long authorId, @Param("since") LocalDateTime since);
 
     @Select("""
             <script>
             select q.* from questions q
-            where q.scope = #{scope} and q.status = #{status}
+            where q.scope = #{scope} and q.visibility = #{visibility}
             <if test="cursor != null">and q.id &lt; #{cursor}</if>
             <if test="unanswered">
                 and q.answer_count = 0
                 and not exists (
                     select 1 from answers a where a.question_id = q.id
-                      and a.status in ('published', 'pending_machine', 'pending_human')
+                      and a.visibility &lt;&gt; 'REMOVED' and a.moderation_status &lt;&gt; 'REJECTED'
                 )
             </if>
             <if test="tag != null">
@@ -58,12 +73,12 @@ public interface QuestionDao {
             order by q.id desc limit #{limit}
             </script>
             """)
-    List<QuestionDO> list(@Param("scope") String scope, @Param("status") String status,
+    List<QuestionDO> list(@Param("scope") String scope, @Param("visibility") String visibility,
                           @Param("cursor") Long cursor, @Param("tag") String tag,
                           @Param("unanswered") boolean unanswered, @Param("limit") int limit);
 
-    @Select("select coalesce(max(id), 0) from questions where scope = #{scope} and status = #{status}")
-    long findMaxId(@Param("scope") String scope, @Param("status") String status);
+    @Select("select coalesce(max(id), 0) from questions where scope = #{scope} and visibility = #{visibility}")
+    long findMaxId(@Param("scope") String scope, @Param("visibility") String visibility);
 
     /**
      * 推荐/热门候选池：固定快照上界，支持关键词、多标签（AND/OR）与时间范围过滤，
@@ -72,7 +87,7 @@ public interface QuestionDao {
     @Select("""
             <script>
             select q.* from questions q
-            where q.scope = #{scope} and q.status = #{status}
+            where q.scope = #{scope} and q.visibility = #{visibility}
               and q.id &lt;= #{maxId}
             <if test="since != null">and q.created_at &gt;= #{since}</if>
             <if test="until != null">and q.created_at &lt; #{until}</if>
@@ -106,7 +121,7 @@ public interface QuestionDao {
             order by q.id desc limit #{limit}
             </script>
             """)
-    List<QuestionDO> listFilteredCandidates(@Param("scope") String scope, @Param("status") String status,
+    List<QuestionDO> listFilteredCandidates(@Param("scope") String scope, @Param("visibility") String visibility,
                                             @Param("maxId") long maxId, @Param("since") LocalDateTime since,
                                             @Param("until") LocalDateTime until, @Param("keyword") String keyword,
                                             @Param("tags") List<String> tags, @Param("tagCount") int tagCount,
@@ -117,7 +132,7 @@ public interface QuestionDao {
     @Select("""
             <script>
             select q.* from questions q
-            where q.scope = #{scope} and q.status = #{status}
+            where q.scope = #{scope} and q.visibility = #{visibility}
             <if test="lastCreatedAt != null">
               and (q.created_at &lt; #{lastCreatedAt}
                    or (q.created_at = #{lastCreatedAt} and q.id &lt; #{lastId}))
@@ -155,7 +170,7 @@ public interface QuestionDao {
             limit #{limit}
             </script>
             """)
-    List<QuestionDO> listLatest(@Param("scope") String scope, @Param("status") String status,
+    List<QuestionDO> listLatest(@Param("scope") String scope, @Param("visibility") String visibility,
                                 @Param("keyword") String keyword, @Param("tags") List<String> tags,
                                 @Param("tagCount") int tagCount, @Param("matchAll") boolean matchAll,
                                 @Param("from") LocalDateTime from, @Param("to") LocalDateTime to,
@@ -182,7 +197,7 @@ public interface QuestionDao {
     @Select("""
             <script>
             select q.* from questions q
-            where q.scope = 'public' and q.status = 'published'
+            where q.scope = 'public' and q.visibility = 'VISIBLE'
               and exists (
                   select 1 from answers a
                   where a.question_id = q.id and a.author_id = #{hrId}
@@ -203,13 +218,13 @@ public interface QuestionDao {
             select q.*,
                 exists (
                     select 1 from answers pa where pa.question_id = q.id
-                      and pa.status in ('pending_machine', 'pending_human')
+                      and pa.moderation_status in ('L1', 'L2', 'L3')
                 ) as has_pending_answer
             from questions q
-            where q.scope = 'public' and q.status = 'published'
+            where q.scope = 'public' and q.visibility = 'VISIBLE'
               and exists (
                     select 1 from answers a where a.question_id = q.id
-                      and a.status in ('published', 'pending_machine', 'pending_human')
+                      and (a.visibility = 'VISIBLE' or a.moderation_status in ('L1', 'L2', 'L3'))
               )
             <if test="cursor != null">and q.id &lt; #{cursor}</if>
             order by q.id desc limit #{limit}
@@ -217,8 +232,70 @@ public interface QuestionDao {
             """)
     List<QuestionDO> listPublicWithAnyAnswer(@Param("cursor") Long cursor, @Param("limit") int limit);
 
-    @Update("update questions set status = #{status}, updated_at = current_timestamp where id = #{id}")
-    int updateStatus(@Param("id") Long id, @Param("status") String status);
+    @Update("""
+            update questions set moderation_status = #{moderationStatus}, visibility = #{visibility},
+                risk_level = #{riskLevel}, moderation_reason = #{reason}, moderated_at = current_timestamp,
+                updated_at = current_timestamp
+            where id = #{id}
+            """)
+    int updateModeration(@Param("id") Long id,
+                         @Param("moderationStatus") String moderationStatus,
+                         @Param("visibility") String visibility,
+                         @Param("riskLevel") String riskLevel,
+                         @Param("reason") String reason);
+
+    @Update("""
+            <script>
+            update questions set moderation_status = #{toStatus}, visibility = #{visibility},
+                risk_level = #{riskLevel}, moderation_reason = #{reason}, moderated_at = current_timestamp,
+                review_attempts = review_attempts + 1, updated_at = current_timestamp
+            where id = #{id} and moderation_status in
+            <foreach collection="expected" item="item" open="(" separator="," close=")">#{item}</foreach>
+            </script>
+            """)
+    int updateModerationIfStatusIn(@Param("id") Long id,
+                                   @Param("expected") List<String> expected,
+                                   @Param("toStatus") String toStatus,
+                                   @Param("visibility") String visibility,
+                                   @Param("riskLevel") String riskLevel,
+                                   @Param("reason") String reason);
+
+    @Update("""
+            <script>
+            update questions set visibility = #{visibility}, moderation_reason = #{reason},
+                moderated_at = current_timestamp, updated_at = current_timestamp
+            where id = #{id} and moderation_status in
+            <foreach collection="expectedStatus" item="item" open="(" separator="," close=")">#{item}</foreach>
+              and visibility in
+            <foreach collection="expectedVisibility" item="item" open="(" separator="," close=")">#{item}</foreach>
+            </script>
+            """)
+    int updateVisibilityIf(@Param("id") Long id,
+                           @Param("expectedStatus") List<String> expectedStatus,
+                           @Param("expectedVisibility") List<String> expectedVisibility,
+                           @Param("visibility") String visibility,
+                           @Param("reason") String reason);
+
+    @Update("""
+            update questions set moderation_status = 'L3', visibility = #{visibility},
+                moderation_reason = #{reason}, moderated_at = current_timestamp, updated_at = current_timestamp
+            where id = #{id} and moderation_status in ('APPROVED', 'REJECTED')
+            """)
+    int undoModerationIf(@Param("id") Long id, @Param("visibility") String visibility,
+                         @Param("reason") String reason);
+
+    @Select("""
+            select count(*) from questions
+            where scope = 'public' and moderation_status = 'L3' and review_attempts >= 2
+            """)
+    long countArbitration();
+
+    @Update("""
+            update questions set moderation_status = 'WITHDRAWN', visibility = 'REMOVED',
+                moderated_at = current_timestamp, updated_at = current_timestamp
+            where id = #{id} and visibility in ('VISIBLE', 'HIDDEN')
+            """)
+    int withdraw(Long id);
 
     @Update("""
             update questions set answer_count = answer_count + 1,

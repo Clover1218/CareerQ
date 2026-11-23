@@ -85,9 +85,11 @@ class ModerationFlowTests {
     }
 
     private JsonNode queue(MockHttpSession operator) throws Exception {
-        MvcResult result = mockMvc.perform(get("/api/v1/admin/moderation/queue").session(operator))
+        MvcResult result = mockMvc.perform(get("/api/v1/admin/moderation/queue")
+                        .param("type", "question").param("risk", "WATCH").param("size", "50")
+                        .session(operator))
                 .andExpect(status().isOk()).andReturn();
-        return objectMapper.readTree(result.getResponse().getContentAsString()).path("data");
+        return objectMapper.readTree(result.getResponse().getContentAsString()).path("data").path("items");
     }
 
     private boolean queueContains(JsonNode items, String targetType, long targetId) {
@@ -100,13 +102,14 @@ class ModerationFlowTests {
     }
 
     @Test
-    void riskyQuestionGoesToQueueThenApproved() throws Exception {
+    void riskyQuestionPublishesImmediatelyAndStaysInQueue() throws Exception {
         MockHttpSession student = login("13800000301");
         long questionId = createQuestion(student, "想找内推", "可以加微信详聊吗？", "public");
 
-        // 命中高风险词 → 待人工审核，公开不可见
+        // L1 命中风险词但 L2 通过：立即公开，同时保留人工复核任务
         mockMvc.perform(get("/api/v1/questions/{id}", questionId))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.question.displayStatus").value("PUBLISHED"));
 
         MockHttpSession operator = loginAs("13800000302", "operator");
         assertTrue(queueContains(queue(operator), "question", questionId), "队列应包含待审问题");
@@ -119,7 +122,7 @@ class ModerationFlowTests {
 
         mockMvc.perform(get("/api/v1/questions/{id}", questionId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.question.status").value("published"));
+                .andExpect(jsonPath("$.data.question.displayStatus").value("PUBLISHED"));
     }
 
     @Test
@@ -136,6 +139,13 @@ class ModerationFlowTests {
         long answerId = objectMapper.readTree(answerResult.getResponse().getContentAsString())
                 .path("data").path("id").asLong();
 
+        MockHttpSession operator = loginAs("13800000305", "operator");
+        mockMvc.perform(post("/api/v1/admin/moderation/answer/{id}/decide", answerId)
+                        .session(operator).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("decision", "approve", "note", "审核通过"))))
+                .andExpect(status().isOk());
+
         mockMvc.perform(post("/api/v1/reports")
                         .session(student).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -144,7 +154,6 @@ class ModerationFlowTests {
                                 "reason", "misleading", "detail", "内容有误导"))))
                 .andExpect(status().isOk());
 
-        MockHttpSession operator = loginAs("13800000305", "operator");
         MvcResult reportsResult = mockMvc.perform(get("/api/v1/admin/reports?status=pending").session(operator))
                 .andExpect(status().isOk()).andReturn();
         JsonNode reports = objectMapper.readTree(reportsResult.getResponse().getContentAsString()).path("data");
@@ -179,7 +188,7 @@ class ModerationFlowTests {
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "title", "测试违禁词", "body", "这里包含违禁词TEST", "scope", "public"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("rejected"))
+                .andExpect(jsonPath("$.data.displayStatus").value("REJECTED"))
                 .andReturn();
         long questionId = objectMapper.readTree(result.getResponse().getContentAsString())
                 .path("data").path("id").asLong();
@@ -202,8 +211,8 @@ class ModerationFlowTests {
         MvcResult result = mockMvc.perform(get("/api/v1/admin/metrics").session(operator))
                 .andExpect(status().isOk()).andReturn();
         JsonNode data = objectMapper.readTree(result.getResponse().getContentAsString()).path("data");
-        assertTrue(data.has("questionsPendingHuman"));
+        assertTrue(data.has("questionsReviewing"));
         assertTrue(data.has("reportsPending"));
-        assertTrue(data.path("questionsPendingHuman").asInt() >= 0);
+        assertTrue(data.path("questionsReviewing").asInt() >= 0);
     }
 }

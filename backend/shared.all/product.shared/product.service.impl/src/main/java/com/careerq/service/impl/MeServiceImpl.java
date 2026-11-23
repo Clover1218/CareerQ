@@ -27,6 +27,6 @@ public class MeServiceImpl implements MeService {
     public Stats stats(AuthUser user) {
         Long userId = user.getId();
         return new Stats(questionDao.countByAuthor(userId), questionDao.countReceivedAnswers(userId),
-                answerDao.countPublishedByAuthor(userId), interactionDao.countLikesReceived(userId));
+                answerDao.countVisibleByAuthor(userId), interactionDao.countLikesReceived(userId));
     }
 }

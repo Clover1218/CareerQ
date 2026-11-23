@@ -1,14 +1,18 @@
 package com.careerq.controller;
 
+import com.careerq.common.ApiResponse;
+import com.careerq.security.AuthUsers;
+import com.careerq.service.AdminService;
+import com.careerq.service.AdminService.BatchDecideRequest;
+import com.careerq.service.AdminService.ContextPage;
 import com.careerq.service.AdminService.DecideRequest;
 import com.careerq.service.AdminService.HandleReportRequest;
-import com.careerq.service.AdminService.QueueItem;
-import com.careerq.service.AdminService.WordRequest;
-import com.careerq.common.ApiResponse;
-import com.careerq.service.AdminService.WordView;
 import com.careerq.service.AdminService.ReportView;
-import com.careerq.service.AdminService;
-import com.careerq.security.AuthUsers;
+import com.careerq.service.AdminService.ReviewDetail;
+import com.careerq.service.AdminService.ReviewPage;
+import com.careerq.service.AdminService.UndoRequest;
+import com.careerq.service.AdminService.WordRequest;
+import com.careerq.service.AdminService.WordView;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -35,8 +39,46 @@ public class AdminController {
     }
 
     @GetMapping("/moderation/queue")
-    public ApiResponse<List<QueueItem>> queue() {
-        return ApiResponse.ok(adminService.queue());
+    public ApiResponse<ReviewPage> queue(Authentication authentication,
+                                         @RequestParam(required = false) String type,
+                                         @RequestParam(required = false) String risk,
+                                         @RequestParam(required = false) String arbitration,
+                                         @RequestParam(defaultValue = "1") int page,
+                                         @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(adminService.reviewQueue(
+                AuthUsers.require(authentication), type, risk, arbitration, page, size));
+    }
+
+    @GetMapping("/moderation/reviewed")
+    public ApiResponse<ReviewPage> reviewed(Authentication authentication,
+                                            @RequestParam(required = false) String type,
+                                            @RequestParam(required = false) String status,
+                                            @RequestParam(required = false) String risk,
+                                            @RequestParam(defaultValue = "1") int page,
+                                            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(adminService.reviewed(AuthUsers.require(authentication), type, status, risk, page, size));
+    }
+
+    @GetMapping("/moderation/{targetType}/{id}")
+    public ApiResponse<ReviewDetail> detail(@PathVariable String targetType,
+                                            @PathVariable Long id) {
+        return ApiResponse.ok(adminService.detail(targetType, id));
+    }
+
+    @GetMapping("/moderation/{targetType}/{id}/context/older")
+    public ApiResponse<ContextPage> contextOlder(@PathVariable String targetType,
+                                                 @PathVariable Long id,
+                                                 @RequestParam String cursor,
+                                                 @RequestParam(defaultValue = "2") int limit) {
+        return ApiResponse.ok(adminService.contextBefore(targetType, id, cursor, limit));
+    }
+
+    @GetMapping("/moderation/{targetType}/{id}/context/newer")
+    public ApiResponse<ContextPage> contextNewer(@PathVariable String targetType,
+                                                 @PathVariable Long id,
+                                                 @RequestParam String cursor,
+                                                 @RequestParam(defaultValue = "2") int limit) {
+        return ApiResponse.ok(adminService.contextAfter(targetType, id, cursor, limit));
     }
 
     @PostMapping("/moderation/{targetType}/{id}/decide")
@@ -45,6 +87,22 @@ public class AdminController {
                                     @PathVariable Long id,
                                     @Valid @RequestBody DecideRequest request) {
         adminService.decide(AuthUsers.require(authentication), targetType, id, request);
+        return ApiResponse.ok();
+    }
+
+    @PostMapping("/moderation/{targetType}/{id}/undo")
+    public ApiResponse<Void> undo(Authentication authentication,
+                                  @PathVariable String targetType,
+                                  @PathVariable Long id,
+                                  @RequestBody(required = false) UndoRequest request) {
+        adminService.undo(AuthUsers.require(authentication), targetType, id, request);
+        return ApiResponse.ok();
+    }
+
+    @PostMapping("/moderation/batch-decide")
+    public ApiResponse<Void> batchDecide(Authentication authentication,
+                                         @Valid @RequestBody BatchDecideRequest request) {
+        adminService.batchDecide(AuthUsers.require(authentication), request);
         return ApiResponse.ok();
     }
 

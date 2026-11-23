@@ -28,6 +28,7 @@ public final class QuestionDtos {
     public record QuestionView(
             Long id,
             String scope,
+            String displayStatus,
             String status,
             String title,
             String body,
@@ -47,6 +48,7 @@ public final class QuestionDtos {
             Long followupId,
             String body,
             String lengthType,
+String displayStatus,
             String status,
             String removalSource,
             LocalDateTime createdAt) {
@@ -129,6 +131,7 @@ public final class QuestionDtos {
             String body,
             UserBrief author,
             boolean hr,
+String displayStatus,
             String status,
             /** 仅 HR 回答/回复的移除来源；学生追问为空。 */
             String removalSource,

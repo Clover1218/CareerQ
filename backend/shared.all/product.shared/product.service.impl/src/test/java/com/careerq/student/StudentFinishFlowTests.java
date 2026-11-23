@@ -114,7 +114,7 @@ class StudentFinishFlowTests {
         assertFalse(rejected.toString().contains("INTERNAL_ONLY"));
         long q = question(student, "正常面试准备问题");
         long a = answer(hr, q, "加微信讨论联系方式");
-        assertEquals(1, count(student));
+        assertEquals(2, count(student));
         decide(op, "answer", a, "approve");
         assertEquals(2, count(student));
         long f = write(student, "/questions/" + q + "/followups", Map.of("rootAnswerId", a,
@@ -142,7 +142,7 @@ class StudentFinishFlowTests {
         long a = answer(hr, visible, "被收藏的回答");
         for (long id : new long[]{visible, hidden}) write(student, "/interactions", Map.of("targetType", "question", "targetId", id, "type", "favorite"));
         write(student, "/interactions", Map.of("targetType", "answer", "targetId", a, "type", "favorite"));
-        jdbc.update("update questions set status = 'removed' where id = ?", hidden);
+        jdbc.update("update questions set visibility = 'REMOVED', moderation_status = 'APPROVED' where id = ?", hidden);
         var first = read(student, "/me/favorites?limit=1");
         var answer = first.path("items").get(0);
         assertEquals(a, answer.path("targetId").asLong()); assertEquals(visible, answer.path("questionId").asLong());

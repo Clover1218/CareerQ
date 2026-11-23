@@ -31,6 +31,8 @@ const accountTrigger = ref<HTMLButtonElement | null>(null);
 const logoutCancel = ref<HTMLButtonElement | null>(null);
 let topbarObserver: ResizeObserver | undefined;
 
+const isAdminPage = computed(() => ["admin-review", "admin-review-workspace"].includes(String(route.name)));
+
 function syncTopbarHeight() {
   if (!topbar.value) return;
   document.documentElement.style.setProperty("--topbar-height", `${topbar.value.getBoundingClientRect().height}px`);
@@ -101,6 +103,16 @@ watch(() => user.value?.id, () => {
   showLogoutConfirm.value = false;
 });
 
+// 后台是独立界面：不留顶栏高度，也不预留页面滚动条
+watch(
+  isAdminPage,
+  (admin) => {
+    document.body.classList.toggle("admin-mode", admin);
+    document.documentElement.classList.toggle("admin-mode", admin);
+  },
+  { immediate: true },
+);
+
 onMounted(() => {
   syncTopbarHeight();
   topbarObserver = new ResizeObserver(syncTopbarHeight);
@@ -121,6 +133,8 @@ onUnmounted(() => {
   window.removeEventListener(SESSION_REFRESH_EVENT, syncStudentSession);
   document.removeEventListener("visibilitychange", syncStudentSession);
   document.body.style.overflow = "";
+  document.body.classList.remove("admin-mode");
+  document.documentElement.classList.remove("admin-mode");
 });
 
 onMounted(refresh);
@@ -134,7 +148,7 @@ watch(() => route.fullPath, refresh);
       <n-dialog-provider>
         <n-notification-provider>
           <n-loading-bar-provider>
-            <header ref="topbar" class="topbar" :inert="accountDialogOpen">
+            <header v-if="!isAdminPage" ref="topbar" class="topbar" :inert="accountDialogOpen">
               <router-link class="brand" to="/" aria-label="CareerQ 首页">CareerQ</router-link>
               <nav class="nav" :class="{ 'nav--hr': user?.role === 'hr' }" aria-label="主导航">
                 <router-link to="/">公开问答</router-link>
@@ -145,6 +159,10 @@ watch(() => route.fullPath, refresh);
                   to="/hr/posts"
                   :class="{ 'router-link-active': route.name === 'hr-post-new' || route.name === 'hr-post-editor' }"
                 >我的帖子</router-link>
+                <router-link v-if="user?.role === 'operator' || user?.role === 'admin'" to="/admin">
+                  管理面板
+                </router-link>
+                <router-link v-if="user?.role === 'student' || !user" to="/ask">提问</router-link>
               </nav>
               <div class="account">
                 <router-link v-if="user?.role === 'student' || !user" class="topbar-ask" to="/ask">提问</router-link>
@@ -172,7 +190,7 @@ watch(() => route.fullPath, refresh);
                 </div>
               </div>
             </header>
-            <main :inert="accountDialogOpen" :class="['my-qa', 'student-messages', 'hr-workbench', 'hr-profile', 'hr-messages', 'hr-posts', 'hr-post-new', 'hr-post-editor'].includes(String(route.name)) ? 'wide-shell' : 'container'">
+<main :inert="accountDialogOpen" :class="isAdminPage ? 'admin-shell' : ['my-qa', 'student-messages', 'hr-workbench', 'hr-profile', 'hr-messages', 'hr-posts', 'hr-post-new', 'hr-post-editor'].includes(String(route.name)) ? 'wide-shell' : 'container'">
               <router-view v-slot="{ Component, route: currentRoute }">
                 <keep-alive include="QuestionListView,PublicHrSharesView,HrWorkspaceView,HrProfileView,HrMessagesView">
                   <component

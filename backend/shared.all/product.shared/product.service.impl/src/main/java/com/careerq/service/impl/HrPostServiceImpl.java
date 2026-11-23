@@ -4,6 +4,7 @@ import com.careerq.common.*;
 import com.careerq.dao.*;
 import com.careerq.dataobject.*;
 import com.careerq.hr.HrPostDtos.*;
+import com.careerq.moderation.ModerationPlan;
 import com.careerq.security.AuthUser;
 import com.careerq.service.HrPostService;
 import com.careerq.service.ModerationService;
@@ -140,11 +141,12 @@ public class HrPostServiceImpl implements HrPostService {
         HrPostDO post = lock(hr, id, version);
         if (!EDITABLE.contains(post.getStatus())) throw new BusinessException(ErrorCode.CONFLICT, "当前帖子不可重复提交");
         if (post.getTitle().isBlank() || post.getBody().isBlank()) throw new BusinessException(ErrorCode.INVALID_PARAM, "提交审核前请填写标题和正文");
-        String decision = moderation.decide(post.getTitle() + "\n" + post.getBody());
+        ModerationPlan plan = moderation.evaluate("hr_post", post.getTitle(), post.getBody(),
+                null, "hr", false);
         // Phase 1 has no publication or operator entry: all non-blocked submissions await review.
-        post.setStatus("rejected".equals(decision) ? "rejected" : "pending_human");
+        post.setStatus(plan.rejected() ? "rejected" : "pending_human");
         post.setSubmittedAt(LocalDateTime.now()); update(post);
-        moderation.recordMachine("hr_post", id, post.getStatus());
+        moderation.recordPlan("hr_post", id, plan);
         return view(post);
     }
     @Override @Transactional

@@ -11,6 +11,8 @@ export interface User {
   school?: string | null;
   major?: string | null;
   grade?: string | null;
+  /** 额外授权，如 arbitrate；admin 视为拥有全部 */
+  permissions?: string[];
 }
 
 export interface UserBrief {
@@ -23,6 +25,7 @@ export interface UserBrief {
 export interface Question {
   id: number;
   scope: "public";
+  displayStatus: string;
   status: string;
   title: string;
   body: string;
@@ -42,6 +45,7 @@ export interface HrAnswerSummary {
   followupId?: number | null;
   body: string;
   lengthType: string;
+  displayStatus: string;
   status: string;
   removalSource?: AnswerRemovalSource | null;
   createdAt: string;
@@ -141,6 +145,7 @@ export interface ThreadItem {
   body: string;
   author: UserBrief;
   hr: boolean;
+  displayStatus: string;
   status: string;
   /** 仅回答和追问回复使用，学生追问为空。 */
   removalSource?: AnswerRemovalSource | null;
@@ -163,6 +168,7 @@ export interface Answer {
   followupId?: number | null;
   body: string;
   lengthType: string;
+  displayStatus: string;
   status: string;
   removalSource?: AnswerRemovalSource | null;
   author: UserBrief;
@@ -303,6 +309,7 @@ export interface Followup {
   rootAnswerId: number;
   senderRole: string;
   body: string;
+  displayStatus: string;
   status: string;
   createdAt: string;
   author: UserBrief;
@@ -331,6 +338,76 @@ export interface QuestionDetail {
 export interface PageResult<T> {
   items: T[];
   nextCursor: number | null;
+}
+
+export type ReviewTargetType = "question" | "answer" | "followup";
+export type AdminDecision = "approve" | "reject" | "remove" | "restore";
+
+/** 后台审核列表项；title 为所属问题标题，body 为被审内容全文 */
+export interface AdminReviewItem {
+  targetType: ReviewTargetType;
+  targetId: number;
+  title: string;
+  snippet: string;
+  body: string;
+  riskLevel: "NORMAL" | "WATCH" | "HIGH" | "UNRATED";
+  displayStatus: string;
+  authorId: number;
+  authorNickname: string;
+  questionId: number;
+  questionTitle: string;
+  createdAt: string;
+  reviewedAt?: string | null;
+  reviewDecision?: string | null;
+  reviewAttempts: number;
+  arbitrationRequired: boolean;
+  canUndo: boolean;
+}
+
+export interface AdminReviewPage {
+  items: AdminReviewItem[];
+  total: number;
+  page: number;
+  size: number;
+}
+
+export interface AdminReviewEntry {
+  kind: "question" | "answer" | "followup_answer" | "followup";
+  id: number;
+  authorNickname: string;
+  senderRole: string;
+  body: string;
+  displayStatus: string;
+  target: boolean;
+  createdAt: string;
+}
+
+export interface AdminRecordView {
+  id: number;
+  stage: string;
+  decision: string;
+  riskLevel?: string | null;
+  riskLabels?: string | null;
+  confidence?: number | null;
+  note?: string | null;
+  operatorNickname?: string | null;
+  fromStatus?: string | null;
+  toStatus?: string | null;
+  createdAt: string;
+}
+
+export interface AdminContextPage {
+  entries: AdminReviewEntry[];
+  /** 该方向剩余未加载条数，用于按钮文案与显隐 */
+  remaining: number;
+}
+
+export interface AdminReviewDetail {
+  item: AdminReviewItem;
+  context: AdminReviewEntry[];
+  contextBeforeRemaining: number;
+  contextAfterRemaining: number;
+  records: AdminRecordView[];
 }
 
 export const api = {
@@ -610,5 +687,90 @@ export const api = {
 
   withdrawQuestion(questionId: number): Promise<Question> {
     return request<Question>(`/questions/${questionId}/withdraw`, { method: "POST" });
+  },
+
+  adminReviewQueue(params: {
+    type?: ReviewTargetType;
+    risk?: string;
+    arbitration?: boolean;
+    page?: number;
+    size?: number;
+  } = {}): Promise<AdminReviewPage> {
+    const query = new URLSearchParams();
+    if (params.type) query.set("type", params.type);
+    if (params.risk) query.set("risk", params.risk);
+    if (params.arbitration != null) query.set("arbitration", String(params.arbitration));
+    query.set("page", String(params.page ?? 1));
+    query.set("size", String(params.size ?? 20));
+    return request<AdminReviewPage>(`/admin/moderation/queue?${query.toString()}`);
+  },
+
+  adminReviewed(params: {
+    type?: ReviewTargetType;
+    status?: string;
+    risk?: string;
+    page?: number;
+    size?: number;
+  } = {}): Promise<AdminReviewPage> {
+    const query = new URLSearchParams();
+    if (params.type) query.set("type", params.type);
+    if (params.status) query.set("status", params.status);
+    if (params.risk) query.set("risk", params.risk);
+    query.set("page", String(params.page ?? 1));
+    query.set("size", String(params.size ?? 20));
+    return request<AdminReviewPage>(`/admin/moderation/reviewed?${query.toString()}`);
+  },
+
+  adminReviewDetail(targetType: ReviewTargetType, targetId: number): Promise<AdminReviewDetail> {
+    return request<AdminReviewDetail>(`/admin/moderation/${targetType}/${targetId}`);
+  },
+
+  adminContextOlder(
+    targetType: ReviewTargetType,
+    targetId: number,
+    cursor: string,
+    limit = 2,
+  ): Promise<AdminContextPage> {
+    const query = new URLSearchParams({ cursor, limit: String(limit) });
+    return request<AdminContextPage>(
+      `/admin/moderation/${targetType}/${targetId}/context/older?${query.toString()}`,
+    );
+  },
+
+  adminContextNewer(
+    targetType: ReviewTargetType,
+    targetId: number,
+    cursor: string,
+    limit = 2,
+  ): Promise<AdminContextPage> {
+    const query = new URLSearchParams({ cursor, limit: String(limit) });
+    return request<AdminContextPage>(
+      `/admin/moderation/${targetType}/${targetId}/context/newer?${query.toString()}`,
+    );
+  },
+
+  adminDecide(targetType: ReviewTargetType, targetId: number, decision: AdminDecision, note = ""): Promise<void> {
+    return request<void>(`/admin/moderation/${targetType}/${targetId}/decide`, {
+      method: "POST",
+      body: { decision, note },
+    });
+  },
+
+  adminUndo(targetType: ReviewTargetType, targetId: number, note = ""): Promise<void> {
+    return request<void>(`/admin/moderation/${targetType}/${targetId}/undo`, {
+      method: "POST",
+      body: { note },
+    });
+  },
+
+  adminBatchDecide(
+    targets: Array<{ targetType: ReviewTargetType; targetId: number }>,
+    decision: AdminDecision,
+    note = "",
+  ): Promise<void> {
+    return request<void>("/admin/moderation/batch-decide", {
+      method: "POST",
+      body: { targets, decision, note },
+    });
   },
 };

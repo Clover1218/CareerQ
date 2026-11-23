@@ -110,18 +110,19 @@ class StudentReviewFixFlowTests {
     }
 
     @Test
-    void followupReviewControlsVisibilityCountersAndPublicationOnlyAfterApproval() throws Exception {
+    void flaggedFollowupPublishesImmediatelyAndReviewKeepsOrRemovesIt() throws Exception {
         var s = scenario();
-        var pending = followup(s, "我可以加微信获取联系方式吗？");
-        assertEquals("pending_human", pending.path("status").asText());
-        long id = pending.path("id").asLong();
-        assertEquals(0, read(null, s.base()).path("followups").size());
+        var published = followup(s, "我可以加微信获取联系方式吗？");
+        assertEquals("published", published.path("status").asText());
+        assertEquals("PUBLISHED", published.path("displayStatus").asText());
+        long id = published.path("id").asLong();
+        assertEquals(1, read(null, s.base()).path("followups").size());
         assertEquals(1, read(s.student(), s.base()).path("followups").size());
-        assertEquals(0, read(s.hr(), s.base()).path("followups").size());
-        assertEquals(0, read(s.hr(), "/hr/notifications/unread-count").path("total").asInt());
-        assertEquals(0, read(null, s.base()).path("question").path("followupCount").asInt());
+        assertEquals(1, read(s.hr(), s.base()).path("followups").size());
+        assertEquals(1, read(s.hr(), "/hr/notifications/unread-count").path("total").asInt());
+        assertEquals(1, read(null, s.base()).path("question").path("followupCount").asInt());
         boolean queued = false;
-        for (JsonNode item : read(s.operator(), "/admin/moderation/queue")) {
+        for (JsonNode item : read(s.operator(), "/admin/moderation/queue").path("items")) {
             if (item.path("targetType").asText().equals("followup") && item.path("targetId").asLong() == id) queued = true;
         }
         assertTrue(queued);
@@ -137,16 +138,17 @@ class StudentReviewFixFlowTests {
     }
 
     @Test
-    void blockedOrWithdrawnPendingFollowupsNeverBecomePublicOrCounted() throws Exception {
+    void blockedFollowupsStayHiddenAndWithdrawnOnesStopCounting() throws Exception {
         var s = scenario();
         words.upsert("学生审核拦截词", "test", "block");
         var blocked = followup(s, "学生审核拦截词");
         assertEquals("rejected", blocked.path("status").asText());
         assertEquals(0, read(null, s.base()).path("followups").size());
         var pending = followup(s, "可以加微信咨询吗？");
+        assertEquals(1, read(null, s.base()).path("question").path("followupCount").asInt());
         write(s.student(), s.base() + "/followups/" + pending.path("id").asLong() + "/withdraw", Map.of());
         assertEquals(0, read(null, s.base()).path("question").path("followupCount").asInt());
-        assertEquals(0, read(s.hr(), "/hr/notifications/unread-count").path("total").asInt());
+        assertEquals(1, read(s.hr(), "/hr/notifications/unread-count").path("total").asInt());
         assertEquals(1, read(s.student(), s.base()).path("followups").size());
         assertEquals("rejected", read(s.student(), s.base()).path("followups").get(0).path("status").asText());
     }

@@ -127,7 +127,7 @@ class HrPostFlowTests {
         assertEquals("withdrawn", write(hr, "/hr/posts/" + id + "/withdraw", Map.of("version", 3)).path("status").asText());
         assertEquals("draft", save(hr, id, 4, "撤回后继续编辑").path("status").asText());
         assertEquals("pending_human", write(hr, "/hr/posts/" + id + "/submit", Map.of("version", 5)).path("status").asText());
-        assertEquals(2, jdbc.queryForObject("select count(*) from moderation_records where target_type = 'hr_post' and target_id = ?", Integer.class, id));
+        assertEquals(4, jdbc.queryForObject("select count(*) from moderation_records where target_type = 'hr_post' and target_id = ?", Integer.class, id));
         assertEquals(0, jdbc.queryForObject("select count(*) from questions where title = '修改后的分享'", Integer.class));
     }
     @Test

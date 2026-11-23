@@ -66,8 +66,8 @@ public interface InteractionDao {
             left join answers a on i.target_type = 'answer' and a.id = i.target_id
             join questions q on q.id = case when i.target_type = 'question' then i.target_id else a.question_id end
             where i.user_id = #{userId} and i.type = 'favorite' and i.target_type in ('question', 'answer')
-              and q.scope = 'public' and q.status = 'published'
-              and (i.target_type = 'question' or a.status = 'published')
+              and q.scope = 'public' and q.visibility = 'VISIBLE'
+              and (i.target_type = 'question' or a.visibility = 'VISIBLE')
             <if test="targetType != null">and i.target_type = #{targetType}</if>
             <if test="cursor != null">and i.id &lt; #{cursor}</if>
             order by i.id desc limit #{limit}

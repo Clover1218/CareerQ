@@ -14,6 +14,7 @@ import com.careerq.dataobject.TagDO;
 import com.careerq.dao.TagDao;
 import com.careerq.dataobject.UserDO;
 import com.careerq.dao.UserDao;
+import com.careerq.dao.UserPermissionDao;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -35,7 +36,9 @@ import java.util.HexFormat;
  *   HR   13800000004 王浩然（美团）
  *   HR   13800000005 李梦琪（阿里云）
  *   HR   13800000006 张帆（小红书）
- *   运营 13800000003
+ *   运营 13800000003（普通审核，无仲裁权）
+ *   运营 13800000008（普通审核，无仲裁权）
+ *   运营 13800000007（仲裁运营，拥有 arbitrate 权限）
  *
  * 数据覆盖：同一问题多个 HR 回答；每个 HR 会话都至少有一轮「题主追问 + HR 回复」。
  */
@@ -51,6 +54,7 @@ public class DemoDataSeeder implements CommandLineRunner {
     private final FollowupDao followupDao;
     private final TagDao tagDao;
     private final HrProfileDao hrProfileDao;
+    private final UserPermissionDao userPermissionDao;
     private final HrPostDao hrPostDao;
 
     public DemoDataSeeder(UserDao userDao,
@@ -59,6 +63,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                           FollowupDao followupDao,
                           TagDao tagDao,
                           HrProfileDao hrProfileDao,
+                          UserPermissionDao userPermissionDao,
                           HrPostDao hrPostDao) {
         this.userDao = userDao;
         this.questionDao = questionDao;
@@ -66,6 +71,7 @@ public class DemoDataSeeder implements CommandLineRunner {
         this.followupDao = followupDao;
         this.tagDao = tagDao;
         this.hrProfileDao = hrProfileDao;
+        this.userPermissionDao = userPermissionDao;
         this.hrPostDao = hrPostDao;
     }
 
@@ -82,6 +88,9 @@ public class DemoDataSeeder implements CommandLineRunner {
         UserDO li = createHr("13800000005", "李梦琪", "阿里云", "技术招聘专家", "云计算");
         UserDO zhang = createHr("13800000006", "张帆", "小红书", "社区技术 HRBP", "内容社区");
         createUser("13800000003", "operator", "运营小助手");
+        createUser("13800000008", "operator", "审核运营");
+        UserDO arbiter = createUser("13800000007", "operator", "仲裁运营");
+        userPermissionDao.insert(arbiter.getId(), "arbitrate");
 
         TagDO intern = requireTag("实习");
         TagDO resume = requireTag("简历");
@@ -466,7 +475,9 @@ public class DemoDataSeeder implements CommandLineRunner {
                   HR   13800000004 王浩然 / 美团
                   HR   13800000005 李梦琪 / 阿里云
                   HR   13800000006 张帆 / 小红书
-                  运营 13800000003
+                  运营 13800000003（普通审核）
+                  运营 13800000008（普通审核）
+                  运营 13800000007（仲裁运营）
                   验证码统一 123456""");
     }
 
@@ -492,7 +503,10 @@ public class DemoDataSeeder implements CommandLineRunner {
         question.setAuthorId(author.getId());
         question.setTitle(title);
         question.setBody(body);
-        question.setStatus("published");
+        question.setModerationStatus("APPROVED");
+        question.setVisibility("VISIBLE");
+        question.setRiskLevel("NORMAL");
+        question.setModeratedAt(LocalDateTime.now());
         questionDao.insert(question);
         for (TagDO tag : tags) {
             tagDao.linkToQuestion(question.getId(), tag.getId());
@@ -506,7 +520,7 @@ public class DemoDataSeeder implements CommandLineRunner {
         answer.setAuthorId(hr.getId());
         answer.setBody(body);
         answer.setLengthType(lengthType);
-        answer.setStatus("published");
+        approve(answer);
         answer.setUsefulCount(usefulCount);
         answerDao.insert(answer);
         questionDao.recordAnswer(question.getId());
@@ -522,7 +536,10 @@ public class DemoDataSeeder implements CommandLineRunner {
         followup.setSenderRole("student");
         followup.setBody(body);
         followup.setScope("public");
-        followup.setStatus("published");
+        followup.setModerationStatus("APPROVED");
+        followup.setVisibility("VISIBLE");
+        followup.setRiskLevel("NORMAL");
+        followup.setModeratedAt(LocalDateTime.now());
         followupDao.insert(followup);
         questionDao.incrementFollowup(question.getId());
         return followup;
@@ -535,9 +552,16 @@ public class DemoDataSeeder implements CommandLineRunner {
         answer.setAuthorId(hr.getId());
         answer.setBody(body);
         answer.setLengthType("detailed");
-        answer.setStatus("published");
+        approve(answer);
         answer.setUsefulCount(usefulCount);
         answerDao.insert(answer);
+    }
+
+    private void approve(AnswerDO answer) {
+        answer.setModerationStatus("APPROVED");
+        answer.setVisibility("VISIBLE");
+        answer.setRiskLevel("NORMAL");
+        answer.setModeratedAt(LocalDateTime.now());
     }
 
     private TagDO requireTag(String slug) {

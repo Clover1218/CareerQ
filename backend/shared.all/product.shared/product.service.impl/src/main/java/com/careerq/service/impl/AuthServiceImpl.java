@@ -8,6 +8,7 @@ import com.careerq.common.BusinessException;
 import com.careerq.common.ErrorCode;
 import com.careerq.dao.HrProfileDao;
 import com.careerq.dao.UserDao;
+import com.careerq.dao.UserPermissionDao;
 import com.careerq.dataobject.HrProfileDO;
 import com.careerq.dataobject.UserDO;
 import com.careerq.security.AuthUser;
@@ -28,7 +29,11 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.HexFormat;
+import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * 登录 / 注册 / 登出 / 当前用户。
@@ -42,11 +47,14 @@ public class AuthServiceImpl implements AuthService {
     private final UserDao userDao;
     private final SmsCodeService smsCodeService;
     private final HrProfileDao hrProfileDao;
+    private final UserPermissionDao userPermissionDao;
 
-    public AuthServiceImpl(UserDao userDao, SmsCodeService smsCodeService, HrProfileDao hrProfileDao) {
+    public AuthServiceImpl(UserDao userDao, SmsCodeService smsCodeService, HrProfileDao hrProfileDao,
+                           UserPermissionDao userPermissionDao) {
         this.userDao = userDao;
         this.smsCodeService = smsCodeService;
         this.hrProfileDao = hrProfileDao;
+        this.userPermissionDao = userPermissionDao;
     }
 
     @Override
@@ -58,8 +66,8 @@ public class AuthServiceImpl implements AuthService {
         if (!"active".equals(user.getStatus())) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "该账号当前不可登录");
         }
-        establishSession(user, httpRequest);
-        return new LoginResult(toView(user));
+        Set<String> permissions = establishSession(user, httpRequest);
+        return new LoginResult(toView(user, permissions));
     }
 
     @Override
@@ -100,8 +108,8 @@ public class AuthServiceImpl implements AuthService {
             hrProfileDao.insert(profile);
         }
 
-        establishSession(user, httpRequest);
-        return new LoginResult(toView(user));
+        Set<String> permissions = establishSession(user, httpRequest);
+        return new LoginResult(toView(user, permissions));
     }
 
     @Override
@@ -119,7 +127,7 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
         return userDao.findById(principal.getId())
-                .map(AuthServiceImpl::toView)
+                .map(user -> toView(user, principal.getPermissions()))
                 .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
     }
 
@@ -129,8 +137,10 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
-    private void establishSession(UserDO user, HttpServletRequest httpRequest) {
-        AuthUser principal = AuthUser.of(user.getId(), user.getRole(), user.getNickname(), user.getPhoneHash());
+    private Set<String> establishSession(UserDO user, HttpServletRequest httpRequest) {
+        Set<String> permissions = loadPermissions(user.getId());
+        AuthUser principal =
+                AuthUser.of(user.getId(), user.getRole(), user.getNickname(), user.getPhoneHash(), permissions);
         UsernamePasswordAuthenticationToken authentication =
                 UsernamePasswordAuthenticationToken.authenticated(principal, null, principal.getAuthorities());
 
@@ -145,6 +155,11 @@ public class AuthServiceImpl implements AuthService {
         context.setAuthentication(authentication);
         SecurityContextHolder.setContext(context);
         session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
+        return permissions;
+    }
+
+    private Set<String> loadPermissions(Long userId) {
+        return new TreeSet<>(userPermissionDao.findPermissions(userId));
     }
 
     private static String normalizeRegisterRole(String role) {
@@ -167,7 +182,7 @@ public class AuthServiceImpl implements AuthService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    private static UserView toView(UserDO user) {
+    private static UserView toView(UserDO user, Collection<String> permissions) {
         return new UserView(
                 user.getId(),
                 user.getRole(),
@@ -175,7 +190,8 @@ public class AuthServiceImpl implements AuthService {
                 user.getAvatarUrl(),
                 user.getSchool(),
                 user.getMajor(),
-                user.getGrade());
+                user.getGrade(),
+                List.copyOf(permissions));
     }
 
     static String sha256(String raw) {

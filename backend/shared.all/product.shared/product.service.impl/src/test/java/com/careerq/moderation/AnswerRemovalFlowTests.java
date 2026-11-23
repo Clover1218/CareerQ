@@ -171,15 +171,18 @@ class AnswerRemovalFlowTests {
     }
 
     @Test
-    void removingUnpublishedAnswersNeverDeductsPublishedCount() throws Exception {
+    void removingVisibleAnswersDeductsOnceAndWithdrawDoesNot() throws Exception {
         var s = scenario();
-        for (String body : new String[]{"可加微信咨询", "联系方式稍后提供"}) {
-            long pendingId = write(s.hr(), s.base() + "/answers", Map.of("body", body)).path("id").asLong();
-            assertEquals(1, count(s));
-            if (body.startsWith("可")) remove(s, pendingId);
-            else write(s.hr(), "/answers/" + pendingId + "/withdraw", Map.of());
-            assertEquals(1, count(s));
-        }
+        long flaggedId = write(s.hr(), s.base() + "/answers", Map.of("body", "可加微信咨询")).path("id").asLong();
+        assertEquals(2, count(s));
+        remove(s, flaggedId);
+        assertEquals(1, count(s));
+
+        long secondId = write(s.hr(), s.base() + "/answers", Map.of("body", "联系方式稍后提供")).path("id").asLong();
+        assertEquals(2, count(s));
+        write(s.hr(), "/answers/" + secondId + "/withdraw", Map.of());
+        assertEquals(1, count(s));
+
         remove(s, s.answerId());
         assertEquals(0, count(s));
     }
@@ -197,7 +200,7 @@ class AnswerRemovalFlowTests {
         Flyway.configure().dataSource(url, "sa", "").load().migrate();
         assertEquals(1, old.queryForObject("select answer_count from questions where id = 1", Integer.class));
         assertEquals(0, old.queryForObject("select answer_count from questions where id = 2", Integer.class));
-        assertEquals("unknown", old.queryForObject("select removal_source from answers where status = 'removed'", String.class));
-        assertEquals(0, old.queryForObject("select count(*) from answers where status <> 'removed' and removal_source is not null", Integer.class));
+        assertEquals("unknown", old.queryForObject("select removal_source from answers where visibility = 'REMOVED'", String.class));
+        assertEquals(0, old.queryForObject("select count(*) from answers where visibility != 'REMOVED' and removal_source is not null", Integer.class));
     }
 }

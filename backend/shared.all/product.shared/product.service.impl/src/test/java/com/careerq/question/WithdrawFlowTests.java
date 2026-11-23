@@ -74,7 +74,7 @@ class WithdrawFlowTests {
 
         mockMvc.perform(post("/api/v1/questions/{id}/withdraw", id).session(student).with(csrf()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("removed"));
+                .andExpect(jsonPath("$.data.displayStatus").value("WITHDRAWN"));
 
         MvcResult feed = mockMvc.perform(get("/api/v1/questions").param("tag", "实习"))
                 .andExpect(status().isOk())
@@ -86,7 +86,7 @@ class WithdrawFlowTests {
         // 作者自己的列表仍能看到，状态为已撤回
         mockMvc.perform(get("/api/v1/questions/mine").session(student))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[?(@.id == " + id + ")].status").value("removed"));
+                .andExpect(jsonPath("$.data.items[?(@.id == " + id + ")].displayStatus").value("WITHDRAWN"));
     }
 
     @Test

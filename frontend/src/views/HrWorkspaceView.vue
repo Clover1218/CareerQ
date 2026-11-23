@@ -86,7 +86,7 @@ function mapAnsweredQuestion(entry: HrAnsweredQuestion): WorkItem {
     ...mapQuestion(entry.question),
     myAnswer: entry.myAnswer,
     followups: entry.followups,
-    hasPendingAnswer: entry.myAnswer.status === "pending_human" || entry.myAnswer.status === "pending_machine",
+    hasPendingAnswer: entry.myAnswer.displayStatus === "REVIEWING",
   };
 }
 
@@ -298,7 +298,7 @@ onActivated(async () => {
           <div v-if="item.myAnswer" class="my-answer-preview">
             <div class="my-answer-heading">
               <strong>{{ item.myAnswer.followupId == null ? '我的回答' : '我对追问的回复' }}</strong>
-              <div class="my-answer-actions">
+<div class="my-answer-actions">
                 <span class="answer-status" :class="`answer-${item.myAnswer.status}`">
                   {{ answerStatusLabel(item.myAnswer) }}
                 </span>

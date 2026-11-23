@@ -127,22 +127,28 @@ try {
     $risky = Invoke-Api POST "/api/v1/questions" $student @{
         title = "想找内推"; body = "可以加微信详细聊吗？"; scope = "public"
     }
-    Assert-True ($risky.data.status -eq "pending_human") "含联系方式的问题进入待审核"
+    Assert-True ($risky.data.displayStatus -eq "PUBLISHED") "含联系方式的问题 L2 通过后立即公开并留在人工队列"
 
     $queue = Invoke-Api GET "/api/v1/admin/moderation/queue" $operator
-    $matched = @(Get-Items $queue.data | Where-Object { [string]$_.targetId -eq [string]$risky.data.id })
+    $matched = @(Get-Items $queue.data.items | Where-Object { [string]$_.targetId -eq [string]$risky.data.id })
     Assert-True ($matched.Count -ge 1) "运营队列能看到待审问题"
 
     Invoke-Api POST "/api/v1/admin/moderation/question/$($risky.data.id)/decide" $operator @{
         decision = "approve"; note = "冒烟测试通过"
     } | Out-Null
     $detail = Invoke-Api GET "/api/v1/questions/$($risky.data.id)" $null
-    Assert-True ($detail.data.question.status -eq "published") "审核通过后公开可见"
+    Assert-True ($detail.data.question.displayStatus -eq "PUBLISHED") "审核通过后公开可见"
 
     $answer = Invoke-Api POST "/api/v1/questions/$($risky.data.id)/answers" $hr @{
         body = "内推需要先准备好简历与岗位匹配点。"; lengthType = "detailed"
     }
-    Assert-True ($answer.data.status -eq "published") "HR 回答发布成功"
+    if ($answer.data.displayStatus -ne "PUBLISHED") {
+        Invoke-Api POST "/api/v1/admin/moderation/answer/$($answer.data.id)/decide" $operator @{
+            decision = "approve"; note = "冒烟测试通过"
+        } | Out-Null
+    }
+    $detailAfterAnswer = Invoke-Api GET "/api/v1/questions/$($risky.data.id)" $null
+    Assert-True ($detailAfterAnswer.data.answers[0].id -eq $answer.data.id) "HR 回答发布成功"
 
     Invoke-Api POST "/api/v1/interactions" $student @{
         targetType = "answer"; targetId = $answer.data.id; type = "useful"
@@ -150,15 +156,128 @@ try {
     $detail2 = Invoke-Api GET "/api/v1/questions/$($risky.data.id)" $null
     Assert-True ($detail2.data.answers[0].usefulCount -eq 1) "有用计数生效"
 
+    Write-Host "== 1.1 撤销、审核次数与仲裁 ==" -ForegroundColor Cyan
+    $arbiter = New-Login "13800000007"
+    $operatorB = New-Login "13800000008"
+    $undoTarget = Invoke-Api POST "/api/v1/questions" $student @{
+        title = "撤销与审核次数验证"; body = "撤销用例，请加微信 smoke-undo-001 联系"; scope = "public"
+    }
+    Assert-True ($undoTarget.data.displayStatus -eq "PUBLISHED") "新问题 L2 通过后立即公开，等待人工审核"
+
+    Invoke-Api POST "/api/v1/admin/moderation/question/$($undoTarget.data.id)/decide" $operator @{
+        decision = "approve"; note = "撤销前先通过"
+    } | Out-Null
+    $reviewed = Invoke-Api GET "/api/v1/admin/moderation/reviewed?page=1&size=200" $operator
+    $reviewedHit = @(Get-Items $reviewed.data.items | Where-Object {
+        $_.targetType -eq "question" -and [string]$_.targetId -eq [string]$undoTarget.data.id
+    })
+    Assert-True ($reviewedHit.Count -eq 1 -and $reviewedHit[0].canUndo) "本人审核记录可撤销"
+
+    Invoke-Api POST "/api/v1/admin/moderation/question/$($undoTarget.data.id)/undo" $operator @{
+        note = "冒烟测试撤销"
+    } | Out-Null
+    $queueAfterUndo = Invoke-Api GET "/api/v1/admin/moderation/queue?page=1&size=200" $operator
+    $requeued = @(Get-Items $queueAfterUndo.data.items | Where-Object {
+        $_.targetType -eq "question" -and [string]$_.targetId -eq [string]$undoTarget.data.id
+    })
+    Assert-True ($requeued.Count -eq 1 -and $requeued[0].reviewAttempts -eq 1) "撤销后回到待审且保留 1 次审核"
+
+    $reviewedAfterUndo = Invoke-Api GET "/api/v1/admin/moderation/reviewed?page=1&size=200" $operator
+    $stillReviewed = @(Get-Items $reviewedAfterUndo.data.items | Where-Object {
+        $_.targetType -eq "question" -and [string]$_.targetId -eq [string]$undoTarget.data.id
+    })
+    Assert-True ($stillReviewed.Count -eq 0) "撤销后不再出现在“我审核的”"
+    Assert-ApiStatus POST "/api/v1/admin/moderation/question/$($undoTarget.data.id)/decide" $operator @{
+        decision = "reject"; note = "撤销人再审"
+    } 403 "撤销人不能再审核同一内容"
+
+    Invoke-Api POST "/api/v1/admin/moderation/question/$($undoTarget.data.id)/decide" $operatorB @{
+        decision = "reject"; note = "第二次人工审核"
+    } | Out-Null
+    Invoke-Api POST "/api/v1/admin/moderation/question/$($undoTarget.data.id)/undo" $operatorB @{
+        note = "第二次审核后撤销，进入待仲裁"
+    } | Out-Null
+
+    $arbiterQueue = Invoke-Api GET "/api/v1/admin/moderation/queue?page=1&size=200" $arbiter
+    $arbitrationHit = @(Get-Items $arbiterQueue.data.items | Where-Object {
+        $_.targetType -eq "question" -and [string]$_.targetId -eq [string]$undoTarget.data.id
+    })
+    Assert-True ($arbitrationHit.Count -eq 1 -and
+        $arbitrationHit[0].arbitrationRequired -and
+        $arbitrationHit[0].reviewAttempts -eq 2 -and
+        $arbitrationHit[0].displayStatus -eq "ARBITRATING") "两次撤销后进入待仲裁，仲裁员可见"
+    Assert-ApiStatus POST "/api/v1/admin/moderation/question/$($undoTarget.data.id)/decide" $operatorB @{
+        decision = "approve"; note = "重复审核"
+    } 403 "已审过的人不能再审核同一内容"
+
+    $operatorQueue = Invoke-Api GET "/api/v1/admin/moderation/queue?page=1&size=200" $operator
+    $hiddenForOperator = @(Get-Items $operatorQueue.data.items | Where-Object {
+        $_.targetType -eq "question" -and [string]$_.targetId -eq [string]$undoTarget.data.id
+    })
+    Assert-True ($hiddenForOperator.Count -eq 0) "非仲裁员看不到待仲裁内容"
+
+    $metrics = Invoke-Api GET "/api/v1/admin/metrics" $operator
+    Assert-True ($metrics.data.arbitrationPending -ge 1) "指标返回待仲裁数量"
+
+    Invoke-Api POST "/api/v1/admin/moderation/question/$($undoTarget.data.id)/decide" $arbiter @{
+        decision = "approve"; note = "仲裁通过"
+    } | Out-Null
+    $finalDetail = Invoke-Api GET "/api/v1/admin/moderation/question/$($undoTarget.data.id)" $arbiter
+    $arbitrateRecord = @($finalDetail.data.records | Where-Object {
+        $_.stage -eq "ARBITRATE" -and $_.decision -eq "approve"
+    })
+    Assert-True ($finalDetail.data.item.displayStatus -eq "PUBLISHED" -and
+        $finalDetail.data.item.reviewAttempts -eq 3 -and
+        $arbitrateRecord.Count -eq 1) "仲裁裁定写 ARBITRATE 记录并终局"
+
+    $arbiterReviewed = Invoke-Api GET "/api/v1/admin/moderation/reviewed?page=1&size=200" $arbiter
+    $arbiterReviewedHit = @(Get-Items $arbiterReviewed.data.items | Where-Object {
+        $_.targetType -eq "question" -and [string]$_.targetId -eq [string]$undoTarget.data.id
+    })
+    Assert-True ($arbiterReviewedHit.Count -eq 1 -and -not $arbiterReviewedHit[0].canUndo) "仲裁裁定不提供撤销"
+    Assert-ApiStatus POST "/api/v1/admin/moderation/question/$($undoTarget.data.id)/undo" $arbiter @{
+        note = "仲裁后撤销"
+    } 403 "仲裁裁定不可撤销"
+    Assert-ApiStatus POST "/api/v1/admin/moderation/question/$($undoTarget.data.id)/undo" $operatorB @{
+        note = "覆盖仲裁"
+    } 403 "仲裁终局后原审核人也不能撤销"
+
+    $earlyTarget = Invoke-Api POST "/api/v1/questions" $student @{
+        title = "仲裁首审即终局验证"; body = "首审仲裁用例，请加微信 smoke-undo-002 联系"; scope = "public"
+    }
+    Invoke-Api POST "/api/v1/admin/moderation/question/$($earlyTarget.data.id)/decide" $arbiter @{
+        decision = "reject"; note = "仲裁员首审"
+    } | Out-Null
+    $earlyDetail = Invoke-Api GET "/api/v1/admin/moderation/question/$($earlyTarget.data.id)" $arbiter
+    $earlyArbitrate = @($earlyDetail.data.records | Where-Object { $_.stage -eq "ARBITRATE" })
+    Assert-True ($earlyDetail.data.item.reviewAttempts -eq 1 -and
+        $earlyArbitrate.Count -eq 1) "仲裁运营首审也按仲裁记录并终局"
+    Assert-ApiStatus POST "/api/v1/admin/moderation/question/$($earlyTarget.data.id)/undo" $arbiter @{
+        note = "首审仲裁后撤销"
+    } 403 "首审仲裁裁定不可撤销"
+    Assert-ApiStatus POST "/api/v1/admin/moderation/question/$($earlyTarget.data.id)/decide" $operator @{
+        decision = "approve"; note = "终局后改判"
+    } 409 "仲裁终局后不可改判"
+
     Write-Host "== 2. HR 工作台 + 回复学生追问 ==" -ForegroundColor Cyan
     $studentFollowup = Invoke-Api POST "/api/v1/questions/$($risky.data.id)/followups" $student @{
         hrId = $answer.data.author.id; rootAnswerId = $answer.data.id
         body = "准备简历时，应该怎样突出岗位匹配度？"
     }
+    if ($studentFollowup.data.displayStatus -ne "PUBLISHED") {
+        Invoke-Api POST "/api/v1/admin/moderation/followup/$($studentFollowup.data.id)/decide" $operator @{
+            decision = "approve"; note = "冒烟测试通过"
+        } | Out-Null
+    }
     $followupAnswer = Invoke-Api POST "/api/v1/questions/$($risky.data.id)/followups/$($studentFollowup.data.id)/answers" $hr @{
         body = "按岗位要求逐条对应经历，并用结果说明影响。"; lengthType = "detailed"
     }
-    Assert-True ($followupAnswer.data.status -eq "published" -and $followupAnswer.data.followupId -eq $studentFollowup.data.id) "HR 回复指定学生追问"
+    if ($followupAnswer.data.displayStatus -ne "PUBLISHED") {
+        Invoke-Api POST "/api/v1/admin/moderation/answer/$($followupAnswer.data.id)/decide" $operator @{
+            decision = "approve"; note = "冒烟测试通过"
+        } | Out-Null
+    }
+    Assert-True ($followupAnswer.data.followupId -eq $studentFollowup.data.id) "HR 回复指定学生追问"
 
     $todo = Invoke-Api GET "/api/v1/hr/question-pool?limit=50" $hr
     $todoMatch = @(Get-Items $todo.data.items | Where-Object { [string]$_.id -eq [string]$risky.data.id })

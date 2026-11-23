@@ -81,7 +81,7 @@ class FeedFlowTests {
                                 "tags", tags,
                                 "scope", "public"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("published"))
+                .andExpect(jsonPath("$.data.displayStatus").value("PUBLISHED"))
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString())
                 .path("data").path("id").asLong();

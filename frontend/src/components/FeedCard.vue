@@ -20,9 +20,10 @@ import { removedAnswerText } from "@/utils/answerRemoval";
 
 const props = defineProps<{
   item: QuestionFeedItem;
-  /** 学生个人中心提问列表：问题状态，用于标题右侧状态标签 */
+/** 我的问答列表：派生展示状态，用于标题右侧状态标签 */
+  displayStatus?: string;
+  /** 学生个人中心提问列表：兼容旧聚合状态，用于标题右侧状态标签 */
   status?: string;
-  /** 学生个人中心提问列表：作者视角，隐藏编辑器并将提问时间常驻 */
   ownerMode?: boolean;
   /** 学生个人中心提问列表：是否显示「撤回」操作 */
   withdrawable?: boolean;
@@ -128,6 +129,11 @@ const publishedRootCount = computed(() => conversations.value.filter((item) => i
 const participatingHrCount = computed(() => new Set(conversations.value.filter((item) => item.rootAnswer?.status === "published").map((item) => item.hrId)).size);
 
 const STATUS_META: Record<string, { text: string; tone: string }> = {
+  PUBLISHED: { text: "已发表", tone: "success" },
+  REVIEWING: { text: "审核中", tone: "warning" },
+  REJECTED: { text: "未通过", tone: "danger" },
+  REMOVED: { text: "已下架", tone: "neutral" },
+  WITHDRAWN: { text: "已撤回", tone: "neutral" },
   published: { text: "已发表", tone: "success" },
   pending_machine: { text: "待审核", tone: "warning" },
   pending_human: { text: "待审核", tone: "warning" },
@@ -136,8 +142,9 @@ const STATUS_META: Record<string, { text: string; tone: string }> = {
 };
 
 const statusMeta = computed(() => {
-  if (!props.status) return null;
-  return STATUS_META[props.status] ?? { text: props.status, tone: "neutral" };
+  const value = props.displayStatus ?? props.status;
+  if (!value) return null;
+  return STATUS_META[value] ?? { text: value, tone: "neutral" };
 });
 
 function formatRelativeTime(value: string): string {
@@ -157,7 +164,7 @@ function formatRelativeTime(value: string): string {
 const interactive = computed(
   () =>
     !props.ownerMode ||
-    !["pending_machine", "pending_human", "rejected", "removed"].includes(props.status ?? ""),
+    !["REJECTED", "REMOVED", "WITHDRAWN"].includes(props.displayStatus ?? ""),
 );
 
 function formatTime(value: string): string {

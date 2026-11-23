@@ -11,6 +11,17 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AdminFilterBar: typeof import('./components/admin/AdminFilterBar.vue')['default']
+    AdminHoverSidebar: typeof import('./components/admin/AdminHoverSidebar.vue')['default']
+    AdminIcon: typeof import('./components/admin/AdminIcon.vue')['default']
+    AdminPagination: typeof import('./components/admin/AdminPagination.vue')['default']
+    AdminReviewContext: typeof import('./components/admin/AdminReviewContext.vue')['default']
+    AdminReviewDrawer: typeof import('./components/admin/AdminReviewDrawer.vue')['default']
+    AdminReviewTable: typeof import('./components/admin/AdminReviewTable.vue')['default']
+    AdminSidebar: typeof import('./components/admin/AdminSidebar.vue')['default']
+    AdminTabs: typeof import('./components/admin/AdminTabs.vue')['default']
+    AdminWorkDetail: typeof import('./components/admin/AdminWorkDetail.vue')['default']
+    AdminWorkQueue: typeof import('./components/admin/AdminWorkQueue.vue')['default']
     FeedCard: typeof import('./components/FeedCard.vue')['default']
     FeedCardSkeleton: typeof import('./components/FeedCardSkeleton.vue')['default']
     FeedFilterPanel: typeof import('./components/FeedFilterPanel.vue')['default']
@@ -18,6 +29,7 @@ declare module 'vue' {
     FollowupDiscussion: typeof import('./components/FollowupDiscussion.vue')['default']
     MessageMenu: typeof import('./components/MessageMenu.vue')['default']
     NButton: typeof import('naive-ui')['NButton']
+    NCheckbox: typeof import('naive-ui')['NCheckbox']
     NConfigProvider: typeof import('naive-ui')['NConfigProvider']
     NDatePicker: typeof import('naive-ui')['NDatePicker']
     NDialogProvider: typeof import('naive-ui')['NDialogProvider']
@@ -27,6 +39,7 @@ declare module 'vue' {
     NModal: typeof import('naive-ui')['NModal']
     NNotificationProvider: typeof import('naive-ui')['NNotificationProvider']
     NPopover: typeof import('naive-ui')['NPopover']
+    NSelect: typeof import('naive-ui')['NSelect']
     ProfileDrawer: typeof import('./components/ProfileDrawer.vue')['default']
     ReportDialog: typeof import('./components/ReportDialog.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']

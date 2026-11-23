@@ -92,7 +92,7 @@ class QuestionFlowTests {
                                 "tags", tags,
                                 "scope", scope))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("published"))
+                .andExpect(jsonPath("$.data.displayStatus").value("PUBLISHED"))
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString())
                 .path("data").path("id").asLong();
@@ -122,7 +122,7 @@ class QuestionFlowTests {
                                 "body", "常见问题包括自我介绍、项目经历、岗位理解，建议提前准备 STAR 案例。",
                                 "lengthType", "detailed"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("published"))
+                .andExpect(jsonPath("$.data.displayStatus").value("PUBLISHED"))
                 .andReturn();
         long answerId = objectMapper.readTree(answerResult.getResponse().getContentAsString())
                 .path("data").path("id").asLong();

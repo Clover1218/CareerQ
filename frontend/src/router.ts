@@ -15,6 +15,8 @@ const HrPostsView = () => import("./views/HrPostsView.vue");
 const HrPostEditorView = () => import("./views/HrPostEditorView.vue");
 const PublicHrSharesView = () => import("./views/PublicHrSharesView.vue");
 const PublicHrShareDetailView = () => import("./views/PublicHrShareDetailView.vue");
+const AdminReviewView = () => import("./views/AdminReviewView.vue");
+const AdminReviewWorkspaceView = () => import("./views/AdminReviewWorkspaceView.vue");
 
 export const router = createRouter({
   history: createWebHistory("/careerq/"),
@@ -40,6 +42,18 @@ export const router = createRouter({
     { path: "/hr/posts", name: "hr-posts", component: HrPostsView, meta: { requiresAuth: true, role: "hr" } },
     { path: "/hr/posts/new", name: "hr-post-new", component: HrPostEditorView, meta: { requiresAuth: true, role: "hr" } },
     { path: "/hr/posts/:id", name: "hr-post-editor", component: HrPostEditorView, meta: { requiresAuth: true, role: "hr" } },
+    {
+      path: "/admin",
+      name: "admin-review",
+      component: AdminReviewView,
+      meta: { requiresAuth: true, roles: ["operator", "admin"] },
+    },
+    {
+      path: "/admin/workspace",
+      name: "admin-review-workspace",
+      component: AdminReviewWorkspaceView,
+      meta: { requiresAuth: true, roles: ["operator", "admin"] },
+    },
     { path: "/:pathMatch(.*)*", redirect: "/" },
   ],
 });
@@ -64,6 +78,9 @@ router.beforeEach(async (to) => {
     return { path: "/hr/profile", replace: true };
   }
   if (to.meta.role && user.role !== to.meta.role) {
+    return "/";
+  }
+  if (Array.isArray(to.meta.roles) && !(to.meta.roles as string[]).includes(user.role)) {
     return "/";
   }
   return true;

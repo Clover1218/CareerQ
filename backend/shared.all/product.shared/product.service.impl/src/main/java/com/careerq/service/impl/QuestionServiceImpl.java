@@ -23,6 +23,8 @@ import com.careerq.feed.FeedScorer;
 import com.careerq.feed.FeedSeekCursor;
 import com.careerq.feed.FeedTuning;
 import com.careerq.followup.FollowupDtos.FollowupView;
+import com.careerq.moderation.DisplayStatus;
+import com.careerq.moderation.ModerationPlan;
 import com.careerq.question.QuestionDtos.CreateRequest;
 import com.careerq.question.QuestionDtos.FeedPage;
 import com.careerq.question.QuestionDtos.FeedQuery;
@@ -64,7 +66,9 @@ import java.util.Set;
 public class QuestionServiceImpl implements QuestionService {
 
     private static final String PUBLIC = "public";
-    private static final String PUBLISHED = "published";
+    private static final String VISIBLE = "VISIBLE";
+    private static final java.util.Set<String> ACTIVE_STATUSES =
+            Set.of("L1", "L2", "L3", "APPROVED");
     private static final int MAX_KEYWORD_LENGTH = 50;
     private static final int MAX_TAGS = 10;
     private static final int MAX_FILTER_RANGE_DAYS = 366;
@@ -106,19 +110,24 @@ public class QuestionServiceImpl implements QuestionService {
     @Transactional
     public QuestionView create(AuthUser author, CreateRequest request) {
         String scope = normalizeScope(request.scope());
-        String moderation = moderationService.decide(request.title() + "\n" + request.body());
+        boolean highFrequency = questionDao.countByAuthorSince(
+                author.getId(), LocalDateTime.now().minusHours(1)) >= 5;
+        ModerationPlan plan = moderationService.evaluate("question", request.title(), request.body(),
+                null, author.getRole(), highFrequency);
 
         QuestionDO question = new QuestionDO();
         question.setScope(scope);
         question.setAuthorId(author.getId());
         question.setTitle(request.title().trim());
         question.setBody(request.body());
-        question.setStatus(moderation);
+        question.setModerationStatus(plan.moderationStatus().name());
+        question.setVisibility(plan.visibility().name());
+        question.setRiskLevel(plan.riskLevel().name());
+        question.setModerationReason(plan.reason());
+        question.setModeratedAt(LocalDateTime.now());
         questionDao.insert(question);
         linkTags(question.getId(), request.tags());
-        if (!"published".equals(moderation)) {
-            moderationService.recordMachine("question", question.getId(), moderation);
-        }
+        moderationService.recordPlan("question", question.getId(), plan);
         return toView(question);
     }
 
@@ -127,7 +136,7 @@ public class QuestionServiceImpl implements QuestionService {
     public PageResult<QuestionFeedItem> list(String tag, Long cursor, int limit) {
         String tagFilter = tag == null || tag.isBlank() ? null : tag;
         int size = Math.clamp(limit, 1, 50);
-        List<QuestionDO> rows = questionDao.list(PUBLIC, PUBLISHED, cursor, tagFilter, false, size + 1);
+        List<QuestionDO> rows = questionDao.list(PUBLIC, VISIBLE, cursor, tagFilter, false, size + 1);
         boolean hasNext = rows.size() > size;
         List<QuestionFeedItem> items = rows.stream().limit(size).map(this::toFeedItem).toList();
         return new PageResult<>(items, hasNext ? rows.get(size - 1).getId() : null);
@@ -165,7 +174,7 @@ public class QuestionServiceImpl implements QuestionService {
             lastId = page.lastId();
         }
         Long viewerId = viewer == null ? null : viewer.getId();
-        List<QuestionDO> rows = questionDao.listLatest(PUBLIC, PUBLISHED, filter.keyword(), filter.tags(),
+        List<QuestionDO> rows = questionDao.listLatest(PUBLIC, VISIBLE, filter.keyword(), filter.tags(),
                 filter.tags().size(), filter.matchAll(), filter.from(), filter.to(),
                 lastCreatedAt, lastId, viewerId, size + 1);
         boolean hasMore = rows.size() > size;
@@ -182,7 +191,7 @@ public class QuestionServiceImpl implements QuestionService {
         String sortName = filter.sort() == FeedSort.HOT ? "hot" : "recommend";
         FeedPageCursor page;
         if (cursor == null || cursor.isBlank()) {
-            page = FeedPageCursor.first(sortName, filter.hash(), questionDao.findMaxId(PUBLIC, PUBLISHED));
+            page = FeedPageCursor.first(sortName, filter.hash(), questionDao.findMaxId(PUBLIC, VISIBLE));
         } else {
             page = FeedPageCursor.decode(cursor);
             requireCursor(page.sort(), page.filterHash(), filter);
@@ -323,12 +332,12 @@ public class QuestionServiceImpl implements QuestionService {
                         ? FeedTuning.HOT_CANDIDATE_WINDOW_DAYS
                         : FeedTuning.CANDIDATE_WINDOW_DAYS);
         int limit = hot ? FeedTuning.HOT_CANDIDATE_LIMIT : FeedTuning.CANDIDATE_LIMIT;
-        List<QuestionDO> rows = questionDao.listFilteredCandidates(PUBLIC, PUBLISHED, page.maxId(), since,
+        List<QuestionDO> rows = questionDao.listFilteredCandidates(PUBLIC, VISIBLE, page.maxId(), since,
                 filter.to(), filter.keyword(), filter.tags(), filter.tags().size(), filter.matchAll(),
                 viewerId, limit);
         if (rows.size() < size && filter.from() == null) {
             // 时间窗口内太少时放宽到不限时间，宁可有内容也不要空 Feed
-            rows = questionDao.listFilteredCandidates(PUBLIC, PUBLISHED, page.maxId(), null,
+            rows = questionDao.listFilteredCandidates(PUBLIC, VISIBLE, page.maxId(), null,
                     filter.to(), filter.keyword(), filter.tags(), filter.tags().size(), filter.matchAll(),
                     viewerId, limit);
         }
@@ -509,15 +518,16 @@ public class QuestionServiceImpl implements QuestionService {
         QuestionDO question = questionDao.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
 
-        if (!PUBLISHED.equals(question.getStatus())) {
+        if (!VISIBLE.equals(question.getVisibility())) {
             boolean isAuthor = current != null && current.getId().equals(question.getAuthorId());
-            if (!isAuthor) {
+            if (!isAuthor && !isOperator(current)) {
                 throw new BusinessException(ErrorCode.NOT_FOUND, "问题不存在");
             }
         }
 
         Long viewerId = current == null ? null : current.getId();
-        List<AnswerView> answers = answerDao.findVisible(question.getId(), viewerId)
+        boolean operator = isOperator(current);
+        List<AnswerView> answers = answerDao.findVisible(question.getId(), viewerId, operator)
                 .stream().map(answer -> toAnswerView(answer, viewerId)).toList();
         List<FollowupView> followups = followupService.list(current, question.getId());
         return new QuestionDetail(toView(question), answers, followups,
@@ -538,7 +548,7 @@ public class QuestionServiceImpl implements QuestionService {
         Long viewerId = current == null ? null : current.getId();
         List<ThreadItemView> items = new ArrayList<>();
 
-        for (AnswerDO answer : answerDao.findVisible(question.getId(), viewerId)) {
+        for (AnswerDO answer : answerDao.findVisible(question.getId(), viewerId, isOperator(current))) {
             boolean liked = viewerId != null
                     && interactionDao.exists(viewerId, "answer", answer.getId(), "like");
             items.add(new ThreadItemView(
@@ -551,6 +561,7 @@ public class QuestionServiceImpl implements QuestionService {
                     "removed".equals(answer.getStatus()) ? "" : answer.getBody(),
                     authorOf(answer.getAuthorId()),
                     true,
+displayStatus(answer),
                     answer.getStatus(),
                     answer.getRemovalSource(),
                     "removed".equals(answer.getStatus()) ? 0 : answer.getLikeCount(),
@@ -569,6 +580,7 @@ public class QuestionServiceImpl implements QuestionService {
                     followup.body(),
                     followup.author(),
                     followup.hr(),
+followup.displayStatus(),
                     followup.status(),
                     null,
                     0,
@@ -593,7 +605,7 @@ public class QuestionServiceImpl implements QuestionService {
 
     private QuestionDO requirePublishedPublic(Long id) {
         return questionDao.findById(id)
-                .filter(question -> PUBLIC.equals(question.getScope()) && PUBLISHED.equals(question.getStatus()))
+                .filter(question -> PUBLIC.equals(question.getScope()) && VISIBLE.equals(question.getVisibility()))
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "问题不存在"));
     }
 
@@ -612,7 +624,7 @@ public class QuestionServiceImpl implements QuestionService {
     @Override
     @Transactional(readOnly = true)
     public PageResult<QuestionView> hrQuestionPool(Long cursor, int limit) {
-        return listPage(PUBLIC, PUBLISHED, null, true, cursor, limit);
+        return listPage(PUBLIC, VISIBLE, null, true, cursor, limit);
     }
 
     @Override
@@ -690,9 +702,11 @@ public class QuestionServiceImpl implements QuestionService {
                             : new HrFollowupSummary(summary.getPendingCount(), summary.getReviewingCount(),
                                 summary.getFirstPendingFollowupId(), summary.getLatestPendingAt());
                     return new HrAnsweredQuestionView(toView(question),
-                            new HrAnswerSummary(answer.getId(), answer.getFollowupId(),
+new HrAnswerSummary(answer.getId(), answer.getFollowupId(),
                                     "removed".equals(answer.getStatus()) ? "" : answer.getBody(), answer.getLengthType(),
-                                    answer.getStatus(), answer.getRemovalSource(), answer.getCreatedAt()), followups);
+                                    displayStatus(answer), answer.getStatus(), answer.getRemovalSource(),
+                                    answer.getCreatedAt()),
+                            followups);
                 })
                 .filter(java.util.Objects::nonNull)
                 .toList();
@@ -712,18 +726,19 @@ public class QuestionServiceImpl implements QuestionService {
         if (!author.getId().equals(question.getAuthorId())) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "只有提问者可以撤回问题");
         }
-        String status = question.getStatus();
-        if ("removed".equals(status)) {
+        if ("WITHDRAWN".equals(question.getModerationStatus())) {
             throw new BusinessException(ErrorCode.CONFLICT, "问题已撤回");
         }
-        if (!Set.of("pending_machine", "pending_human", "published").contains(status)) {
+        if (!ACTIVE_STATUSES.contains(question.getModerationStatus())
+                || !Set.of("VISIBLE", "HIDDEN").contains(question.getVisibility())) {
             throw new BusinessException(ErrorCode.CONFLICT, "当前状态不可撤回");
         }
         if (answerDao.countByQuestionId(id) > 0) {
             throw new BusinessException(ErrorCode.CONFLICT, "问题已有回答，不能撤回");
         }
-        questionDao.updateStatus(id, "removed");
-        question.setStatus("removed");
+        questionDao.withdraw(id);
+        question.setModerationStatus("WITHDRAWN");
+        question.setVisibility("REMOVED");
         return toView(question);
     }
     private PageResult<QuestionView> listPage(String scope, String status, String tag,
@@ -805,6 +820,7 @@ public class QuestionServiceImpl implements QuestionService {
         return new QuestionView(
                 question.getId(),
                 question.getScope(),
+                displayStatus(question),
                 question.getStatus(),
                 question.getTitle(),
                 question.getBody(),
@@ -831,6 +847,7 @@ public class QuestionServiceImpl implements QuestionService {
                 answer.getFollowupId(),
                 hidden ? "" : answer.getBody(),
                 answer.getLengthType(),
+                displayStatus(answer),
                 answer.getStatus(),
                 answer.getRemovalSource(),
                 authorOf(answer.getAuthorId()),
@@ -839,6 +856,18 @@ public class QuestionServiceImpl implements QuestionService {
                 !hidden && liked,
                 !hidden && usefuled,
                 answer.getCreatedAt());
+    }
+
+    private String displayStatus(QuestionDO question) {
+        return DisplayStatus.of(question.getModerationStatus(), question.getVisibility()).name();
+    }
+
+    private String displayStatus(AnswerDO answer) {
+        return DisplayStatus.of(answer.getModerationStatus(), answer.getVisibility()).name();
+    }
+
+    private boolean isOperator(AuthUser user) {
+        return user != null && ("operator".equals(user.getRole()) || "admin".equals(user.getRole()));
     }
 
     private UserBrief authorOf(Long userId) {

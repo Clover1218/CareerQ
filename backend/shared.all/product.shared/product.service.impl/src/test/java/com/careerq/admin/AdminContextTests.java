@@ -87,10 +87,13 @@ class AdminContextTests {
         long questionId = createQuestion(student, "公开待审问题上下文");
 
         MockHttpSession operator = loginAs("13800000702", "operator");
-        MvcResult queueResult = mockMvc.perform(get("/api/v1/admin/moderation/queue").session(operator))
+        MvcResult queueResult = mockMvc.perform(get("/api/v1/admin/moderation/queue")
+                        .param("type", "question").param("risk", "WATCH").param("size", "50")
+                        .session(operator))
                 .andExpect(status().isOk())
                 .andReturn();
-        JsonNode items = objectMapper.readTree(queueResult.getResponse().getContentAsString()).path("data");
+        JsonNode items = objectMapper.readTree(queueResult.getResponse().getContentAsString())
+                .path("data").path("items");
 
         JsonNode matched = null;
         for (JsonNode item : items) {
@@ -104,7 +107,7 @@ class AdminContextTests {
         assertEquals(questionId, matched.path("questionId").asLong());
         assertEquals("公开待审问题上下文", matched.path("questionTitle").asText());
         assertEquals("队列学生", matched.path("authorNickname").asText());
-        assertFalse(matched.path("body").asText().isBlank(), "队列应包含正文供审核");
+        assertFalse(matched.path("snippet").asText().isBlank(), "队列应包含正文摘要供审核");
     }
 
     @Test

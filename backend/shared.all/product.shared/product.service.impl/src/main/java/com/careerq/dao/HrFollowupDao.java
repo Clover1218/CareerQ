@@ -14,15 +14,15 @@ public interface HrFollowupDao {
     String UNANSWERED = """
             not exists (select 1 from answers a
                 where a.question_id = f.question_id and a.followup_id = f.id and a.author_id = #{hrId}
-                  and a.status in ('published', 'pending_machine', 'pending_human'))
+                  and a.visibility != 'REMOVED' and a.moderation_status != 'REJECTED')
             """;
     String REVIEWING = """
             not exists (select 1 from answers a
                 where a.question_id = f.question_id and a.followup_id = f.id and a.author_id = #{hrId}
-                  and a.status = 'published')
+                  and a.visibility = 'VISIBLE')
             and exists (select 1 from answers a
                 where a.question_id = f.question_id and a.followup_id = f.id and a.author_id = #{hrId}
-                  and a.status in ('pending_machine', 'pending_human'))
+                  and a.visibility = 'HIDDEN' and a.moderation_status in ('L1', 'L2', 'L3'))
             """;
     String SUMMARY = "select f.question_id, sum(case when " + UNANSWERED + " then 1 else 0 end) as pending_count, "
             + "sum(case when " + REVIEWING + " then 1 else 0 end) as reviewing_count, "
@@ -30,9 +30,9 @@ public interface HrFollowupDao {
             + "max(case when " + UNANSWERED + " then f.created_at end) as latest_pending_at "
             + """
             from followups f join questions q on q.id = f.question_id
-            where f.hr_id = #{hrId} and f.scope = 'public' and f.status = 'published'
+            where f.hr_id = #{hrId} and f.scope = 'public' and f.visibility = 'VISIBLE'
               and f.root_answer_id is not null
-              and f.sender_role = 'student' and q.scope = 'public' and q.status = 'published'
+              and f.sender_role = 'student' and q.scope = 'public' and q.visibility = 'VISIBLE'
               and exists (select 1 from answers own_answer
                   where own_answer.question_id = q.id and own_answer.author_id = #{hrId})
             """;
@@ -57,7 +57,7 @@ public interface HrFollowupDao {
 
     @Select("""
             <script>
-            select q.* from questions q where q.scope = 'public' and q.status = 'published' and q.id in
+            select q.* from questions q where q.scope = 'public' and q.visibility = 'VISIBLE' and q.id in
             <foreach collection='questionIds' item='id' open='(' separator=',' close=')'>#{id}</foreach>
             and exists (select 1 from answers a where a.question_id = q.id and a.author_id = #{hrId})
             </script>

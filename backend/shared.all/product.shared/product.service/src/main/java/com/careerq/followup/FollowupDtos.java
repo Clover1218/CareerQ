@@ -24,7 +24,8 @@ public final class FollowupDtos {
             Long rootAnswerId) {
     }
 
-    public record FollowupView(Long id, Long questionId, Long hrId, Long rootAnswerId, String senderRole, String body,
-                               String status, LocalDateTime createdAt, UserBrief author, boolean hr) {
+public record FollowupView(Long id, Long questionId, Long hrId, Long rootAnswerId, String senderRole, String body,
+                               String displayStatus, String status,
+                               LocalDateTime createdAt, UserBrief author, boolean hr) {
     }
 }

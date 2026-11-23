@@ -43,7 +43,7 @@ public class AnswerRemovalService {
         if (!author.getId().equals(answer.getAuthorId())) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "只能撤销自己的回答");
         }
-        if ("removed".equals(answer.getStatus())) {
+        if ("REMOVED".equals(answer.getVisibility())) {
             String message = switch (answer.getRemovalSource() == null ? "unknown" : answer.getRemovalSource()) {
                 case "operator" -> "回答已被运营下架，不能再撤销";
                 case "author" -> "回答已由作者撤销";
@@ -51,7 +51,7 @@ public class AnswerRemovalService {
             };
             throw new BusinessException(ErrorCode.CONFLICT, message);
         }
-        if (!Set.of("published", "pending_human", "pending_machine").contains(answer.getStatus())) {
+        if (!Set.of("L1", "L2", "L3", "APPROVED").contains(answer.getModerationStatus())) {
             throw new BusinessException(ErrorCode.CONFLICT, "当前状态不可撤销");
         }
         return remove(answer, "author", author.getId());
@@ -63,20 +63,21 @@ public class AnswerRemovalService {
         }
         AnswerDO answer = lockAnswer(answerId);
         // 多个举报或重复下架只处理一次，保留第一次移除的真实来源与时间。
-        if ("removed".equals(answer.getStatus())) return answer;
+        if ("REMOVED".equals(answer.getVisibility())) return answer;
         AnswerDO removed = remove(answer, "operator", operator.getId());
         notifications.answerRemoved(answerId);
         return removed;
     }
 
     private AnswerDO remove(AnswerDO answer, String source, Long actorId) {
-        boolean published = "published".equals(answer.getStatus());
+        boolean visible = "VISIBLE".equals(answer.getVisibility());
         LocalDateTime removedAt = LocalDateTime.now();
         if (answerDao.markRemoved(answer.getId(), source, actorId, removedAt) != 1) {
             throw new BusinessException(ErrorCode.CONFLICT, "回答状态已变化，请刷新后重试");
         }
-        if (published) questionDao.decrementAnswer(answer.getQuestionId());
-        answer.setStatus("removed");
+        if (visible) questionDao.decrementAnswer(answer.getQuestionId());
+        answer.setModerationStatus("author".equals(source) ? "WITHDRAWN" : "REJECTED");
+        answer.setVisibility("REMOVED");
         answer.setRemovalSource(source);
         answer.setRemovedBy(actorId);
         answer.setRemovedAt(removedAt);

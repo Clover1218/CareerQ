@@ -59,13 +59,13 @@ public class FavoriteServiceImpl implements FavoriteService {
     private FavoriteView resolve(InteractionDO row) {
         return switch (row.getTargetType()) {
             case "question" -> questionDao.findById(row.getTargetId())
-                    .filter(question -> "public".equals(question.getScope()) && "published".equals(question.getStatus()))
+.filter(question -> "public".equals(question.getScope()) && "VISIBLE".equals(question.getVisibility()))
                     .map(question -> new FavoriteView("question", question.getId(), question.getId(), null, question.getTitle(),
                             excerpt(question.getBody()), row.getCreatedAt()))
                     .orElse(null);
             case "answer" -> answerDao.findById(row.getTargetId())
-                    .filter(answer -> "published".equals(answer.getStatus()))
-                    .filter(answer -> questionDao.findById(answer.getQuestionId()).filter(question -> "published".equals(question.getStatus())).isPresent())
+                    .filter(answer -> "VISIBLE".equals(answer.getVisibility()))
+                    .filter(answer -> questionDao.findById(answer.getQuestionId()).filter(question -> "VISIBLE".equals(question.getVisibility())).isPresent())
                     .map(answer -> {
                         String title = questionDao.findById(answer.getQuestionId())
                                 .map(question -> "回答：" + question.getTitle())

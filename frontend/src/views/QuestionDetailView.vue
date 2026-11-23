@@ -422,6 +422,11 @@ function reportAnswer(answerId: number) {
 }
 
 const reviewStatus: Record<string, string> = {
+  REVIEWING: "审核中",
+  PUBLISHED: "已发布",
+  REJECTED: "审核未通过",
+  REMOVED: "已下架",
+  WITHDRAWN: "已撤回",
   published: "已发布",
   pending_machine: "待审核",
   pending_human: "待审核",
@@ -442,10 +447,10 @@ onMounted(load);
   <p v-if="loading && !detail" class="card detail-loading" role="status">正在加载问答…</p>
   <p v-if="error" class="error">{{ error }}</p>
 
-  <section v-if="detail" class="card question-hero detail-enter">
+<section v-if="detail" class="card question-hero detail-enter">
     <h1 class="detail-title">{{ detail.question.title }}</h1>
     <div class="question-tags">
-      <span class="question-status" :class="detail.question.status">{{ reviewStatus[detail.question.status] ?? detail.question.status }}</span>
+      <span class="question-status" :class="detail.question.displayStatus">{{ reviewStatus[detail.question.displayStatus] ?? detail.question.displayStatus }}</span>
       <span v-for="t in detail.question.tags" :key="t" class="tag">{{ t }}</span>
     </div>
     <div class="question-author">
@@ -459,7 +464,7 @@ onMounted(load);
     </div>
   </section>
 
-  <section v-if="detail" class="answer-floors detail-enter">
+<section v-if="detail" class="answer-floors detail-enter">
     <div class="answers-heading">
       <div><p class="section-kicker">HR 经验分享</p><h2>回答与追问</h2></div>
       <span class="answer-count">{{ mainAnswers.filter(answer => answer.status === 'published').length }} 条主回答</span>
@@ -478,9 +483,9 @@ onMounted(load);
           </div>
           <time class="answer-time" :datetime="conversation.rootAnswer.createdAt">{{ conversation.rootAnswer.createdAt.replace('T', ' ').slice(0, 16) }}</time>
         </div>
-        <p v-if="conversation.rootAnswer.status === 'removed'" class="muted answer-content">{{ removedAnswerText(conversation.rootAnswer) }}相关追问与回复保留。</p>
+<p v-if="conversation.rootAnswer.displayStatus === 'REMOVED'" class="muted answer-content">{{ removedAnswerText(conversation.rootAnswer) }}相关追问与回复保留。</p>
         <p v-else class="question-body answer-content">{{ conversation.rootAnswer.body }}</p>
-        <span v-if="reviewStatus[conversation.rootAnswer.status] && conversation.rootAnswer.status !== 'published'" class="tag answer-review-tag">{{ reviewStatus[conversation.rootAnswer.status] }}</span>
+        <span v-if="conversation.rootAnswer.displayStatus !== 'PUBLISHED'" class="tag answer-review-tag">{{ reviewStatus[conversation.rootAnswer.displayStatus] ?? conversation.rootAnswer.displayStatus }}</span>
         <div class="floor-actions answer-actions">
           <button v-if="me && conversation.rootAnswer.status === 'published'" class="answer-action" @click="markUseful(conversation.rootAnswer.id)">有用（{{ detail.answers.find((answer) => answer.id === conversation.rootAnswerId)?.usefulCount ?? 0 }}）</button>
           <template v-if="conversation.rootAnswer.status === 'published'">
