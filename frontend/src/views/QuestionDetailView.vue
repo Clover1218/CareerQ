@@ -6,6 +6,7 @@ import { useDialog, useMessage } from "naive-ui";
 import { api, type Followup, type QuestionDetail } from "../api";
 import { useUserStore } from "@/stores/user";
 import { addViewHistory } from "@/utils/history";
+import FeedIcon from "@/components/FeedIcon.vue";
 import FollowupDiscussion from "@/components/FollowupDiscussion.vue";
 import ReportDialog from "@/components/ReportDialog.vue";
 import { buildAnswerThreads, detailThreadItems, type AnswerThread } from "@/utils/answerThreads";
@@ -19,18 +20,33 @@ const message = useMessage();
 const userStore = useUserStore();
 const { user: me } = storeToRefs(userStore);
 let active = true;
-onBeforeUnmount(() => { active = false; });
+let answerHighlightTimer: ReturnType<typeof setTimeout> | undefined;
+onBeforeUnmount(() => {
+  active = false;
+  clearTimeout(answerHighlightTimer);
+});
 const detail = ref<QuestionDetail | null>(null);
 const loading = ref(true);
 const error = ref("");
 const answerError = ref("");
 const answerNotice = ref("");
-const answerBody = ref("");
+const answerDrafts = ref<Record<string, string>>({});
 const followupBody = ref("");
 const answerSubmitting = ref(false);
 const answerMode = ref<"question" | "followup">("question");
 const selectedFollowupId = ref<number | null>(null);
+const answerDraftKey = computed(() => {
+  if (answerMode.value === "question") return "question";
+  return selectedFollowupId.value == null ? null : `followup-${selectedFollowupId.value}`;
+});
+const answerBody = computed({
+  get: () => answerDraftKey.value == null ? "" : answerDrafts.value[answerDraftKey.value] ?? "",
+  set: (body: string) => {
+    if (answerDraftKey.value != null) answerDrafts.value[answerDraftKey.value] = body;
+  },
+});
 const answerFormRef = ref<HTMLElement | null>(null);
+const answerInputRef = ref<HTMLTextAreaElement | null>(null);
 const followupFormRef = ref<HTMLElement | null>(null);
 const followupSubmitting = ref(false);
 const followupError = ref("");
@@ -66,6 +82,7 @@ const hrFollowups = computed(() => detail.value?.followups.filter(
 const pendingHrFollowups = computed(() => hrFollowups.value.filter(
   (followup) => followupReplyState(followup) === "pending",
 ));
+const questionDisplayStatus = computed(() => detail.value?.question.displayStatus ?? detail.value?.question.status ?? "");
 const selectedFollowup = computed(() => hrFollowups.value.find(
   (followup) => followup.id === selectedFollowupId.value,
 ));
@@ -73,7 +90,13 @@ const mainAnswers = computed(() => detail.value?.answers.filter((answer) => answ
 const likingAnswerId = ref<number | null>(null);
 const reportOpen = ref(false);
 const reportAnswerId = ref(0);
-const conversations = computed(() => detail.value ? buildAnswerThreads(detailThreadItems(detail.value)) : []);
+const conversations = computed(() => detail.value
+  ? buildAnswerThreads(detailThreadItems(detail.value)).map((conversation) => ({
+      ...conversation,
+      followups: threadFollowups(conversation),
+      displayStatus: conversation.rootAnswer.displayStatus ?? conversation.rootAnswer.status,
+    }))
+  : []);
 const selectedRootAnswerId = ref<number | null>(null);
 const selectedRootAnswer = computed(() => mainAnswers.value.find(
   (answer) => answer.id === selectedRootAnswerId.value && answer.status === "published",
@@ -135,11 +158,19 @@ function followupReplyState(followup: Followup): "published" | "reviewing" | "pe
 watch([hrFollowups, pendingHrFollowups], ([followups, pending]) => {
   if (followups.some((followup) => followup.id === selectedFollowupId.value)) return;
   selectedFollowupId.value = pending[0]?.id ?? followups.at(-1)?.id ?? null;
-  if (answerMode.value === "followup") {
-    answerBody.value = "";
-    answerError.value = "";
-    if (followups.length === 0) answerMode.value = "question";
-  }
+  if (answerMode.value === "followup" && followups.length === 0) answerMode.value = "question";
+});
+
+watch(() => me.value?.id, () => {
+  answerDrafts.value = {};
+  answerError.value = "";
+  answerNotice.value = "";
+});
+
+watch(answerDraftKey, () => {
+  if (answerSubmitting.value) return;
+  answerError.value = "";
+  answerNotice.value = "";
 });
 
 watch([hrFollowups, () => route.query.followup], async ([followups, requested]) => {
@@ -149,6 +180,7 @@ watch([hrFollowups, () => route.query.followup], async ([followups, requested]) 
   if (!Number.isSafeInteger(id) || id <= 0) return;
   appliedFollowupLink = requested;
   if (openedFromHrMessages.value && followups.some(followup => followup.id === id)) {
+    highlightedAnswerId.value = null;
     highlightedFollowupId.value = id;
     openFollowupThread(id);
     if (followups.some(followup => followup.id === id && followupReplyState(followup) === "pending")) {
@@ -166,28 +198,35 @@ watch([hrFollowups, () => route.query.followup], async ([followups, requested]) 
   }
 });
 
-// HR 个人记录只定位对应内容，不自动进入“回复追问”模式。
-watch([detail, () => route.query.answer], async ([current, requested]) => {
+// 消息可能同时携带回复和所属追问，优先定位仍可见的回复。
+watch([detail, () => route.query.answer, () => route.query.followup], async ([current, requestedAnswer, requestedFollowup]) => {
   const studentEntry = studentReturnTo.value !== null;
-  if ((!openedFromHrProfile.value && !openedFromHrMessages.value && !studentEntry) || (!studentEntry && me.value?.role !== "hr") || !current || typeof requested !== "string") return;
-  const id = Number(requested);
-  if (!Number.isSafeInteger(id) || id <= 0) return;
-  const answer = current.answers.find(item => item.id === id && (studentEntry ? item.status === "published" : item.author.id === me.value?.id));
-  if (!answer) {
-    answerNotice.value = "这条回答已移除，详情仅展示仍然可见的讨论。";
-    return;
-  }
-  if (answer.followupId != null) openFollowupThread(answer.followupId);
-  highlightedAnswerId.value = id;
-  await nextTick();
-  document.getElementById(answer.followupId == null ? `answer-${id}` : `reply-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-}, { flush: "post" });
+  const hrEntry = me.value?.role === "hr" && (openedFromHrProfile.value || openedFromHrMessages.value);
+  if ((!studentEntry && !hrEntry) || !current || (hrEntry && answerSubmitting.value)) return;
 
-watch([detail, () => route.query.followup], async ([current, requested]) => {
-  if (!studentReturnTo.value || !current || typeof requested !== "string") return;
-  const followup = current.followups.find(item => item.id === Number(requested));
+  const answerId = typeof requestedAnswer === "string" ? Number(requestedAnswer) : NaN;
+  if (Number.isSafeInteger(answerId) && answerId > 0) {
+    const answer = current.answers.find(item => item.id === answerId
+      && (studentEntry ? item.status === "published" : item.author.id === me.value?.id));
+    if (answer) {
+      highlightedFollowupId.value = null;
+      highlightedAnswerId.value = answerId;
+      if (answer.followupId != null) openFollowupThread(answer.followupId);
+      await nextTick();
+      document.getElementById(answer.followupId == null ? `answer-${answerId}` : `reply-${answerId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    highlightedAnswerId.value = null;
+    answerNotice.value = "这条回答已移除，详情仅展示仍然可见的讨论。";
+  }
+
+  if (!studentEntry || typeof requestedFollowup !== "string") return;
+  const followup = current.followups.find(item => item.id === Number(requestedFollowup));
   if (!followup) return;
-  highlightedFollowupId.value = followup.id; openFollowupThread(followup.id);
+  highlightedAnswerId.value = null;
+  highlightedFollowupId.value = followup.id;
+  openFollowupThread(followup.id);
   await nextTick();
   document.getElementById(`followup-${followup.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
 }, { flush: "post" });
@@ -208,18 +247,15 @@ function followupTargetName(followup: Followup) {
 }
 
 function setAnswerMode(mode: "question" | "followup") {
-  if (mode === "followup" && hrFollowups.value.length === 0) return;
-  if (answerMode.value !== mode) answerBody.value = "";
-  answerError.value = "";
+  if (answerSubmitting.value || (mode === "followup" && hrFollowups.value.length === 0)) return;
   answerMode.value = mode;
 }
 
 async function selectFollowup(followupId: number, focus: "form" | "followup" = "form") {
-  if (!hrFollowups.value.some((followup) => followup.id === followupId)) return;
-  if (selectedFollowupId.value !== followupId) answerBody.value = "";
-  answerError.value = "";
+  if (answerSubmitting.value || !hrFollowups.value.some((followup) => followup.id === followupId)) return;
   answerMode.value = "followup";
   selectedFollowupId.value = followupId;
+  highlightedAnswerId.value = null;
   highlightedFollowupId.value = followupId;
   openFollowupThread(followupId);
   await nextTick();
@@ -230,9 +266,7 @@ async function selectFollowup(followupId: number, focus: "form" | "followup" = "
 function changeFollowupTarget(event: Event) {
   const target = event.target as HTMLSelectElement;
   const followupId = Number(target.value);
-  if (!hrFollowups.value.some((followup) => followup.id === followupId)) return;
-  if (selectedFollowupId.value !== followupId) answerBody.value = "";
-  answerError.value = "";
+  if (answerSubmitting.value || !hrFollowups.value.some((followup) => followup.id === followupId)) return;
   selectedFollowupId.value = followupId;
 }
 
@@ -317,34 +351,58 @@ function requestFollowupWithdrawal(followup: Followup) {
 }
 
 async function submitAnswer() {
-  if (answerSubmitting.value) return;
+  if (answerSubmitting.value || me.value?.role !== "hr") return;
   answerError.value = "";
   answerNotice.value = "";
-  if (!answerBody.value.trim()) {
-    answerError.value = answerMode.value === "followup" ? "请先填写追问回复内容。" : "请先填写回答内容。";
+  const ownerId = me.value.id;
+  const isFollowupReply = answerMode.value === "followup";
+  const followupId = isFollowupReply ? selectedFollowup.value?.id : undefined;
+  const draftKey = answerDraftKey.value;
+  const body = answerBody.value.trim();
+  if (!body) {
+    answerError.value = isFollowupReply ? "请先填写追问回复内容。" : "请先填写回答内容。";
     return;
   }
-  if (answerMode.value === "followup" && !selectedFollowup.value) {
+  if (isFollowupReply && followupId == null) {
     answerError.value = "请选择发给你的、可以回复的学生追问。";
     return;
   }
   answerSubmitting.value = true;
+  const label = isFollowupReply ? "追问回复" : "主问题回答";
   try {
-    let submittedAnswer;
-    if (answerMode.value === "followup") {
-      submittedAnswer = await api.answerFollowup(questionId, selectedFollowupId.value!, answerBody.value.trim());
-    } else {
-      submittedAnswer = await api.answer(questionId, answerBody.value.trim());
-    }
+    const submittedAnswer = followupId == null
+      ? await api.answer(questionId, body)
+      : await api.answerFollowup(questionId, followupId, body);
+    if (!active || me.value?.id !== ownerId) return;
     if (submittedAnswer.status === "rejected") {
-      answerError.value = "回答未通过审核，请修改内容后重新提交。";
+      answerError.value = `${label}未通过审核，内容已保留在输入框中。`;
     } else {
-      answerBody.value = "";
-      answerNotice.value = submittedAnswer.status === "published" ? "回复已发布。" : "回复已提交，正在等待审核。";
+      if (draftKey != null) delete answerDrafts.value[draftKey];
+      answerNotice.value = submittedAnswer.status === "published"
+        ? `${label}已发布。` : `${label}已提交，正在等待审核。通过后会公开展示。`;
     }
     await load();
-  } catch (e: any) {
-    answerError.value = e.message;
+    if (!active || me.value?.id !== ownerId || submittedAnswer.status !== "published") return;
+
+    message.success(`${label}已发布。`);
+    if (followupId != null) openFollowupThread(followupId);
+    await nextTick();
+    const target = document.getElementById(`${followupId == null ? "answer" : "reply"}-${submittedAnswer.id}`);
+    if (!active || me.value?.id !== ownerId || !target) return;
+    highlightedFollowupId.value = null;
+    highlightedAnswerId.value = submittedAnswer.id;
+    target.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "start",
+    });
+    clearTimeout(answerHighlightTimer);
+    answerHighlightTimer = setTimeout(() => {
+      if (highlightedAnswerId.value === submittedAnswer.id) highlightedAnswerId.value = null;
+    }, 4000);
+  } catch (cause) {
+    if (active && me.value?.id === ownerId) {
+      answerError.value = cause instanceof Error ? cause.message : `${label}提交失败，请重试。`;
+    }
   } finally {
     answerSubmitting.value = false;
   }
@@ -434,7 +492,15 @@ const reviewStatus: Record<string, string> = {
   removed: "已撤回",
 };
 
-onMounted(load);
+onMounted(async () => {
+  await load();
+  if (!active || !openedFromHr.value || route.query.focus !== "answer"
+      || me.value?.role !== "hr" || detail.value?.question.status !== "published") return;
+
+  await nextTick();
+  answerFormRef.value?.scrollIntoView({ block: "start" });
+  answerInputRef.value?.focus({ preventScroll: true });
+});
 </script>
 
 <template>
@@ -447,10 +513,10 @@ onMounted(load);
   <p v-if="loading && !detail" class="card detail-loading" role="status">正在加载问答…</p>
   <p v-if="error" class="error">{{ error }}</p>
 
-<section v-if="detail" class="card question-hero detail-enter">
+  <section v-if="detail" class="card question-hero detail-enter">
     <h1 class="detail-title">{{ detail.question.title }}</h1>
     <div class="question-tags">
-      <span class="question-status" :class="detail.question.displayStatus">{{ reviewStatus[detail.question.displayStatus] ?? detail.question.displayStatus }}</span>
+      <span class="question-status" :class="questionDisplayStatus">{{ reviewStatus[questionDisplayStatus] ?? questionDisplayStatus }}</span>
       <span v-for="t in detail.question.tags" :key="t" class="tag">{{ t }}</span>
     </div>
     <div class="question-author">
@@ -464,7 +530,7 @@ onMounted(load);
     </div>
   </section>
 
-<section v-if="detail" class="answer-floors detail-enter">
+  <section v-if="detail" class="answer-floors detail-enter">
     <div class="answers-heading">
       <div><p class="section-kicker">HR 经验分享</p><h2>回答与追问</h2></div>
       <span class="answer-count">{{ mainAnswers.filter(answer => answer.status === 'published').length }} 条主回答</span>
@@ -483,30 +549,42 @@ onMounted(load);
           </div>
           <time class="answer-time" :datetime="conversation.rootAnswer.createdAt">{{ conversation.rootAnswer.createdAt.replace('T', ' ').slice(0, 16) }}</time>
         </div>
-<p v-if="conversation.rootAnswer.displayStatus === 'REMOVED'" class="muted answer-content">{{ removedAnswerText(conversation.rootAnswer) }}相关追问与回复保留。</p>
+        <p v-if="conversation.rootAnswer.status === 'removed'" class="muted answer-content">{{ removedAnswerText(conversation.rootAnswer) }}相关追问与回复保留。</p>
         <p v-else class="question-body answer-content">{{ conversation.rootAnswer.body }}</p>
-        <span v-if="conversation.rootAnswer.displayStatus !== 'PUBLISHED'" class="tag answer-review-tag">{{ reviewStatus[conversation.rootAnswer.displayStatus] ?? conversation.rootAnswer.displayStatus }}</span>
-        <div class="floor-actions answer-actions">
-          <button v-if="me && conversation.rootAnswer.status === 'published'" class="answer-action" @click="markUseful(conversation.rootAnswer.id)">有用（{{ detail.answers.find((answer) => answer.id === conversation.rootAnswerId)?.usefulCount ?? 0 }}）</button>
+        <span v-if="conversation.rootAnswer.status !== 'published'" class="tag answer-review-tag">{{ reviewStatus[conversation.displayStatus] ?? conversation.displayStatus }}</span>
+        <div class="answer-actions">
+          <button v-if="me && conversation.rootAnswer.status === 'published'" type="button" class="answer-action" @click="markUseful(conversation.rootAnswer.id)">
+            有用 <span class="answer-action-count">{{ detail.answers.find((answer) => answer.id === conversation.rootAnswerId)?.usefulCount ?? 0 }}</span>
+          </button>
           <template v-if="conversation.rootAnswer.status === 'published'">
-            <button type="button" class="answer-action" :class="{ 'is-liked': conversation.rootAnswer.liked }" :aria-pressed="conversation.rootAnswer.liked" :disabled="likingAnswerId !== null" @click="toggleAnswerLike(conversation.rootAnswer.id)">
-              {{ conversation.rootAnswer.liked ? '已点赞' : '点赞' }}（{{ conversation.rootAnswer.likeCount }}）
+            <button type="button" class="answer-action" :aria-pressed="conversation.rootAnswer.liked" :disabled="likingAnswerId !== null" @click="toggleAnswerLike(conversation.rootAnswer.id)">
+              <FeedIcon name="like" :size="15" :filled="conversation.rootAnswer.liked" />
+              {{ conversation.rootAnswer.liked ? '已点赞' : '点赞' }} <span class="answer-action-count">{{ conversation.rootAnswer.likeCount }}</span>
             </button>
-            <button type="button" class="answer-action answer-action--quiet" @click="reportAnswer(conversation.rootAnswer.id)">举报</button>
+            <button v-if="me?.id !== conversation.rootAnswer.author.id" type="button" class="answer-action" @click="reportAnswer(conversation.rootAnswer.id)">举报</button>
           </template>
-          <button v-if="canStudentFollowup && conversation.rootAnswer.status === 'published'" type="button" class="answer-action answer-action--followup" @click="askAboutAnswer(conversation.rootAnswer.id)">追问这条回答</button>
-          <button v-if="me?.role === 'hr' && me.id === conversation.rootAnswer.author.id && canWithdrawAnswer(conversation.rootAnswer)" type="button" class="answer-action answer-action--danger withdraw-answer" :disabled="withdrawingAnswerId !== null" @click="requestWithdrawal(conversation.rootAnswer)">
+          <button v-if="canStudentFollowup && conversation.rootAnswer.status === 'published'" type="button" class="answer-action answer-action--primary answer-action--followup" @click="askAboutAnswer(conversation.rootAnswer.id)">
+            <FeedIcon name="comment" :size="15" /> 追问这条回答
+          </button>
+          <button v-if="me?.role === 'hr' && me.id === conversation.rootAnswer.author.id && canWithdrawAnswer(conversation.rootAnswer)" type="button" class="answer-action answer-action--danger" :disabled="withdrawingAnswerId !== null" @click="requestWithdrawal(conversation.rootAnswer)">
             {{ withdrawingAnswerId === conversation.rootAnswer.id ? '撤销中…' : '撤销这条回答' }}
+          </button>
+          <button
+            v-if="conversation.followups.length"
+            type="button"
+            class="answer-action answer-action--primary followup-toggle"
+            :aria-expanded="openFollowupKeys.includes(conversation.key)"
+            @click="toggleFollowups(conversation.key)"
+          >
+            {{ openFollowupKeys.includes(conversation.key) ? '收起追问' : '展开追问' }}
+            <span class="answer-action-count">{{ conversation.followups.length }}</span>
+            <FeedIcon name="chevron" :size="14" />
           </button>
         </div>
       </template>
-      <button type="button" class="followup-toggle" :aria-expanded="openFollowupKeys.includes(conversation.key)" @click="toggleFollowups(conversation.key)">
-        {{ openFollowupKeys.includes(conversation.key) ? '收起追问' : '展开追问' }}（{{ threadFollowups(conversation).length }}）
-      </button>
-      <div v-if="openFollowupKeys.includes(conversation.key)" class="floor-followups">
-        <p v-if="threadFollowups(conversation).length === 0" class="muted">这条回答暂时没有追问。</p>
+      <div v-if="conversation.followups.length && openFollowupKeys.includes(conversation.key)" class="floor-followups">
         <FollowupDiscussion
-          v-for="followup in threadFollowups(conversation)" :key="followup.id"
+          v-for="followup in conversation.followups" :key="followup.id"
           :followup="followup" :replies="followupAnswers(followup.id)" :viewer="me"
           :target-name="followupTargetName(followup)" :can-reply="canReplyFollowup(followup)"
           :reply-state="followupReplyState(followup)" :highlighted="highlightedFollowupId === followup.id"
@@ -534,7 +612,7 @@ onMounted(load);
     <p v-if="followupNotice" class="answer-notice" role="status">{{ followupNotice }}</p>
   </div>
 
-  <div v-if="detail && me?.role === 'hr' && detail.question.scope === 'public'" ref="answerFormRef" class="card composer-card">
+  <div v-if="detail && me?.role === 'hr' && detail.question.scope === 'public'" ref="answerFormRef" class="card composer-card hr-answer-composer">
     <h3>以 HR 身份回答</h3>
     <div class="answer-modes" role="group" aria-label="选择回答对象">
       <button
@@ -542,6 +620,7 @@ onMounted(load);
         class="answer-mode-button"
         :class="{ active: answerMode === 'question' }"
         :aria-pressed="answerMode === 'question'"
+        :disabled="answerSubmitting"
         @click="setAnswerMode('question')"
       >
         回答主问题
@@ -552,6 +631,7 @@ onMounted(load);
         class="answer-mode-button"
         :class="{ active: answerMode === 'followup' }"
         :aria-pressed="answerMode === 'followup'"
+        :disabled="answerSubmitting"
         @click="setAnswerMode('followup')"
       >
         回复追问
@@ -559,15 +639,31 @@ onMounted(load);
     </div>
     <label v-if="answerMode === 'followup'" class="field followup-target">
       <span>选择要回复的学生追问</span>
-      <select :value="selectedFollowupId ?? undefined" aria-label="选择要回复的追问" @change="changeFollowupTarget">
+      <select :value="selectedFollowupId ?? undefined" :disabled="answerSubmitting" aria-label="选择要回复的追问" @change="changeFollowupTarget">
         <option v-for="followup in hrFollowups" :key="followup.id" :value="followup.id" :title="followup.body">
           {{ followupOptionLabel(followup.body) }}
         </option>
       </select>
     </label>
+    <div v-if="answerMode === 'followup' && selectedFollowup" id="hr-reply-preview" class="selected-answer-preview">
+      <div class="followup-preview-heading">
+        <strong>正在回复学生追问</strong>
+        <button
+          type="button"
+          class="link"
+          :disabled="answerSubmitting"
+          @click="selectFollowup(selectedFollowup.id, 'followup')"
+        >查看原追问</button>
+      </div>
+      <p class="followup-preview-copy">{{ selectedFollowup.body }}</p>
+    </div>
     <div class="field">
       <textarea
+        ref="answerInputRef"
         v-model="answerBody"
+        :disabled="answerSubmitting"
+        :aria-label="answerMode === 'question' ? '主问题回答内容' : '追问回复内容'"
+        :aria-describedby="answerMode === 'followup' && selectedFollowup ? 'hr-reply-preview' : undefined"
         :placeholder="answerMode === 'question' ? '写下针对主问题的经验或建议…' : '写下针对这条追问的回答…'"
       />
     </div>
@@ -667,17 +763,20 @@ onMounted(load);
   line-height: 18px;
 }
 
+.question-status.PUBLISHED,
 .question-status.published {
   background: var(--color-success-soft);
   color: var(--color-success);
 }
 
+.question-status.REVIEWING,
 .question-status.pending_machine,
 .question-status.pending_human {
   background: var(--color-warning-soft);
   color: var(--color-warning);
 }
 
+.question-status.REJECTED,
 .question-status.rejected {
   background: var(--color-danger-soft);
   color: var(--color-danger);
@@ -779,7 +878,7 @@ onMounted(load);
 }
 
 .answer-floor {
-  scroll-margin-top: 80px;
+  scroll-margin-top: calc(var(--topbar-height, 57px) + 16px);
   border: 1px solid #e3e9f0;
   border-radius: 14px;
   background: var(--color-bg-surface);
@@ -794,8 +893,7 @@ onMounted(load);
 }
 
 .answer-floor.is-highlighted {
-  outline: 2px solid #b9cdf0;
-  outline-offset: 3px;
+  border-color: #b9cdf0;
   background: #f8faff;
 }
 
@@ -873,10 +971,11 @@ onMounted(load);
   margin-top: 10px;
 }
 
-.floor-actions {
+.answer-actions,
+.question-detail-page :deep(.reply-actions) {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 8px;
 }
 
 .answer-actions {
@@ -885,54 +984,77 @@ onMounted(load);
   padding-top: 11px;
 }
 
-.answer-action {
-  min-height: 33px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  padding: 5px 9px;
+.question-detail-page :deep(.answer-action) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 11px;
+  border: 1px solid #dce4ee;
+  border-radius: 8px;
+  background: var(--color-bg-surface);
   color: var(--color-text-regular);
   font-size: 12px;
-  line-height: 22px;
-}
-
-.answer-action:hover,
-.answer-action.is-liked {
-  background: var(--color-brand-soft);
-  color: var(--color-brand);
-}
-
-.answer-action--quiet {
-  color: var(--color-text-muted);
-}
-
-.answer-action--followup {
-  margin-left: auto;
-  background: var(--color-brand-soft);
-  color: var(--color-brand);
   font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
 }
 
-.answer-action--danger {
+.question-detail-page :deep(.answer-action:hover:not(:disabled)) {
+  border-color: #b9c9dd;
+  background: var(--color-bg-hover);
+}
+
+.question-detail-page :deep(.answer-action:disabled) {
+  opacity: 0.55;
+}
+
+.question-detail-page :deep(.answer-action--primary),
+.question-detail-page :deep(.answer-action[aria-pressed="true"]) {
+  border-color: var(--color-brand-border);
+  background: var(--color-brand-soft);
+  color: var(--color-brand-dark);
+}
+
+.question-detail-page :deep(.answer-action--primary:hover:not(:disabled)),
+.question-detail-page :deep(.answer-action[aria-pressed="true"]:hover:not(:disabled)) {
+  border-color: #abc4f4;
+  background: #e2edff;
+}
+
+.question-detail-page :deep(.answer-action--danger) {
+  border-color: #efd3d3;
   color: var(--color-danger);
 }
 
-.followup-toggle {
-  display: inline-flex;
-  min-height: 34px;
-  align-items: center;
-  margin-top: 9px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  padding: 5px 8px;
-  color: var(--color-brand);
-  font-size: 13px;
-  font-weight: 500;
+.question-detail-page :deep(.answer-action--danger:hover:not(:disabled)) {
+  border-color: #e5b6b6;
+  background: var(--color-danger-soft);
 }
 
-.followup-toggle:hover {
-  background: var(--color-brand-soft);
+.question-detail-page :deep(.answer-action-count) {
+  min-width: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: #e7edf4;
+  font-variant-numeric: tabular-nums;
+  line-height: 18px;
+  text-align: center;
+}
+
+.question-detail-page :deep(.answer-action--primary .answer-action-count),
+.question-detail-page :deep(.answer-action[aria-pressed="true"] .answer-action-count) {
+  background: var(--color-brand-border);
+}
+
+.answer-action--followup:last-child,
+.followup-toggle {
+  margin-inline-start: auto;
+}
+
+.followup-toggle[aria-expanded="true"] :deep(svg) {
+  transform: rotate(180deg);
 }
 
 .floor-followups {
@@ -949,6 +1071,11 @@ onMounted(load);
   border-radius: 14px;
   background: var(--color-bg-surface);
   padding: 23px 24px;
+}
+
+.hr-answer-composer,
+.question-detail-page :deep(.followup-answer) {
+  scroll-margin-top: calc(var(--topbar-height, 57px) + 16px);
 }
 
 .composer-card h3 {
@@ -1006,6 +1133,28 @@ onMounted(load);
   overflow-wrap: anywhere;
 }
 
+.followup-preview-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px 16px;
+}
+
+.followup-preview-heading .link {
+  color: var(--color-brand-dark);
+  font-size: 13px;
+}
+
+.followup-preview-copy {
+  display: -webkit-box;
+  margin: 3px 0 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: pre-wrap;
+}
+
 .followup-target {
   margin: 0 0 12px;
 }
@@ -1029,6 +1178,13 @@ onMounted(load);
 
 .answer-notice {
   color: var(--color-success);
+}
+
+.hr-answer-composer .answer-notice {
+  padding: 9px 12px;
+  border-radius: 7px;
+  background: var(--color-brand-soft);
+  color: var(--color-brand-dark);
 }
 
 .answer-error {
@@ -1070,8 +1226,8 @@ onMounted(load);
     line-height: 29px;
   }
 
-  .answer-action--followup {
-    margin-left: 0;
+  .answer-action--followup:last-child {
+    margin-inline-start: 0;
   }
 
   .floor-followups {

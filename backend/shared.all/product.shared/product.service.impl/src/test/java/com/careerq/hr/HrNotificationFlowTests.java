@@ -143,7 +143,11 @@ class HrNotificationFlowTests {
         assertEquals(3, total(s));
         long replyTo = followup(s);
         long reply = write(s.hr(), s.base() + "/followups/" + replyTo + "/answers", Map.of("body", "这是具体回复")).path("id").asLong();
-        write(s.student(), "/reports", Map.of("targetType", "answer", "targetId", reply, "reason", "misleading"));
+        var reportBody = Map.<String, Object>of("targetType", "answer", "targetId", reply, "reason", "misleading");
+        mvc.perform(post("/api/v1/reports").session(s.hr()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(reportBody)))
+                .andExpect(status().isForbidden());
+        write(s.student(), "/reports", reportBody);
         long reportId = 0;
         for (JsonNode report : read(s.operator(), "/admin/reports?status=pending")) if (report.path("targetId").asLong() == reply) reportId = report.path("id").asLong();
         assertTrue(reportId > 0);

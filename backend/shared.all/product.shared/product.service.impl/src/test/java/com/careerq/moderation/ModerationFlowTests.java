@@ -138,6 +138,8 @@ class ModerationFlowTests {
                 .andExpect(status().isOk()).andReturn();
         long answerId = objectMapper.readTree(answerResult.getResponse().getContentAsString())
                 .path("data").path("id").asLong();
+        String reportBody = objectMapper.writeValueAsString(Map.of(
+                "targetType", "answer", "targetId", answerId, "reason", "misleading", "detail", "内容有误导"));
 
         MockHttpSession operator = loginAs("13800000305", "operator");
         mockMvc.perform(post("/api/v1/admin/moderation/answer/{id}/decide", answerId)
@@ -146,12 +148,15 @@ class ModerationFlowTests {
                         .content(objectMapper.writeValueAsString(Map.of("decision", "approve", "note", "审核通过"))))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(post("/api/v1/reports")
-                        .session(student).with(csrf())
+        mockMvc.perform(post("/api/v1/reports").session(hr).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of(
-                                "targetType", "answer", "targetId", answerId,
-                                "reason", "misleading", "detail", "内容有误导"))))
+                        .content(reportBody))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(40300));
+
+        mockMvc.perform(post("/api/v1/reports").session(student).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(reportBody))
                 .andExpect(status().isOk());
 
         MvcResult reportsResult = mockMvc.perform(get("/api/v1/admin/reports?status=pending").session(operator))

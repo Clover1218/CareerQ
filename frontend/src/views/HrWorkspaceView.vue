@@ -15,6 +15,13 @@ defineOptions({ name: "HrWorkspaceView" });
 
 type WorkTab = "pending" | "answeredPublic" | "answeredMine";
 type WorkCursor = { id: number; at?: string | null };
+type QuestionAction = "answer" | "reply" | "view";
+
+const questionActionLabels: Record<QuestionAction, string> = {
+  answer: "去回答",
+  reply: "去回复追问",
+  view: "查看问题",
+};
 
 interface WorkPage {
   items: WorkItem[];
@@ -170,12 +177,23 @@ async function previousPage() {
   }
 }
 
+function questionAction(item: WorkItem): QuestionAction {
+  if (item.followups && item.followups.pendingCount > 0) return "reply";
+  if (activeTab.value === "pending" && item.answerCount === 0 && !item.myAnswer) return "answer";
+  return "view";
+}
+
 function openQuestion(item: WorkItem) {
   returnScrollY.value = window.scrollY;
-  const followupId = item.followups?.firstPendingFollowupId;
+  const action = questionAction(item);
+  const followupId = action === "reply" ? item.followups?.firstPendingFollowupId : null;
   void router.push({
     path: `/questions/${item.id}`,
-    query: { from: "hr", ...(followupId != null ? { followup: String(followupId) } : {}) },
+    query: {
+      from: "hr",
+      ...(action === "answer" ? { focus: "answer" } : {}),
+      ...(followupId != null ? { followup: String(followupId) } : {}),
+    },
   });
 }
 
@@ -312,7 +330,7 @@ onActivated(async () => {
         </div>
         <div class="question-action">
           <button type="button" class="open-question" @click="openQuestion(item)">
-            {{ item.followups && item.followups.pendingCount > 0 ? '去回复追问' : item.myAnswer ? '查看问题' : activeTab === 'pending' && item.answerCount === 0 ? '去回答' : '查看问题' }}
+            {{ questionActionLabels[questionAction(item)] }}
             <span aria-hidden="true">→</span>
           </button>
         </div>
