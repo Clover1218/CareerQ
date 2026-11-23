@@ -123,6 +123,8 @@ const replyLabel = computed(() => {
   return user.value?.role === "hr" ? "我来回答" : "查看问题";
 });
 const questionAuthorId = computed(() => content.value?.question.author.id ?? null);
+const canReportQuestion = computed(() => !user.value ||
+  (questionAuthorId.value !== null && user.value.id !== questionAuthorId.value));
 
 const conversations = computed(() => buildAnswerThreads(thread.value?.items ?? []));
 const publishedRootCount = computed(() => conversations.value.filter((item) => item.rootAnswer?.status === "published").length);
@@ -401,6 +403,7 @@ async function dislikeQuestion() {
 
 function toggleMenu(key: string) {
   menuOpen.value = menuOpen.value === key ? null : key;
+  if (menuOpen.value === "question" && user.value) void ensureContent();
 }
 
 function isThreadOpen(key: string): boolean {
@@ -661,7 +664,7 @@ onBeforeUnmount(() => {
             </button>
             <div v-if="menuOpen === 'question'" class="more-menu" @click.stop>
               <button class="more-item" @click="dislikeQuestion">不感兴趣</button>
-              <button class="more-item" @click="report('question', item.id)">举报</button>
+              <button v-if="canReportQuestion" class="more-item" @click="report('question', item.id)">举报</button>
             </div>
           </div>
         </div>
@@ -757,7 +760,7 @@ onBeforeUnmount(() => {
                         <FeedIcon name="like" :filled="conversation.rootAnswer.liked" />
                         <span>{{ conversation.rootAnswer.likeCount }}</span>
                       </button>
-                      <div v-if="!ownerMode && conversation.rootAnswer.status === 'published'" class="relative flex items-center">
+                      <div v-if="!ownerMode && conversation.rootAnswer.status === 'published' && user?.id !== conversation.rootAnswer.author.id" class="relative flex items-center">
                         <button class="feed-action" aria-label="更多" @click.stop="toggleMenu(conversation.rootAnswer.key)">
                           <FeedIcon name="dots" />
                         </button>
@@ -806,7 +809,7 @@ onBeforeUnmount(() => {
                             <FeedIcon name="like" :filled="entry.liked" />
                             <span>{{ entry.likeCount }}</span>
                           </button>
-                          <div v-if="!ownerMode" class="relative flex items-center">
+                          <div v-if="!ownerMode && user?.id !== entry.author.id" class="relative flex items-center">
                             <button class="feed-action" aria-label="更多" @click.stop="toggleMenu(entry.key)">
                               <FeedIcon name="dots" />
                             </button>

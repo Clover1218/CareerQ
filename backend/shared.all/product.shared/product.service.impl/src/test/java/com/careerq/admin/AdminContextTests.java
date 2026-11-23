@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -112,14 +113,21 @@ class AdminContextTests {
 
     @Test
     void reportListCarriesTargetContext() throws Exception {
-        MockHttpSession student = register("13800000703", "举报学生");
-        long questionId = createQuestion(student, "被举报的问题标题");
+        MockHttpSession author = register("13800000703", "问题作者");
+        MockHttpSession reporter = register("13800000707", "举报学生");
+        long questionId = createQuestion(author, "被举报的问题标题");
+        String reportBody = objectMapper.writeValueAsString(Map.of(
+                "targetType", "question", "targetId", questionId, "reason", "spam", "detail", "举报测试"));
 
-        mockMvc.perform(post("/api/v1/reports").with(csrf()).session(student)
+        mockMvc.perform(post("/api/v1/reports").with(csrf()).session(author)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of(
-                                "targetType", "question", "targetId", questionId,
-                                "reason", "spam", "detail", "举报测试"))))
+                        .content(reportBody))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(40300));
+
+        mockMvc.perform(post("/api/v1/reports").with(csrf()).session(reporter)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(reportBody))
                 .andExpect(status().isOk());
 
         MockHttpSession operator = loginAs("13800000704", "operator");
@@ -127,15 +135,16 @@ class AdminContextTests {
                 .andExpect(status().isOk())
                 .andReturn();
         JsonNode items = objectMapper.readTree(reportsResult.getResponse().getContentAsString()).path("data");
-        assertTrue(items.size() > 0, "应有待处理举报");
 
         JsonNode matched = null;
+        int matchingReports = 0;
         for (JsonNode item : items) {
-            if (item.path("targetId").asLong() == questionId) {
+            if ("question".equals(item.path("targetType").asText()) && item.path("targetId").asLong() == questionId) {
                 matched = item;
-                break;
+                matchingReports++;
             }
         }
+        assertEquals(1, matchingReports, "举报队列仅包含其他用户提交的举报");
         assertNotNull(matched, "举报列表应包含该目标的举报");
         assertEquals("被举报的问题标题", matched.path("targetTitle").asText());
         assertFalse(matched.path("targetExcerpt").asText().isBlank(), "举报列表应带内容摘要");

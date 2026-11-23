@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Answer, Followup, User } from "@/api";
 import { canWithdrawAnswer } from "@/composables/useAnswerWithdrawal";
+import FeedIcon from "./FeedIcon.vue";
 
 defineProps<{
   followup: Followup;
@@ -30,8 +31,8 @@ const statusLabels: Record<string, string> = {
 </script>
 
 <template>
-  <div :id="`followup-${followup.id}`" class="followup-thread" :class="{ highlighted }">
-    <div class="followup">
+  <div :id="`followup-${followup.id}`" class="followup-thread">
+    <div class="followup" :class="{ highlighted }">
       <div class="followup-heading">
         <strong>学生追问</strong><span>→ {{ targetName }}</span>
         <span v-if="canReply && replyState === 'pending'" class="tag">待你回复</span>
@@ -41,10 +42,12 @@ const statusLabels: Record<string, string> = {
       <span v-if="statusLabels[followup.status]" class="tag">{{ statusLabels[followup.status] }}</span>
       <button
         v-if="viewer?.role === 'student' && viewer.id === followup.author.id && ['published', 'pending_machine', 'pending_human'].includes(followup.status)"
-        type="button" class="withdraw-answer" :disabled="withdrawingFollowupId != null"
+        type="button" class="answer-action answer-action--danger followup-action" :disabled="withdrawingFollowupId != null"
         @click="$emit('withdrawFollowup', followup)"
       >{{ withdrawingFollowupId === followup.id ? '撤销中…' : '撤销追问' }}</button>
-      <button v-if="canReply" type="button" class="link muted" @click="$emit('reply', followup.id)">回答这条追问</button>
+      <button v-if="canReply" type="button" class="answer-action answer-action--primary followup-action" @click="$emit('reply', followup.id)">
+        <FeedIcon name="comment" :size="15" /> 回答这条追问
+      </button>
     </div>
     <div v-for="reply in replies" :id="`reply-${reply.id}`" :key="reply.id" class="followup-answer" :class="{ highlighted: highlightedAnswerId === reply.id }">
       <div class="answer-head">
@@ -57,13 +60,16 @@ const statusLabels: Record<string, string> = {
       <span v-if="statusLabels[reply.status]" class="tag">{{ statusLabels[reply.status] }}</span>
       <div class="reply-actions">
         <template v-if="reply.status === 'published'">
-          <button v-if="viewer" type="button" @click="$emit('useful', reply.id)">有用（{{ reply.usefulCount }}）</button>
-          <button type="button" :aria-pressed="reply.liked" :disabled="likingAnswerId !== null" @click="$emit('like', reply.id)">
-            {{ reply.liked ? '已点赞' : '点赞' }}（{{ reply.likeCount }}）
+          <button v-if="viewer" type="button" class="answer-action" @click="$emit('useful', reply.id)">
+            有用 <span class="answer-action-count">{{ reply.usefulCount }}</span>
           </button>
-          <button type="button" @click="$emit('report', reply.id)">举报</button>
+          <button type="button" class="answer-action" :aria-pressed="reply.liked" :disabled="likingAnswerId !== null" @click="$emit('like', reply.id)">
+            <FeedIcon name="like" :size="15" :filled="reply.liked" />
+            {{ reply.liked ? '已点赞' : '点赞' }} <span class="answer-action-count">{{ reply.likeCount }}</span>
+          </button>
+          <button v-if="viewer?.id !== reply.author.id" type="button" class="answer-action" @click="$emit('report', reply.id)">举报</button>
         </template>
-        <button v-if="viewer?.role === 'hr' && viewer.id === reply.author.id && canWithdrawAnswer(reply)" type="button" class="withdraw-answer" :disabled="withdrawingAnswerId !== null" @click="$emit('withdraw', reply)">
+        <button v-if="viewer?.role === 'hr' && viewer.id === reply.author.id && canWithdrawAnswer(reply)" type="button" class="answer-action answer-action--danger" :disabled="withdrawingAnswerId !== null" @click="$emit('withdraw', reply)">
           {{ withdrawingAnswerId === reply.id ? '撤销中…' : '撤销这条回复' }}
         </button>
       </div>
@@ -74,8 +80,6 @@ const statusLabels: Record<string, string> = {
 <style scoped>
 .followup-thread { scroll-margin-top: 80px; }
 .followup-thread + .followup-thread { margin-top: 14px; }
-.highlighted { border-radius: 8px; outline: 2px solid #c6d8f4; outline-offset: 3px; background: #f6f9ff; }
-
 .followup-thread > .followup {
   margin: 0;
   border: 1px solid var(--color-border-subtle);
@@ -100,23 +104,17 @@ const statusLabels: Record<string, string> = {
   padding: 12px 14px;
 }
 
+.followup-thread > .followup.highlighted,
+.followup-answer.highlighted {
+  border-color: var(--color-brand-border);
+  border-left-color: var(--color-brand);
+  background: var(--color-brand-soft);
+}
+
 .answer-head, .followup-heading, .question-body { overflow-wrap: anywhere; }
 .answer-head { color: var(--color-text-muted); font-size: 11px; line-height: 18px; }
-.answer-head, .reply-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.answer-head { display: flex; flex-wrap: wrap; gap: 7px; }
 .followup-answer .question-body { margin: 8px 0 0; color: var(--color-text-regular); font-size: 14px; line-height: 25px; }
-.reply-actions { margin-top: 9px; }
-.reply-actions button,
-.followup-thread .link {
-  min-height: 30px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  padding: 3px 7px;
-  color: var(--color-text-regular);
-  font-size: 12px;
-}
-.reply-actions button:hover,
-.followup-thread .link:hover { background: var(--color-brand-soft); color: var(--color-brand); }
-.reply-actions .withdraw-answer { margin-left: 0; color: var(--color-danger); }
-.followup-thread > .followup > .link { margin-top: 7px; color: var(--color-brand); }
+.reply-actions:not(:empty),
+.followup-action { margin-top: 10px; }
 </style>

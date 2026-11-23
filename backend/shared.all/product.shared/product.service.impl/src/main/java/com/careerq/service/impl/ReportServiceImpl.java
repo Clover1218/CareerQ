@@ -35,12 +35,15 @@ public class ReportServiceImpl implements ReportService {
         if (!TARGET_TYPES.contains(targetType)) {
             throw new BusinessException(ErrorCode.INVALID_PARAM, "targetType 不合法");
         }
-        Long questionId = "question".equals(targetType) ? request.targetId()
-                : answerDao.findById(request.targetId())
-                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "举报目标不存在"))
-                        .getQuestionId();
-        questionDao.findById(questionId)
+        var answer = "answer".equals(targetType) ? answerDao.findById(request.targetId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "举报目标不存在")) : null;
+        Long questionId = answer == null ? request.targetId() : answer.getQuestionId();
+        var question = questionDao.findById(questionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "举报目标不存在"));
+        Long authorId = answer == null ? question.getAuthorId() : answer.getAuthorId();
+        if (reporter.getId().equals(authorId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "不能举报自己发布的内容");
+        }
         ReportDO report = new ReportDO();
         report.setReporterId(reporter.getId());
         report.setTargetType(targetType);
