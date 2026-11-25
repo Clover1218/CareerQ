@@ -2,6 +2,7 @@
 import type { Answer, Followup, User } from "@/api";
 import { canWithdrawAnswer } from "@/composables/useAnswerWithdrawal";
 import FeedIcon from "./FeedIcon.vue";
+import PublicAuthorLink from "./PublicAuthorLink.vue";
 
 defineProps<{
   followup: Followup;
@@ -34,6 +35,7 @@ const statusLabels: Record<string, string> = {
   <div :id="`followup-${followup.id}`" class="followup-thread">
     <div class="followup" :class="{ highlighted }">
       <div class="followup-heading">
+        <PublicAuthorLink :user-id="followup.author.id" :nickname="followup.author.nickname" :avatar-url="followup.author.avatarUrl" :size="26" />
         <strong>学生追问</strong><span>→ {{ targetName }}</span>
         <span v-if="canReply && replyState === 'pending'" class="tag">待你回复</span>
         <span v-else-if="canReply && replyState === 'reviewing'" class="tag">你的回复审核中</span>
@@ -51,7 +53,8 @@ const statusLabels: Record<string, string> = {
     </div>
     <div v-for="reply in replies" :id="`reply-${reply.id}`" :key="reply.id" class="followup-answer" :class="{ highlighted: highlightedAnswerId === reply.id }">
       <div class="answer-head">
-        <span>HR · {{ reply.author.nickname }}</span>
+        <PublicAuthorLink :user-id="reply.author.id" :nickname="reply.author.nickname" :avatar-url="reply.author.avatarUrl" :size="26" />
+        <span>HR</span>
         <span v-if="viewer?.id === reply.author.id">（我）</span>
         <span>回复</span>
         <span>{{ reply.createdAt.replace('T', ' ').slice(0, 16) }}</span>
@@ -113,7 +116,7 @@ const statusLabels: Record<string, string> = {
 
 .answer-head, .followup-heading, .question-body { overflow-wrap: anywhere; }
 .answer-head { color: var(--color-text-muted); font-size: 11px; line-height: 18px; }
-.answer-head { display: flex; flex-wrap: wrap; gap: 7px; }
+.answer-head { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
 .followup-answer .question-body { margin: 8px 0 0; color: var(--color-text-regular); font-size: 14px; line-height: 25px; }
 .reply-actions:not(:empty),
 .followup-action { margin-top: 10px; }

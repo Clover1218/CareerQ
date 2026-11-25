@@ -14,6 +14,7 @@ import {
 } from "@/api";
 import { useUserStore } from "@/stores/user";
 import FeedIcon from "./FeedIcon.vue";
+import PublicAuthorLink from "./PublicAuthorLink.vue";
 import ReportDialog from "./ReportDialog.vue";
 import { buildAnswerThreads, detailThreadItems, type AnswerThread as Conversation } from "@/utils/answerThreads";
 import { removedAnswerText } from "@/utils/answerRemoval";
@@ -608,7 +609,7 @@ onBeforeUnmount(() => {
       </div>
 
       <div v-if="ownerMode || (expanded && authorName)" class="author-row">
-        <span v-if="!ownerMode && authorName" class="min-w-0 truncate">{{ authorName }}</span>
+        <PublicAuthorLink v-if="!ownerMode && content && authorName" :user-id="content.question.author.id" :nickname="authorName" :avatar-url="content.question.author.avatarUrl" :size="26" />
         <time v-if="ownerMode" class="shrink-0 whitespace-nowrap">提问于 {{ formatTime(createdAt) }}</time>
       </div>
 
@@ -710,25 +711,22 @@ onBeforeUnmount(() => {
           <div class="flex flex-col gap-1">
             <div v-for="conversation in conversations" :key="conversation.key" class="answer-thread flex flex-col" :data-answer-id="conversation.rootAnswerId ?? undefined">
               <!-- HRClose / HROpen -->
-              <button
-                type="button"
+              <div
                 class="hr-row"
-                :title="conversation.nickname"
-                :aria-expanded="isThreadOpen(conversation.key)"
-                @click="toggleThreadDetails(conversation.key)"
               >
-                <span class="hr-avatar" aria-hidden="true">{{ conversation.nickname.trim().slice(0, 1) }}</span>
-                <span class="hr-name">{{ conversation.nickname }}</span>
+                <PublicAuthorLink :user-id="conversation.hrId" :nickname="conversation.nickname" :avatar-url="conversation.rootAnswer.author.avatarUrl" />
                 <span class="hr-identity">HR</span>
                 <span class="hr-chips">
                   <span v-if="conversation.company" class="hr-chip">{{ conversation.company }}</span>
                   <span v-if="conversation.position" class="hr-chip">{{ conversation.position }}</span>
                 </span>
-                <span
-                  v-if="!isThreadOpen(conversation.key)"
+                <button
+                  type="button"
                   class="hr-expand-label shrink-0 whitespace-nowrap"
-                >展开追问（{{ conversation.messages.filter((item) => item.kind === 'followup').length }}）</span>
-              </button>
+                  :aria-expanded="isThreadOpen(conversation.key)"
+                  @click="toggleThreadDetails(conversation.key)"
+                >{{ isThreadOpen(conversation.key) ? '收起追问' : '展开追问' }}（{{ conversation.messages.filter((item) => item.kind === 'followup').length }}）</button>
+              </div>
 
               <!-- HRA&UserQ：首回复卡与追问气泡区之间 32px -->
               <div class="flex flex-col gap-4 pt-2">
@@ -783,7 +781,8 @@ onBeforeUnmount(() => {
                       :class="entry.kind === 'followup' ? 'thread-entry--followup' : 'thread-entry--answer'"
                     >
                       <span class="thread-author">
-                        {{ entry.kind === 'followup' ? '学生追问' : 'HR 回复' }} · {{ entry.author.nickname }}
+                        <PublicAuthorLink :user-id="entry.author.id" :nickname="entry.author.nickname" :avatar-url="entry.author.avatarUrl" :size="26" />
+                        {{ entry.kind === 'followup' ? '学生追问' : 'HR 回复' }}
                       </span>
                       <span v-if="entry.kind === 'followup_answer'" class="reply-context">回复追问：{{ Array.from(conversation.messages.find((item) => item.kind === 'followup' && item.id === entry.followupId)?.body || '原追问已不可见').slice(0, 36).join('') }}</span>
                       <p class="thread-message">{{ entry.status === 'removed' ? '这条追问已撤销或下架。' : entry.body }}</p>
@@ -1191,30 +1190,6 @@ onBeforeUnmount(() => {
   background: var(--color-bg-hover);
 }
 
-.hr-avatar {
-  display: inline-flex;
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--color-brand-soft);
-  color: var(--color-brand);
-  font-size: 13px;
-  font-weight: 650;
-}
-
-.hr-name {
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: min(45%, 220px);
-  overflow: hidden;
-  color: var(--color-text-primary);
-  font-weight: 600;
-  text-overflow: ellipsis;
-}
-
 .hr-identity {
   flex-shrink: 0;
   border-radius: 4px;
@@ -1269,6 +1244,10 @@ onBeforeUnmount(() => {
 }
 
 .thread-author {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
   color: var(--color-text-regular);
   font-size: 13px;
   font-weight: 600;

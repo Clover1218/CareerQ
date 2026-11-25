@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { api, ApiError, type PublicHrShareDetail } from "@/api";
+import PublicAuthorLink from "@/components/PublicAuthorLink.vue";
 import "@/styles/hrShares.css";
 
 const route = useRoute();
@@ -11,6 +12,11 @@ const share = ref<PublicHrShareDetail | null>(null);
 const loading = ref(true);
 const unavailable = ref(false);
 const controller = new AbortController();
+const returnTo = computed(() => {
+  const target = route.query.returnTo;
+  return route.query.from === "public-profile" && typeof target === "string" && /^\/users\/\d+(\?.*)?$/.test(target)
+    ? target : "/hr-shares";
+});
 
 async function load() {
   if (!Number.isSafeInteger(id) || id <= 0) {
@@ -30,26 +36,33 @@ async function load() {
 
 function returnToList(event: MouseEvent) {
   if (event.button !== 0 || event.metaKey || event.altKey || event.ctrlKey || event.shiftKey) return;
-  if (window.history.state?.back !== "/hr-shares") return;
+  if (window.history.state?.back !== returnTo.value) return;
   event.preventDefault();
   router.back();
 }
 
-onMounted(load);
+onMounted(async () => {
+  const savedScroll = window.history.state?.scroll;
+  await load();
+  await nextTick();
+  if (!controller.signal.aborted && savedScroll && Number.isFinite(savedScroll.top)) {
+    window.scrollTo({ top: savedScroll.top, left: savedScroll.left ?? 0 });
+  }
+});
 onBeforeUnmount(() => controller.abort());
 </script>
 
 <template>
   <section class="hr-shares" aria-label="HR 分享详情">
-    <router-link to="/hr-shares" custom v-slot="{ href, navigate }">
-      <a :href="href" class="hr-share-back" @click="returnToList($event); navigate($event)">← 返回 HR 分享</a>
+    <router-link :to="returnTo" custom v-slot="{ href, navigate }">
+      <a :href="href" class="hr-share-back" @click="returnToList($event); navigate($event)">← {{ returnTo === '/hr-shares' ? '返回 HR 分享' : '返回公开主页' }}</a>
     </router-link>
 
     <article v-if="share" class="hr-share-article detail-enter">
       <header>
         <h1>{{ share.title }}</h1>
         <div class="hr-share-meta">
-          <span class="hr-share-author">{{ share.authorNickname }}</span>
+          <PublicAuthorLink :user-id="share.authorId" :nickname="share.authorNickname" :avatar-url="share.authorAvatarUrl" class="hr-share-author" />
           <time :datetime="share.publishedAt">{{ share.publishedAt.slice(0, 10) }}</time>
         </div>
         <div v-if="share.tags.length" class="hr-share-tags" aria-label="帖子标签">

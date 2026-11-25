@@ -116,28 +116,31 @@ a {
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 4px clamp(12px, 3vw, 32px);
-}
-
-.nav.nav--hr {
-  column-gap: clamp(8px, 2vw, 28px);
+  gap: 4px clamp(8px, 1.2vw, 16px);
 }
 
 .nav a {
-  color: var(--color-text-regular);
-  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 15px;
   line-height: 24px;
-  padding: 4px 0;
+  color: var(--color-text-regular);
   white-space: nowrap;
-  transition: color 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .nav a:hover {
+  background: var(--color-bg-hover);
   color: var(--color-text-primary);
 }
 
 .nav a.router-link-active {
-  color: var(--color-text-primary);
+  background: var(--color-brand-soft);
+  color: var(--color-brand-dark);
   font-weight: 600;
 }
 
@@ -368,7 +371,29 @@ body.admin-mode {
 }
 
 .myqa-tabs {
-  scroll-margin-top: 73px;
+  scroll-margin-top: calc(var(--topbar-height, 57px) + 16px);
+}
+
+.myqa-edit-profile {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-inline-start: auto;
+  min-height: 36px;
+  padding: 6px 12px;
+  border-color: var(--color-brand-border);
+  background: var(--color-brand-soft);
+  color: var(--color-brand-dark);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.myqa-edit-profile:hover:not(:disabled) {
+  background: #e2edff;
+}
+
+.myqa-edit-profile:disabled {
+  opacity: 0.5;
 }
 
 .myqa-tab {
@@ -630,6 +655,13 @@ textarea {
 }
 
 /* ---------------- 公开问答 Feed ---------------- */
+.public-author-link:hover,
+.public-author-link:focus-visible {
+  color: var(--color-brand);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* 参与回答的 HR：无底色无边框，展开/收起两种状态间距一致 */
 .hr-row {
   display: flex;
@@ -852,28 +884,67 @@ textarea {
 }
 
 /* ---------------- 响应式 ---------------- */
-@media (max-width: 640px) {
-  body {
-    padding-top: var(--topbar-height, 85px);
-  }
-
+@media (max-width: 900px) {
   .topbar {
     grid-template-columns: auto minmax(0, 1fr);
     grid-template-rows: auto auto;
-    padding: 6px 12px 0;
-    gap: 4px 12px;
+    padding: 6px 12px 5px;
+    gap: 5px 12px;
   }
 
   .brand {
     grid-column: 1;
     grid-row: 1;
-    font-size: 18px;
-    line-height: 26px;
   }
 
   .account {
     grid-column: 2;
     grid-row: 1;
+  }
+
+  .nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: stretch;
+    display: flex;
+    justify-content: center;
+    flex-wrap: nowrap;
+    gap: 6px;
+    border-top: 1px solid var(--color-border-subtle);
+    padding: 5px 0 0;
+  }
+
+  .nav a {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 168px;
+    padding-inline: 4px;
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 420px) {
+  .nav {
+    gap: 3px;
+  }
+
+  .nav a {
+    padding-inline: 2px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 640px) {
+  body {
+    padding-top: var(--topbar-height, 85px);
+  }
+
+  .brand {
+    font-size: 18px;
+    line-height: 26px;
+  }
+
+  .account {
     gap: 4px;
   }
 
@@ -890,16 +961,6 @@ textarea {
     padding: 0 6px;
   }
 
-  .nav {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    justify-self: stretch;
-    column-gap: clamp(12px, 5vw, 24px);
-    border-top: 1px solid var(--color-border-subtle);
-    padding: 3px 0 5px;
-  }
-
-  .nav--hr a { font-size: 14px; }
 }
 
 @media (max-width: 640px) {

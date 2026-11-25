@@ -24,17 +24,20 @@ public interface HrPostDao {
 
     @Select("""
             <script>
-            select p.id, p.title, p.body, p.updated_at, u.nickname as author_nickname
+            select p.id, p.author_id, p.title, p.body, p.updated_at, u.nickname as author_nickname,
+                u.avatar_url as author_avatar_url
             from hr_posts p join users u on u.id = p.author_id
             where p.status = 'published' and u.role = 'hr'
+            <if test="authorId != null">and p.author_id = #{authorId}</if>
             <if test="cursor != null">and p.id &lt; #{cursor}</if>
             order by p.id desc limit #{limit}
             </script>
             """)
-    List<HrPostDO> listPublished(@Param("cursor") Long cursor, @Param("limit") int limit);
+    List<HrPostDO> listPublished(@Param("authorId") Long authorId, @Param("cursor") Long cursor, @Param("limit") int limit);
 
     @Select("""
-            select p.id, p.title, p.body, p.updated_at, u.nickname as author_nickname
+            select p.id, p.author_id, p.title, p.body, p.updated_at, u.nickname as author_nickname,
+                u.avatar_url as author_avatar_url
             from hr_posts p join users u on u.id = p.author_id
             where p.id = #{id} and p.status = 'published' and u.role = 'hr'
             """)

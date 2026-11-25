@@ -134,7 +134,7 @@ function go(path: string) {
           </div>
 
           <!-- 快捷入口 -->
-          <nav v-if="isStudent || (isHr && route.name !== 'hr-profile')" class="drawer-menu" aria-label="个人菜单">
+          <nav v-if="(isStudent && route.name !== 'my-qa') || (isHr && route.name !== 'hr-profile')" class="drawer-menu" aria-label="个人菜单">
             <template v-if="isHr">
               <button type="button" class="drawer-menu-item" @click="go('/hr/profile')">
                 <span>个人中心</span>
@@ -146,13 +146,6 @@ function go(path: string) {
                 <span class="drawer-menu-copy">
                   <span>查看个人中心</span>
                   <small>我的提问、收藏与历史记录</small>
-                </span>
-                <span class="drawer-arrow" aria-hidden="true">›</span>
-              </button>
-              <button type="button" class="drawer-menu-item drawer-menu-item--detailed" @click="go('/me?edit=profile')">
-                <span class="drawer-menu-copy">
-                  <span>编辑个人资料</span>
-                  <small>学校、专业与年级</small>
                 </span>
                 <span class="drawer-arrow" aria-hidden="true">›</span>
               </button>

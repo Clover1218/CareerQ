@@ -18,6 +18,7 @@ export interface User {
 export interface UserBrief {
   id: number;
   nickname: string;
+  avatarUrl?: string | null;
   company?: string | null;
   position?: string | null;
 }
@@ -200,6 +201,8 @@ export interface Profile {
   degree?: string | null;
   graduationYear?: string | null;
   experiences: Experience[];
+  educationPublic?: boolean;
+  publicBio?: string | null;
 }
 
 export interface ProfilePatch {
@@ -207,6 +210,8 @@ export interface ProfilePatch {
   school?: string;
   major?: string;
   grade?: string;
+  educationPublic?: boolean;
+  publicBio?: string;
 }
 
 export interface MeStats {
@@ -282,11 +287,57 @@ export interface PublicHrShare {
   id: number;
   title: string;
   tags: string[];
+  authorId: number;
   authorNickname: string;
+  authorAvatarUrl?: string | null;
   publishedAt: string;
 }
 export interface PublicHrShareSummary extends PublicHrShare { excerpt: string }
 export interface PublicHrShareDetail extends PublicHrShare { body: string }
+
+export interface PublicProfile {
+  id: number;
+  role: "student" | "hr";
+  nickname: string;
+  avatarUrl?: string | null;
+  school?: string | null;
+  major?: string | null;
+  grade?: string | null;
+  companyDisplay?: string | null;
+  industry?: string | null;
+  position?: string | null;
+  bio?: string | null;
+  specialties: string[];
+  verifyStatus?: string | null;
+  stats: {
+    questionCount: number;
+    receivedAnswerCount: number;
+    rootAnswerCount: number;
+    followupReplyCount: number;
+    likeCount: number;
+    usefulCount: number;
+  };
+}
+
+export interface PublicProfileQuestion {
+  id: number;
+  title: string;
+  excerpt: string;
+  createdAt: string;
+  answerCount: number;
+  followupCount: number;
+}
+
+export interface PublicProfileAnswer {
+  id: number;
+  questionId: number;
+  followupId?: number | null;
+  title: string;
+  excerpt: string;
+  createdAt: string;
+  likeCount: number;
+  usefulCount: number;
+}
 
 export type StudentMessageCategory = "all" | "reply" | "like" | "system";
 export interface StudentNotification {
@@ -411,6 +462,24 @@ export interface AdminReviewDetail {
 }
 
 export const api = {
+  publicProfile(id: number, signal?: AbortSignal): Promise<PublicProfile> {
+    return request(`/users/${id}/profile`, { signal });
+  },
+  publicProfileQuestions(id: number, cursor?: number, signal?: AbortSignal): Promise<PageResult<PublicProfileQuestion>> {
+    const params = new URLSearchParams({ limit: "5" });
+    if (cursor != null) params.set("cursor", String(cursor));
+    return request(`/users/${id}/questions?${params}`, { signal });
+  },
+  publicProfileAnswers(id: number, cursor?: number, signal?: AbortSignal): Promise<PageResult<PublicProfileAnswer>> {
+    const params = new URLSearchParams({ limit: "5" });
+    if (cursor != null) params.set("cursor", String(cursor));
+    return request(`/users/${id}/answers?${params}`, { signal });
+  },
+  publicProfileShares(id: number, cursor?: number, signal?: AbortSignal): Promise<PageResult<PublicHrShareSummary>> {
+    const params = new URLSearchParams({ limit: "5" });
+    if (cursor != null) params.set("cursor", String(cursor));
+    return request(`/users/${id}/hr-shares?${params}`, { signal });
+  },
   publicHrShares(cursor: number | null, signal?: AbortSignal): Promise<PageResult<PublicHrShareSummary>> {
     const query = cursor == null ? "" : `?cursor=${cursor}`;
     return request(`/hr-shares${query}`, { signal });
@@ -465,10 +534,14 @@ export const api = {
   async register(payload: {
     phone: string;
     code: string;
+    role?: "student" | "hr";
     nickname?: string;
     school?: string;
     major?: string;
     grade?: string;
+    company?: string;
+    industry?: string;
+    position?: string;
   }): Promise<void> {
     await request<{ user: User }>("/auth/register", { method: "POST", body: payload });
     // 注册成功即建立会话，旧 CSRF token 失效

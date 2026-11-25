@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import { api, type PublicHrShareSummary } from "@/api";
+import PublicAuthorLink from "@/components/PublicAuthorLink.vue";
 import "@/styles/hrShares.css";
 
 defineOptions({ name: "PublicHrSharesView" });
@@ -38,11 +39,11 @@ onBeforeUnmount(() => controller.abort());
 
     <div class="hr-shares-list" :aria-busy="loading">
       <article v-for="share in items" :key="share.id" class="hr-share-card">
+        <div class="hr-share-meta hr-share-card-author">
+          <PublicAuthorLink :user-id="share.authorId" :nickname="share.authorNickname" :avatar-url="share.authorAvatarUrl" class="hr-share-author" />
+          <time :datetime="share.publishedAt">{{ share.publishedAt.slice(0, 10) }}</time>
+        </div>
         <router-link :to="{ name: 'hr-share-detail', params: { id: share.id } }" :aria-labelledby="`hr-share-${share.id}`">
-          <div class="hr-share-meta">
-            <span class="hr-share-author">{{ share.authorNickname }}</span>
-            <time :datetime="share.publishedAt">{{ share.publishedAt.slice(0, 10) }}</time>
-          </div>
           <h2 :id="`hr-share-${share.id}`">{{ share.title }}</h2>
           <p class="hr-share-excerpt">{{ share.excerpt }}</p>
           <div class="hr-share-card-footer">

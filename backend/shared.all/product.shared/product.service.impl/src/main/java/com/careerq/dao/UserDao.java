@@ -59,6 +59,20 @@ public interface UserDao {
             </script>
             """)
     int patchProfile(UserDO user);
+
+    @Update("""
+            <script>
+            update users
+            <set>
+                <if test="educationPublic != null">education_public = #{educationPublic},</if>
+                <if test="publicBio != null">public_bio = #{publicBio},</if>
+                updated_at = current_timestamp
+            </set>
+            where id = #{id} and role = 'student'
+            </script>
+            """)
+    int updatePublicProfile(@Param("id") Long id, @Param("educationPublic") Boolean educationPublic,
+                            @Param("publicBio") String publicBio);
     @Update("update users set avatar_url = #{avatarUrl}, updated_at = current_timestamp where id = #{id}")
     int updateAvatar(@Param("id") Long id, @Param("avatarUrl") String avatarUrl);
 }

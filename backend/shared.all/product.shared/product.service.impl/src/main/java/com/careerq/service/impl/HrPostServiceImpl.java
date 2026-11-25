@@ -61,13 +61,19 @@ public class HrPostServiceImpl implements HrPostService {
 
     @Override
     public PageResult<PublicShareSummary> listPublicShares(Long cursor, int limit) {
+        return listPublicSharesByAuthor(null, cursor, limit);
+    }
+
+    @Override
+    public PageResult<PublicShareSummary> listPublicSharesByAuthor(Long authorId, Long cursor, int limit) {
         if (cursor != null && cursor <= 0 || limit < 1 || limit > 50) {
             throw new BusinessException(ErrorCode.INVALID_PARAM, "帖子翻页参数无效");
         }
-        var rows = posts.listPublished(cursor, limit + 1);
+        var rows = posts.listPublished(authorId, cursor, limit + 1);
         var items = rows.stream().limit(limit)
                 .map(post -> new PublicShareSummary(post.getId(), post.getTitle(), excerpt(post.getBody()),
-                        posts.tags(post.getId()), publicNickname(post), post.getUpdatedAt()))
+                        posts.tags(post.getId()), post.getAuthorId(), publicNickname(post),
+                        post.getAuthorAvatarUrl(), post.getUpdatedAt()))
                 .toList();
         Long nextCursor = rows.size() > limit ? items.get(items.size() - 1).id() : null;
         return new PageResult<>(items, nextCursor);
@@ -78,7 +84,7 @@ public class HrPostServiceImpl implements HrPostService {
         HrPostDO post = posts.findPublished(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "这篇分享暂不可查看"));
         return new PublicShareDetail(post.getId(), post.getTitle(), post.getBody(), posts.tags(post.getId()),
-                publicNickname(post), post.getUpdatedAt());
+                post.getAuthorId(), publicNickname(post), post.getAuthorAvatarUrl(), post.getUpdatedAt());
     }
 
     private String publicNickname(HrPostDO post) {

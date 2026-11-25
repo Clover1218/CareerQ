@@ -86,6 +86,11 @@ public class ProfileServiceImpl implements ProfileService {
         if (request.graduationYear() != null) userDO.setGraduationYear(request.graduationYear().trim());
         userDao.patchProfile(userDO);
 
+        if ("student".equals(userDO.getRole()) && (request.educationPublic() != null || request.publicBio() != null)) {
+            userDao.updatePublicProfile(user.getId(), request.educationPublic(),
+                    request.publicBio() == null ? null : request.publicBio().trim());
+        }
+
         if (request.experiences() != null) {
             experienceDao.deleteByUserId(user.getId());
             for (ExperienceItem item : request.experiences()) {
@@ -112,7 +117,7 @@ public class ProfileServiceImpl implements ProfileService {
                 .toList();
         return new ProfileView(user.getId(), user.getRole(), user.getNickname(), user.getAvatarUrl(),
                 user.getSchool(), user.getMajor(), user.getGrade(), user.getDegree(),
-                user.getGraduationYear(), experiences);
+                user.getGraduationYear(), user.isEducationPublic(), user.getPublicBio(), experiences);
     }
 
     private String normalizeType(String type) {

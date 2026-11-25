@@ -8,6 +8,7 @@ import { useUserStore } from "@/stores/user";
 import { addViewHistory } from "@/utils/history";
 import FeedIcon from "@/components/FeedIcon.vue";
 import FollowupDiscussion from "@/components/FollowupDiscussion.vue";
+import PublicAuthorLink from "@/components/PublicAuthorLink.vue";
 import ReportDialog from "@/components/ReportDialog.vue";
 import { buildAnswerThreads, detailThreadItems, type AnswerThread } from "@/utils/answerThreads";
 import { canWithdrawAnswer, useAnswerWithdrawal } from "@/composables/useAnswerWithdrawal";
@@ -58,6 +59,11 @@ const openedFromFeed = computed(() => route.query.from === "feed");
 const openedFromHr = computed(() => route.query.from === "hr");
 const openedFromHrProfile = computed(() => route.query.from === "hr-profile");
 const openedFromHrMessages = computed(() => route.query.from === "hr-messages");
+const publicProfileReturnTo = computed(() => {
+  const target = route.query.returnTo;
+  return route.query.from === "public-profile" && typeof target === "string" && /^\/users\/\d+(\?.*)?$/.test(target)
+    ? target : null;
+});
 const studentReturnTo = computed(() => {
   if (me.value?.role !== "student" || typeof route.query.returnTo !== "string") return null;
   const value = route.query.returnTo;
@@ -67,6 +73,7 @@ const studentReturnTo = computed(() => {
 });
 const studentReturnLabel = computed(() => route.query.from === "student-messages" ? "返回消息中心" : "返回我的收藏");
 const returnLabel = computed(() => {
+  if (publicProfileReturnTo.value) return "返回公开主页";
   if (studentReturnTo.value) return studentReturnLabel.value;
   if (openedFromHrMessages.value) return "返回消息中心";
   if (openedFromHrProfile.value) return "返回个人中心";
@@ -218,7 +225,7 @@ watch([hrFollowups, () => route.query.followup], async ([followups, requested]) 
 
 // 消息可能同时携带回复和所属追问，优先定位仍可见的回复。
 watch([detail, () => route.query.answer, () => route.query.followup], async ([current, requestedAnswer, requestedFollowup]) => {
-  const studentEntry = studentReturnTo.value !== null;
+  const studentEntry = studentReturnTo.value !== null || publicProfileReturnTo.value !== null;
   const hrEntry = me.value?.role === "hr" && (openedFromHrProfile.value || openedFromHrMessages.value);
   if ((!studentEntry && !hrEntry) || !current || followupSubmitting.value || (hrEntry && answerSubmitting.value)) return;
 
@@ -290,6 +297,11 @@ function changeFollowupTarget(event: Event) {
 
 function returnToPreviousPage() {
   const previousRoute = window.history.state?.back;
+  if (publicProfileReturnTo.value) {
+    if (previousRoute === publicProfileReturnTo.value) router.back();
+    else void router.push(publicProfileReturnTo.value);
+    return;
+  }
   if (openedFromFeed.value && previousRoute === "/") {
     router.back();
     return;
@@ -515,7 +527,13 @@ const reviewStatus: Record<string, string> = {
 };
 
 onMounted(async () => {
+  const savedScroll = window.history.state?.scroll;
   await load();
+  if (active && savedScroll && Number.isFinite(savedScroll.top)) {
+    await nextTick();
+    window.scrollTo({ top: savedScroll.top, left: savedScroll.left ?? 0 });
+    return;
+  }
   if (!active || !openedFromHr.value || route.query.focus !== "answer"
       || me.value?.role !== "hr" || detail.value?.question.status !== "published") return;
 
@@ -542,7 +560,7 @@ onMounted(async () => {
       <span v-for="t in detail.question.tags" :key="t" class="tag">{{ t }}</span>
     </div>
     <div class="question-author">
-      <span class="question-author-name">{{ detail.question.author.nickname }}</span>
+      <PublicAuthorLink :user-id="detail.question.author.id" :nickname="detail.question.author.nickname" :avatar-url="detail.question.author.avatarUrl" class="question-author-name" />
       <time class="question-author-time" :datetime="detail.question.createdAt">提问于 {{ detail.question.createdAt.replace('T', ' ').slice(0, 16) }}</time>
     </div>
     <p class="question-body question-content">{{ detail.question.body }}</p>
@@ -563,7 +581,7 @@ onMounted(async () => {
         <div class="answer-head">
           <div class="answer-author">
             <div class="answer-author-line">
-              <strong>{{ conversation.nickname }}</strong>
+              <PublicAuthorLink :user-id="conversation.hrId" :nickname="conversation.nickname" :avatar-url="conversation.rootAnswer.author.avatarUrl" :size="36" class="answer-author-link" />
               <span class="hr-badge">HR</span>
               <span v-if="me?.id === conversation.hrId" class="me-badge">我</span>
             </div>
@@ -958,8 +976,7 @@ onMounted(async () => {
   gap: 6px;
 }
 
-.answer-author-line strong {
-  color: var(--color-text-primary);
+.answer-author-link {
   font-size: 15px;
   font-weight: 600;
 }

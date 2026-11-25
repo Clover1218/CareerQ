@@ -27,6 +27,8 @@ public class UserDO {
     private String major;
 
     private String grade;
+    private boolean educationPublic;
+    private String publicBio;
 
     private String degree;
 
@@ -95,6 +97,11 @@ public class UserDO {
     public void setGrade(String grade) {
         this.grade = grade;
     }
+
+    public boolean isEducationPublic() { return educationPublic; }
+    public void setEducationPublic(boolean educationPublic) { this.educationPublic = educationPublic; }
+    public String getPublicBio() { return publicBio; }
+    public void setPublicBio(String publicBio) { this.publicBio = publicBio; }
 
     public String getDegree() {
         return degree;
