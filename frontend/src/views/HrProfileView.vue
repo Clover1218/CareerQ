@@ -234,6 +234,7 @@ async function uploadAvatar(event: Event) {
         <input ref="avatarInput" type="file" accept="image/png,image/jpeg,image/webp" hidden @change="uploadAvatar" />
         <h2>{{ displayName }}</h2>
         <button type="button" class="edit-profile" :disabled="!profile" @click="editProfile">编辑资料</button>
+        <router-link v-if="profile" :to="{ name: 'public-profile', params: { id: profile.id } }" class="public-author-link">查看我的公开主页 →</router-link>
       </div>
       <p v-if="profileError" class="inline-error" role="alert">{{ profileError }} <button type="button" @click="loadProfile">重试</button></p>
       <p v-else-if="!profile" class="profile-loading" role="status">正在读取职业资料…</p>

@@ -34,6 +34,8 @@ public final class ProfileDtos {
             String grade,
             String degree,
             String graduationYear,
+            boolean educationPublic,
+            String publicBio,
             List<ExperienceView> experiences) {
     }
 
@@ -82,6 +84,9 @@ public final class ProfileDtos {
             String degree,
             @Size(max = 16, message = "毕业年份不能超过 16 字")
             String graduationYear,
+            Boolean educationPublic,
+            @Size(max = 500, message = "公开简介不能超过 500 字")
+            String publicBio,
             @Valid
             List<ExperienceItem> experiences) {
     }

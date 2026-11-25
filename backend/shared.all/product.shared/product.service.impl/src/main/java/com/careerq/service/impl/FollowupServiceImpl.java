@@ -158,7 +158,7 @@ followup.setModerationStatus(plan.moderationStatus().name());
 
     private FollowupView toView(FollowupDO followup) {
         UserBrief author = userDao.findById(followup.getSenderId())
-                .map(user -> new UserBrief(user.getId(), user.getNickname()))
+                .map(user -> new UserBrief(user.getId(), user.getNickname(), user.getAvatarUrl()))
                 .orElse(new UserBrief(followup.getSenderId(), "用户"));
         return new FollowupView(
                 followup.getId(),

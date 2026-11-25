@@ -70,6 +70,7 @@ function formatVisitedAt(iso: string): string {
 }
 
 const displayName = computed(() => profile.value?.nickname ?? user.value?.nickname ?? "同学");
+const education = computed(() => [profile.value?.school, profile.value?.major, profile.value?.grade].filter(Boolean).join(" · "));
 
 // 头像：优先取个人资料里的 avatarUrl，未上传时用昵称首字兜底
 const avatarUrl = computed(() => profile.value?.avatarUrl ?? user.value?.avatarUrl ?? "");
@@ -115,7 +116,7 @@ const savingName = ref(false);
 const nameInputRef = ref<HTMLInputElement | null>(null);
 
 const showProfileModal = ref(false);
-const profileDraft = reactive({ school: "", major: "", grade: "" });
+const profileDraft = reactive({ school: "", major: "", grade: "", educationPublic: false, publicBio: "" });
 const savingProfile = ref(false);
 
 function toFeedItem(question: Question): QuestionFeedItem {
@@ -262,9 +263,12 @@ async function saveName() {
 }
 
 function openProfileEditor() {
+  if (!profile.value) return;
   profileDraft.school = profile.value?.school ?? "";
   profileDraft.major = profile.value?.major ?? "";
   profileDraft.grade = profile.value?.grade ?? "";
+  profileDraft.educationPublic = profile.value?.educationPublic ?? false;
+  profileDraft.publicBio = profile.value?.publicBio ?? "";
   showProfileModal.value = true;
 }
 
@@ -290,6 +294,8 @@ async function saveProfile() {
       school: profileDraft.school,
       major: profileDraft.major,
       grade: profileDraft.grade,
+      educationPublic: profileDraft.educationPublic,
+      publicBio: profileDraft.publicBio,
     });
     await userStore.fetchUserInfo(true);
     onProfileModalChange(false);
@@ -347,7 +353,7 @@ watch(() => route.query.edit, edit => {
         </button>
         <button class="aux-btn" @click="cancelEditName">取消</button>
       </div>
-      <div v-else class="flex items-center gap-3">
+      <div v-else class="flex flex-wrap items-center gap-3">
         <button
           class="myqa-avatar"
           type="button"
@@ -365,6 +371,10 @@ watch(() => route.query.edit, edit => {
             <FeedIcon name="edit" :size="18" />
           </button>
         </div>
+        <button type="button" class="myqa-edit-profile" :disabled="!profile" @click="openProfileEditor">
+          <FeedIcon name="edit" :size="15" />
+          编辑个人资料
+        </button>
       </div>
       <input
         ref="avatarInputRef"
@@ -373,7 +383,10 @@ watch(() => route.query.edit, edit => {
         accept="image/png,image/jpeg,image/webp"
         @change="onAvatarChange"
       />
-      <div class="flex flex-wrap items-center gap-4 text-14 text-muted"><span>我的求职提问与学习记录</span></div>
+      <div class="flex flex-wrap items-center gap-4 text-14 text-muted">
+        <span>{{ education || '学校、专业与年级待完善' }}</span>
+        <router-link v-if="user?.id" :to="{ name: 'public-profile', params: { id: user.id } }">查看我的公开主页 →</router-link>
+      </div>
     </div>
   </section>
 
@@ -519,6 +532,14 @@ watch(() => route.query.edit, edit => {
       <label class="flex flex-col gap-1.5 text-14 text-regular">
         年级
         <input v-model="profileDraft.grade" maxlength="32" placeholder="如：大三" />
+      </label>
+      <label class="flex items-center gap-2 text-14 text-regular">
+        <input v-model="profileDraft.educationPublic" type="checkbox" style="width: auto" />
+        在公开主页展示学校、专业和年级
+      </label>
+      <label class="flex flex-col gap-1.5 text-14 text-regular">
+        公开简介（选填）
+        <textarea v-model="profileDraft.publicBio" maxlength="500" placeholder="介绍自己的求职方向与学习背景" />
       </label>
       <div class="mt-2 flex justify-end gap-2">
         <button @click="onProfileModalChange(false)">取消</button>

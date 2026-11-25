@@ -874,12 +874,12 @@ new HrAnswerSummary(answer.getId(), answer.getFollowupId(),
         return userDao.findById(userId)
                 .map(user -> {
                     if (!"hr".equals(user.getRole())) {
-                        return new UserBrief(user.getId(), user.getNickname());
+                        return new UserBrief(user.getId(), user.getNickname(), user.getAvatarUrl());
                     }
                     HrProfileDO profile = hrProfileDao.findByUserId(user.getId()).orElse(null);
                     return new UserBrief(user.getId(), user.getNickname(),
                             profile == null ? null : profile.getCompanyDisplay(),
-                            profile == null ? null : profile.getPosition());
+                            profile == null ? null : profile.getPosition(), user.getAvatarUrl());
                 })
                 .orElse(new UserBrief(userId, "用户"));
     }

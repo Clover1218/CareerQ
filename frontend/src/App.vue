@@ -47,7 +47,7 @@ async function refresh() {
 }
 
 function syncStudentSession() {
-  if (document.visibilityState === "visible" && (!user.value || user.value.role === "student")) {
+  if (document.visibilityState === "visible" && (!user.value || user.value.role === "student" || route.name === "public-profile")) {
     void userStore.syncSession();
   }
 }
@@ -160,7 +160,7 @@ watch(() => route.fullPath, refresh);
           <n-loading-bar-provider>
             <header v-if="!isAdminPage" ref="topbar" class="topbar" :inert="accountDialogOpen">
               <router-link class="brand" to="/" aria-label="CareerQ 首页">CareerQ</router-link>
-              <nav class="nav" :class="{ 'nav--hr': user?.role === 'hr' }" aria-label="主导航">
+              <nav class="nav" aria-label="主导航">
                 <router-link to="/">公开问答</router-link>
                 <router-link to="/hr-shares" :class="{ 'router-link-active': route.name === 'hr-share-detail' }">HR 分享</router-link>
                 <router-link v-if="user?.role === 'hr'" to="/hr">HR 工作台</router-link>

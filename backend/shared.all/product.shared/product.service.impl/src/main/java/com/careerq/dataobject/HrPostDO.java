@@ -14,6 +14,7 @@ public class HrPostDO {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private String authorNickname;
+    private String authorAvatarUrl;
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public Long getAuthorId() { return authorId; }
@@ -36,4 +37,6 @@ public class HrPostDO {
     public void setUpdatedAt(LocalDateTime value) { updatedAt = value; }
     public String getAuthorNickname() { return authorNickname; }
     public void setAuthorNickname(String value) { authorNickname = value; }
+    public String getAuthorAvatarUrl() { return authorAvatarUrl; }
+    public void setAuthorAvatarUrl(String value) { authorAvatarUrl = value; }
 }

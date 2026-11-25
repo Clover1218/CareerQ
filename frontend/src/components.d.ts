@@ -41,6 +41,7 @@ declare module 'vue' {
     NPopover: typeof import('naive-ui')['NPopover']
     NSelect: typeof import('naive-ui')['NSelect']
     ProfileDrawer: typeof import('./components/ProfileDrawer.vue')['default']
+    PublicAuthorLink: typeof import('./components/PublicAuthorLink.vue')['default']
     ReportDialog: typeof import('./components/ReportDialog.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']

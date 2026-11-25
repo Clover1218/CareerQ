@@ -15,6 +15,7 @@ const HrPostsView = () => import("./views/HrPostsView.vue");
 const HrPostEditorView = () => import("./views/HrPostEditorView.vue");
 const PublicHrSharesView = () => import("./views/PublicHrSharesView.vue");
 const PublicHrShareDetailView = () => import("./views/PublicHrShareDetailView.vue");
+const PublicProfileView = () => import("./views/PublicProfileView.vue");
 const AdminReviewView = () => import("./views/AdminReviewView.vue");
 const AdminReviewWorkspaceView = () => import("./views/AdminReviewWorkspaceView.vue");
 
@@ -33,6 +34,7 @@ export const router = createRouter({
     { path: "/login", component: LoginView },
     { path: "/register", component: RegisterView },
     // 需要登录：学生问答 / 提问 / HR 工作台
+    { path: "/users/:id", name: "public-profile", component: PublicProfileView, meta: { requiresAuth: true } },
     { path: "/me", name: "my-qa", component: MyQaView, meta: { requiresAuth: true } },
     { path: "/ask", component: AskView, meta: { requiresAuth: true, role: "student" } },
     { path: "/messages", name: "student-messages", component: StudentMessagesView, meta: { requiresAuth: true, role: "student" } },
@@ -69,7 +71,7 @@ router.beforeEach(async (to) => {
 
   // 未登录时强制向后端确认一次，避免退出登录后仍停留在受保护页面
   const userStore = useUserStore();
-  const user = userStore.user?.role === "student" || !userStore.isAuthenticated
+  const user = to.name === "public-profile" || userStore.user?.role === "student" || !userStore.isAuthenticated
     ? await userStore.fetchUserInfo(true) : userStore.user;
   if (!user) {
     return { path: "/login", query: { redirect: to.fullPath } };

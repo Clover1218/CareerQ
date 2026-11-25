@@ -39,8 +39,12 @@
 .hr-share-card > a {
   display: block;
   border-radius: inherit;
-  padding: 20px 22px;
+  padding: 2px 22px 20px;
   color: inherit;
+}
+
+.hr-share-card-author {
+  padding: 18px 22px 0;
 }
 
 .hr-share-card:is(:hover, :focus-within) {

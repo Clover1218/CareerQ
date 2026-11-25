@@ -65,6 +65,18 @@ class AvatarFlowTests {
         mockMvc.perform(get(avatarUrl))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith("image/png"));
+
+        MvcResult question = mockMvc.perform(post("/api/v1/questions").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "title", "发布后的头像展示", "body", "如何准备项目面试？"))))
+                .andExpect(status().isOk())
+                .andReturn();
+        long questionId = objectMapper.readTree(question.getResponse().getContentAsString())
+                .path("data").path("id").asLong();
+        mockMvc.perform(get("/api/v1/questions/{id}", questionId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.question.author.avatarUrl").value(avatarUrl));
     }
 
     @Test

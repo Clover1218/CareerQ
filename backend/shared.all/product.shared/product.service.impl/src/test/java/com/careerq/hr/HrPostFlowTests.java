@@ -72,7 +72,8 @@ class HrPostFlowTests {
         assertEquals("面试准备", summary.path("tags").get(0).asText());
         assertFalse(summary.has("body"));
         assertFalse(summary.has("version"));
-        assertFalse(summary.has("authorId"));
+        long hrId = read(hr, "/me").path("id").asLong();
+        assertEquals(hrId, summary.path("authorId").asLong());
 
         var next = json.readTree(mvc.perform(get("/api/v1/hr-shares").param("limit", "1")
                 .param("cursor", String.valueOf(secondPublished)))
@@ -82,10 +83,19 @@ class HrPostFlowTests {
         var detail = json.readTree(mvc.perform(get("/api/v1/hr-shares/{id}", firstPublished))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("data");
         assertEquals("分享岗位准备与项目表达经验。", detail.path("body").asText());
+        assertEquals(hrId, detail.path("authorId").asLong());
         assertFalse(detail.has("version"));
+
+        var viewer = account("student");
+        var publicProfileShares = json.readTree(mvc.perform(get("/api/v1/users/{id}/hr-shares", hrId).session(viewer))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("data");
+        assertEquals(2, publicProfileShares.path("items").size());
 
         write(hr, "/hr/posts/" + firstPublished + "/withdraw", Map.of("version", 1));
         mvc.perform(get("/api/v1/hr-shares/{id}", firstPublished)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/users/{id}/hr-shares", hrId).session(viewer))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.items.length()").value(1));
     }
 
     @Test
