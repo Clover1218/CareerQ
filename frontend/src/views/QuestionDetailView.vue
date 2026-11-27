@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { useDialog, useMessage } from "naive-ui";
@@ -9,10 +9,11 @@ import { addViewHistory } from "@/utils/history";
 import FeedIcon from "@/components/FeedIcon.vue";
 import FollowupDiscussion from "@/components/FollowupDiscussion.vue";
 import PublicAuthorLink from "@/components/PublicAuthorLink.vue";
-import ReportDialog from "@/components/ReportDialog.vue";
 import { buildAnswerThreads, detailThreadItems, type AnswerThread } from "@/utils/answerThreads";
 import { canWithdrawAnswer, useAnswerWithdrawal } from "@/composables/useAnswerWithdrawal";
 import { removedAnswerText } from "@/utils/answerRemoval";
+
+const ReportDialog = defineAsyncComponent(() => import("@/components/ReportDialog.vue"));
 
 const route = useRoute();
 const router = useRouter();

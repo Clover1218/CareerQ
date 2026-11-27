@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from "vue";
 import { type FeedFilterValue, type FeedPeriod, type FeedSort } from "../api";
 import FeedIcon from "./FeedIcon.vue";
 import TagPicker from "./TagPicker.vue";
+
+const FeedDateRangePicker = defineAsyncComponent(() => import("./FeedDateRangePicker.vue"));
 
 const props = withDefaults(defineProps<{ sort?: FeedSort }>(), { sort: "recommend" });
 const emit = defineEmits<{
@@ -303,12 +305,9 @@ onBeforeUnmount(() => {
               </div>
             </div>
           </template>
-          <n-date-picker
-            type="daterange"
-            panel
+          <FeedDateRangePicker
+            v-if="dateOpen"
             :value="range"
-            :actions="null"
-            :first-day-of-week="1"
             @update:value="onRangeChange"
           />
         </n-popover>
