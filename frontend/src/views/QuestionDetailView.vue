@@ -56,6 +56,7 @@ let appliedFollowupLink: string | null = null;
 
 const questionId = Number(route.params.id);
 const openedFromFeed = computed(() => route.query.from === "feed");
+const openedFromRoundtable = computed(() => route.query.from === "roundtable");
 const openedFromHr = computed(() => route.query.from === "hr");
 const openedFromHrProfile = computed(() => route.query.from === "hr-profile");
 const openedFromHrMessages = computed(() => route.query.from === "hr-messages");
@@ -73,6 +74,7 @@ const studentReturnTo = computed(() => {
 });
 const studentReturnLabel = computed(() => route.query.from === "student-messages" ? "返回消息中心" : "返回我的收藏");
 const returnLabel = computed(() => {
+  if (openedFromRoundtable.value) return "返回圆桌投票";
   if (publicProfileReturnTo.value) return "返回公开主页";
   if (studentReturnTo.value) return studentReturnLabel.value;
   if (openedFromHrMessages.value) return "返回消息中心";
@@ -93,6 +95,26 @@ const selectedFollowup = computed(() => hrFollowups.value.find(
 ));
 const mainAnswers = computed(() => detail.value?.answers.filter((answer) => answer.followupId == null) ?? []);
 const likingAnswerId = ref<number | null>(null);
+const publicMainAnswers = computed(() => mainAnswers.value.filter(answer => answer.status === "published"));
+const publicAnswerAuthors = computed(() => {
+  const answers = new Map<number, typeof publicMainAnswers.value[number]>();
+  for (const answer of publicMainAnswers.value) {
+    if (!answers.has(answer.author.id)) answers.set(answer.author.id, answer);
+  }
+  return [...answers.values()];
+});
+const showAllAuthors = ref(false);
+const initialAuthorCount = 4;
+const visibleAuthors = computed(() => showAllAuthors.value
+  ? publicAnswerAuthors.value : publicAnswerAuthors.value.slice(0, initialAuthorCount));
+const discussionRef = ref<HTMLElement | null>(null);
+
+function jumpToRootAnswer(answerId: number) {
+  const answer = document.getElementById("answer-" + answerId);
+  answer?.focus({ preventScroll: true });
+  answer?.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+}
+
 const reportOpen = ref(false);
 const reportAnswerId = ref(0);
 const conversations = computed(() => detail.value
@@ -297,6 +319,11 @@ function changeFollowupTarget(event: Event) {
 
 function returnToPreviousPage() {
   const previousRoute = window.history.state?.back;
+  if (openedFromRoundtable.value) {
+    if (typeof previousRoute === "string" && /^\/roundtable(?:\?|$)/.test(previousRoute)) router.back();
+    else void router.push({ name: "roundtable" });
+    return;
+  }
   if (publicProfileReturnTo.value) {
     if (previousRoute === publicProfileReturnTo.value) router.back();
     else void router.push(publicProfileReturnTo.value);
@@ -534,6 +561,17 @@ onMounted(async () => {
     window.scrollTo({ top: savedScroll.top, left: savedScroll.left ?? 0 });
     return;
   }
+  if (active && openedFromFeed.value) {
+    const answerId = Number(route.query.answer);
+    if (publicMainAnswers.value.some(answer => answer.id === answerId)) {
+      await nextTick();
+      jumpToRootAnswer(answerId);
+    } else if (route.query.focus === "discussion") {
+      await nextTick();
+      discussionRef.value?.focus({ preventScroll: true });
+      discussionRef.value?.scrollIntoView({ block: "start" });
+    }
+  }
   if (!active || !openedFromHr.value || route.query.focus !== "answer"
       || me.value?.role !== "hr" || detail.value?.question.status !== "published") return;
 
@@ -554,29 +592,31 @@ onMounted(async () => {
   <p v-if="error" class="error">{{ error }}</p>
 
   <section v-if="detail" class="card question-hero detail-enter">
-    <h1 class="detail-title">{{ detail.question.title }}</h1>
     <div class="question-tags">
       <span class="question-status" :class="questionDisplayStatus">{{ reviewStatus[questionDisplayStatus] ?? questionDisplayStatus }}</span>
       <span v-for="t in detail.question.tags" :key="t" class="tag">{{ t }}</span>
     </div>
+    <h1 class="detail-title">{{ detail.question.title }}</h1>
     <div class="question-author">
       <PublicAuthorLink :user-id="detail.question.author.id" :nickname="detail.question.author.nickname" :avatar-url="detail.question.author.avatarUrl" class="question-author-name" />
       <time class="question-author-time" :datetime="detail.question.createdAt">提问于 {{ detail.question.createdAt.replace('T', ' ').slice(0, 16) }}</time>
     </div>
     <p class="question-body question-content">{{ detail.question.body }}</p>
     <div class="question-summary">
-      <span>{{ mainAnswers.filter(answer => answer.status === 'published').length }} 条 HR 主回答</span>
+      <router-link v-if="me?.role === 'student' && detail.question.status === 'published'" class="editorial-button" :to="{ name: 'roundtable', query: { nominate: questionId } }">推荐到下期圆桌</router-link>
+      <span>{{ publicMainAnswers.length }} 条 HR 主回答</span>
       <span>{{ detail.question.followupCount }} 条学生追问</span>
     </div>
   </section>
 
-  <section v-if="detail" class="answer-floors detail-enter">
+  <div v-if="detail" class="discussion-layout">
+  <section ref="discussionRef" class="answer-floors detail-enter" aria-label="HR 回答与追问" tabindex="-1">
     <div class="answers-heading">
       <div><p class="section-kicker">HR 经验分享</p><h2>回答与追问</h2></div>
-      <span class="answer-count">{{ mainAnswers.filter(answer => answer.status === 'published').length }} 条主回答</span>
+      <span class="answer-count">{{ publicMainAnswers.length }} 条主回答 · 按时间排序</span>
     </div>
     <div v-if="conversations.length === 0" class="answer-empty">还没有 HR 回答，问题正在等待有经验的人。</div>
-    <article v-for="conversation in conversations" :id="`answer-${conversation.rootAnswerId}`" :key="conversation.key" class="card answer-floor" :class="{ 'is-highlighted': highlightedAnswerId === conversation.rootAnswerId }">
+    <article v-for="conversation in conversations" :id="`answer-${conversation.rootAnswerId}`" :key="conversation.key" class="card answer-floor" tabindex="-1" :class="{ 'is-highlighted': highlightedAnswerId === conversation.rootAnswerId }">
       <template v-if="conversation.rootAnswer">
         <div class="answer-head">
           <div class="answer-author">
@@ -671,6 +711,20 @@ onMounted(async () => {
     </article>
   </section>
 
+  <aside v-if="publicAnswerAuthors.length" class="card discussion-authors" aria-label="本题答主">
+    <h2>本题答主 <span>{{ publicAnswerAuthors.length }} 位</span></h2>
+    <button v-for="answer in visibleAuthors" :key="answer.author.id" type="button" @click="jumpToRootAnswer(answer.id)">
+      <img v-if="answer.author.avatarUrl" :src="answer.author.avatarUrl" alt="" />
+      <span v-else class="author-initial" aria-hidden="true">{{ Array.from(answer.author.nickname || 'H')[0] }}</span>
+      <span class="author-jump-name">{{ answer.author.nickname }}</span><span aria-hidden="true">↓</span>
+    </button>
+    <button v-if="publicAnswerAuthors.length > initialAuthorCount" type="button" class="author-show-more"
+      :aria-expanded="showAllAuthors" @click="showAllAuthors = !showAllAuthors">
+      {{ showAllAuthors ? "收起其他答主" : "展开其他 " + (publicAnswerAuthors.length - initialAuthorCount) + " 位答主" }}
+    </button>
+  </aside>
+  </div>
+
   <div v-if="detail && me?.role === 'hr' && detail.question.scope === 'public'" ref="answerFormRef" class="card composer-card hr-answer-composer">
     <h3>以 HR 身份回答</h3>
     <div class="answer-modes" role="group" aria-label="选择回答对象">
@@ -742,6 +796,26 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.discussion-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 260px); gap: 24px; align-items: start; }
+.discussion-layout:not(:has(.discussion-authors)) { grid-template-columns: minmax(0, 1fr); }
+.answer-floors { min-width: 0; scroll-margin-top: calc(var(--topbar-height, 57px) + 14px); }
+.discussion-authors { margin: 0; padding: 15px; }
+.discussion-authors h2 { margin: 0 0 6px; font-size: 16px; }
+.discussion-authors h2 span { margin-left: 4px; color: var(--color-text-muted); font-size: 12px; font-weight: 400; }
+.discussion-authors button { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: 7px 0; border: 0; background: transparent; color: var(--color-text-primary); text-align: left; font: inherit; font-size: 13px; cursor: pointer; }
+.discussion-authors .author-show-more { color: var(--color-brand); font-weight: 700; }
+.discussion-authors button:hover { color: var(--color-brand); }
+.discussion-authors button > :last-child { margin-inline-start: auto; color: var(--color-brand); }
+.author-jump-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.discussion-authors img, .author-initial { width: 24px; height: 24px; flex: 0 0 24px; border-radius: 50%; object-fit: cover; }
+.author-initial { display: grid; place-items: center; background: var(--color-brand-soft); color: var(--color-brand); font-weight: 700; }
+@media (max-width: 720px) {
+  .discussion-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .discussion-authors { order: -1; display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 10px 12px; }
+  .discussion-authors h2 { width: 100%; margin: 0; }
+  .discussion-authors button { width: auto; max-width: 100%; padding: 3px 0; }
+}
+
 .question-detail-page {
   display: flex;
   flex-direction: column;
@@ -762,11 +836,11 @@ onMounted(async () => {
 
 .question-hero {
   overflow: hidden;
-  border: 1px solid #e1e9f3;
+  border: 1px solid var(--color-border-default);
   border-radius: 16px;
-  background: linear-gradient(145deg, #ffffff 0%, #f7faff 100%);
-  padding: 25px 28px 22px;
-  box-shadow: 0 16px 40px -32px rgba(35, 65, 105, 0.42);
+  background: var(--color-bg-surface);
+  padding: 24px 28px;
+  box-shadow: none;
 }
 
 .detail-navigation { margin-bottom: -6px; }
@@ -791,12 +865,12 @@ onMounted(async () => {
 }
 
 .detail-title {
-  margin: 0 0 13px;
+  margin: 9px 0 13px;
   color: var(--color-text-primary);
-  font-size: 26px;
-  font-weight: 650;
-  letter-spacing: -0.02em;
-  line-height: 38px;
+  font-size: clamp(26px, 4vw, 41px);
+  font-weight: 800;
+  letter-spacing: -.035em;
+  line-height: 1.3;
   overflow-wrap: anywhere;
 }
 
@@ -865,9 +939,9 @@ onMounted(async () => {
 
 .question-content {
   margin: 0;
-  border-top: 1px solid #e8edf4;
+  border-top: 1px solid var(--color-border-subtle);
   padding-top: 19px;
-  color: #3f4b5f;
+  color: var(--color-text-regular);
   font-size: 16px;
   font-weight: 400;
   letter-spacing: 0.01em;
@@ -880,7 +954,7 @@ onMounted(async () => {
   flex-wrap: wrap;
   gap: 16px;
   margin-top: 19px;
-  border-top: 1px solid #e8edf4;
+  border-top: 1px solid var(--color-border-subtle);
   padding-top: 14px;
   color: var(--color-text-muted);
   font-size: 12px;
@@ -938,7 +1012,7 @@ onMounted(async () => {
 
 .answer-floor {
   scroll-margin-top: calc(var(--topbar-height, 57px) + 16px);
-  border: 1px solid #e3e9f0;
+  border: 1px solid var(--color-border-default);
   border-radius: 14px;
   background: var(--color-bg-surface);
   padding: 22px 24px;
@@ -952,8 +1026,8 @@ onMounted(async () => {
 }
 
 .answer-floor.is-highlighted {
-  border-color: #b9cdf0;
-  background: #f8faff;
+  border-color: var(--color-brand-border);
+  background: var(--color-bg-feed);
 }
 
 .answer-head {
@@ -1017,7 +1091,7 @@ onMounted(async () => {
 
 .answer-content {
   margin: 16px 0 0;
-  color: #435065;
+  color: var(--color-text-regular);
   font-size: 16px;
   font-weight: 400;
   line-height: 30px;
@@ -1049,7 +1123,7 @@ onMounted(async () => {
   gap: 6px;
   min-height: 36px;
   padding: 6px 11px;
-  border: 1px solid #dce4ee;
+  border: 1px solid var(--color-border-default);
   border-radius: 8px;
   background: var(--color-bg-surface);
   color: var(--color-text-regular);
@@ -1077,8 +1151,8 @@ onMounted(async () => {
 
 .question-detail-page :deep(.answer-action--primary:hover:not(:disabled)),
 .question-detail-page :deep(.answer-action[aria-pressed="true"]:hover:not(:disabled)) {
-  border-color: #abc4f4;
-  background: #e2edff;
+  border-color: var(--color-brand-border);
+  background: var(--color-brand-soft);
 }
 
 .question-detail-page :deep(.answer-action--danger) {
@@ -1095,7 +1169,7 @@ onMounted(async () => {
   min-width: 20px;
   padding: 0 5px;
   border-radius: 10px;
-  background: #e7edf4;
+  background: var(--color-bg-hover);
   font-variant-numeric: tabular-nums;
   line-height: 18px;
   text-align: center;
@@ -1121,7 +1195,7 @@ onMounted(async () => {
   margin-top: 12px;
   border: 1px solid var(--color-brand-border);
   border-radius: 10px;
-  background: #f6f9ff;
+  background: var(--color-bg-feed);
   padding: 12px;
 }
 
@@ -1147,13 +1221,13 @@ onMounted(async () => {
   margin-top: 9px;
   border: 1px solid var(--color-border-subtle);
   border-radius: 11px;
-  background: #f8fafc;
+  background: var(--color-bg-feed);
   padding: 14px;
   animation: detail-rise 160ms ease-out;
 }
 
 .composer-card {
-  border: 1px solid #e3e9f0;
+  border: 1px solid var(--color-border-default);
   border-radius: 14px;
   background: var(--color-bg-surface);
   padding: 23px 24px;
@@ -1183,7 +1257,7 @@ onMounted(async () => {
   border: 1px solid var(--color-border-default);
   border-radius: 8px;
   padding: 3px;
-  background: #f3f5f7;
+  background: var(--color-bg-hover);
 }
 
 .answer-mode-button {
@@ -1198,16 +1272,16 @@ onMounted(async () => {
 }
 
 .answer-mode-button.active {
-  background: #fff;
+  background: var(--color-bg-surface);
   color: var(--color-brand);
   box-shadow: 0 1px 3px rgba(17, 24, 39, 0.08);
 }
 
 .selected-answer-preview {
   margin: 10px 0;
-  border-left: 3px solid #9bb9e5;
+  border-left: 3px solid var(--color-brand-border);
   border-radius: 0 8px 8px 0;
-  background: #f6f9ff;
+  background: var(--color-bg-feed);
   padding: 11px 13px;
   color: var(--color-text-regular);
   font-size: 13px;
@@ -1246,7 +1320,7 @@ onMounted(async () => {
   min-height: 40px;
   border: 1px solid var(--color-border-default);
   border-radius: 6px;
-  background: #fff;
+  background: var(--color-bg-surface);
   padding: 8px 10px;
   color: var(--color-text-primary);
   font: inherit;

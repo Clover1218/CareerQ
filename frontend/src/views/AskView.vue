@@ -105,8 +105,9 @@ async function submit() {
 </script>
 
 <template>
-  <div class="card">
+  <div class="card public-ask-form">
     <h2>我要提问</h2>
+    <p class="muted ask-audience">审核通过后，问题会进入公开问题池，由 HR 自主选择回答。</p>
     <div class="draft-status" role="status">
       <span v-if="!saved" class="error">草稿未能保存，请先保留内容，暂勿关闭页面。</span>
       <span v-else-if="hasDraft">{{ restored ? '已恢复上次未完成的草稿。' : '草稿已自动保存在本机。' }}离开或刷新后可继续编辑。</span>

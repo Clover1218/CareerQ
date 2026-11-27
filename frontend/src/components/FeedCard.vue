@@ -600,7 +600,7 @@ onBeforeUnmount(() => {
       </p>
 
       <div ref="excerptBlockRef" class="excerpt-block">
-        <p ref="excerptRef" class="question-excerpt" :class="expanded ? 'question-excerpt--full' : 'line-clamp-3'">{{ expanded ? content?.question.body ?? item.excerpt : item.excerpt }}</p>
+        <p ref="excerptRef" class="question-excerpt" :class="expanded ? 'question-excerpt--full' : ownerMode ? 'line-clamp-3' : 'line-clamp-2'">{{ expanded ? content?.question.body ?? item.excerpt : item.excerpt }}</p>
         <div v-if="ownerMode || expanded || excerptOverflows" class="flex justify-end">
           <button type="button" class="aux-btn read-more" @click="toggleExpand">
             {{ expanded ? "收起问题 ↑" : ownerMode ? "阅读全文 ↓" : "展开问题 ↓" }}
@@ -888,7 +888,7 @@ onBeforeUnmount(() => {
 }
 
 .question-card {
-  padding: 20px 22px 12px;
+  padding: 15px 18px 12px;
   border-radius: 12px;
   background: var(--color-bg-surface);
 }
@@ -1089,13 +1089,13 @@ onBeforeUnmount(() => {
 }
 
 .feed-card--summary .discussion-toggle:is(:hover, :focus-visible) {
-  background: #e3edff;
+  background: var(--color-bg-hover);
   color: var(--color-brand);
 }
 
 .feed-card--summary .discussion-toggle:active {
   border-color: var(--color-brand);
-  background: #d9e7ff;
+  background: var(--color-brand-soft);
 }
 
 @media (prefers-reduced-motion: no-preference) {

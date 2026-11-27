@@ -1,0 +1,147 @@
+/* The student, HR and public site share this palette. Admin routes use the base theme. */
+html.careerq-public-theme {
+  --color-bg-main: #f8f5f0;
+  --color-bg-surface: #fffdf9;
+  --color-bg-feed: #faf7f2;
+  --color-bg-hover: #f3ece4;
+  --color-border-default: #e4ddd1;
+  --color-border-subtle: #ece5da;
+  --color-text-primary: #252421;
+  --color-text-regular: #504a41;
+  --color-text-muted: #656056;
+  --color-text-subtle: #74685c;
+  --color-brand: #803a35;
+  --color-brand-dark: #642a27;
+  --color-brand-soft: #f2e4dd;
+  --color-brand-border: #e3c9c0;
+  --color-success: #385c4d;
+  --color-success-soft: #e6eee7;
+  --color-warning: #765426;
+  --color-warning-soft: #f6ebd8;
+  --color-danger: #a23c3c;
+  --font-sans: "DM Sans", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+}
+
+.careerq-public-theme .topbar {
+  min-height: 70px;
+  padding-inline: max(20px, calc((100% - 1160px) / 2));
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  column-gap: 24px;
+}
+
+.careerq-public-theme .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-primary);
+  font-size: 23px;
+  letter-spacing: -.045em;
+  font-weight: 800;
+}
+
+.brand small { font-size: 12px; letter-spacing: .02em; }
+.brand-mark {
+  display: grid;
+  place-items: center;
+  height: 31px;
+  width: 31px;
+  border-radius: 9px;
+  background: var(--color-brand);
+}
+.brand-mark::before {
+  content: "";
+  width: 13px;
+  height: 8px;
+  border: 2px solid #fff8ee;
+  border-bottom: 0;
+  border-radius: 14px 14px 0 0;
+}
+
+.careerq-public-theme .nav { justify-content: start; justify-self: stretch; align-self: stretch; align-items: stretch; gap: clamp(10px, 2vw, 25px); }
+.careerq-public-theme .nav a { padding: 0 2px; border-radius: 0; border-bottom: 2px solid transparent; background: transparent; font-size: 14px; }
+.careerq-public-theme .nav a:hover { color: var(--color-brand); }
+.careerq-public-theme .nav a:is(.router-link-active, .is-section-active) { border-bottom-color: var(--color-brand); background: transparent; color: var(--color-brand); font-weight: 750; }
+.careerq-public-theme .account-avatar { background: var(--color-brand-soft); color: var(--color-brand-dark); }
+
+.careerq-public-theme .editorial-shell {
+  max-width: 1160px;
+  width: calc(100% - 48px);
+  margin: 36px auto 58px;
+  padding: 0;
+}
+
+.careerq-public-theme :is(.card, .question-card, .hr-share-card, .hr-share-article) { border-radius: 16px; }
+.careerq-public-theme :is(.primary, .primary-btn, .topbar-ask) { border-radius: 8px; }
+.careerq-public-theme :is(.editorial-button, .editorial-back, .nav a, .brand, .question-title-link):focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 3px;
+}
+
+.editorial-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.editorial-heading h1 { margin: 0; font-size: clamp(30px, 4vw, 47px); line-height: 1.22; letter-spacing: -.045em; font-weight: 800; }
+.editorial-heading p { margin: 8px 0 0; color: var(--color-text-muted); font-size: 14px; line-height: 1.65; }
+.editorial-back { display: inline-block; margin-bottom: 16px; font-size: 14px; font-weight: 700; }
+.editorial-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  flex: 0 0 auto;
+  gap: 5px;
+  padding: 6px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-surface);
+  color: var(--color-brand-dark);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.editorial-button:hover { background: var(--color-brand-soft); border-color: var(--color-brand-border); }
+.editorial-button.is-primary { background: var(--color-brand); border-color: var(--color-brand); color: #fffaf2; }
+.editorial-button.is-primary:hover { background: var(--color-brand-dark); border-color: var(--color-brand-dark); }
+.editorial-button:disabled { opacity: .55; cursor: default; }
+.editorial-heading .is-primary { min-height: 42px; padding: 8px 14px; }
+.careerq-public-theme :is(.public-ask-form, .register-card) { padding: clamp(18px, 4vw, 30px); }
+.careerq-public-theme :is(.public-ask-form, .register-card) h2 { margin-top: 0; letter-spacing: -.025em; }
+.ask-audience { margin: 0 0 16px; line-height: 1.6; }
+
+@media (max-width: 935px) {
+  .careerq-public-theme .topbar { padding: 6px 14px 0; min-height: 0; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; row-gap: 5px; }
+  .careerq-public-theme .brand { grid-column: 1; grid-row: 1; font-size: 20px; }
+  .careerq-public-theme .account { grid-column: 2; grid-row: 1; }
+  .careerq-public-theme .nav { grid-column: 1 / -1; grid-row: 2; padding: 0; border-top: 1px solid var(--color-border-subtle); gap: 6px; justify-content: center; }
+  .careerq-public-theme .nav a { padding-inline: 4px; font-size: 13px; }
+}
+
+@media (max-width: 600px) {
+  .careerq-public-theme .editorial-shell { width: calc(100% - 28px); margin: 21px auto 36px; }
+  .careerq-public-theme .brand { gap: 5px; font-size: 19px; }
+  .careerq-public-theme .brand small { display: none; }
+  .brand-mark { width: 24px; height: 24px; border-radius: 6px; }
+  .brand-mark::before { width: 10px; height: 6px; }
+  .editorial-heading { align-items: flex-start; margin-bottom: 15px; }
+  .editorial-heading p { margin-top: 5px; font-size: 13px; }
+  .editorial-heading .is-primary { min-height: 36px; padding: 6px 8px; font-size: 12px; }
+}
+
+
+.public-login-card { max-width: 440px; margin: 32px auto; padding: clamp(18px, 4vw, 28px); }
+.public-login-card h2 { margin-top: 0; letter-spacing: -.025em; }
+.careerq-public-theme .filter-searchbar:focus-within { box-shadow: 0 0 0 3px var(--color-brand-soft); }
+.careerq-public-theme .wide-shell :is(.post-page-heading, .page-intro, .messages-heading) h1,
+.careerq-public-theme .hr-shares-heading h1 {
+  font-size: clamp(28px, 3.25vw, 39px);
+  letter-spacing: -.035em;
+  font-weight: 800;
+}

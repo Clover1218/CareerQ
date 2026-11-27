@@ -44,7 +44,7 @@ async function login() {
 </script>
 
 <template>
-  <div class="card" style="max-width: 420px; margin: 40px auto">
+  <div class="card public-login-card">
     <h2>登录职问桥</h2>
     <p v-if="returnTo.startsWith('/users/')" class="muted">登录后即可查看该用户的主页。</p>
     <p class="muted">dev 环境验证码固定为 123456；演示账号 13800000001（学生）/ 13800000003、13800000008（运营）/ 13800000007（仲裁运营）/ HR：13800000002 陈静怡、13800000004 王浩然、13800000005 李梦琪、13800000006 张帆</p>

@@ -12,6 +12,13 @@ const emit = defineEmits<{
 
 const message = useMessage();
 
+const quickTags = [
+  { label: "职业选择", tag: "职业规划" },
+  { label: "简历优化", tag: "简历" },
+  { label: "面试准备", tag: "面试准备" },
+  { label: "实习求职", tag: "实习" },
+];
+
 const panelOpen = ref(false);
 const keyword = ref("");
 const tags = ref<string[]>([]);
@@ -85,11 +92,18 @@ function onCompositionEnd() {
 }
 
 function commitKeyword() {
+  if (composing.value) return;
   if (debounceTimer) {
     clearTimeout(debounceTimer);
     debounceTimer = null;
   }
   emitChange();
+}
+
+function selectQuickTag(tag: string) {
+  if (tags.value.includes(tag)) removeTag(tag);
+  else if (tags.value.length < 10) tags.value = [...tags.value, tag];
+  else message.warning("最多选择 10 个标签");
 }
 
 function clearTags() {
@@ -180,6 +194,7 @@ onBeforeUnmount(() => {
             @compositionend="onCompositionEnd"
           />
         </label>
+        <button type="button" class="editorial-button search-commit" @click="commitKeyword">搜索</button>
         <button
           type="button"
           class="filter-toggle"
@@ -300,6 +315,13 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
+    <div class="quick-topics" role="group" aria-label="快捷分类">
+      <button type="button" class="filter-tag" :class="{ 'is-active': !tags.length }" :aria-pressed="!tags.length" @click="clearTags">全部</button>
+      <button v-for="topic in quickTags" :key="topic.tag" type="button" class="filter-tag"
+        :class="{ 'is-active': tags.includes(topic.tag) }" :aria-pressed="tags.includes(topic.tag)" @click="selectQuickTag(topic.tag)"
+      >{{ topic.label }}</button>
+    </div>
+
     <div class="filter-sortbar">
       <div class="filter-sort" role="group" aria-label="排序方式">
         <div class="filter-sort-options">
@@ -338,6 +360,11 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.quick-topics { display: flex; flex-wrap: wrap; gap: 6px; }
+.quick-topics .filter-tag { background: var(--color-bg-surface); border: 1px solid var(--color-border-default); border-radius: 8px; padding: 5px 10px; }
+.quick-topics .filter-tag.is-active { background: var(--color-brand-soft); border-color: var(--color-brand-border); color: var(--color-brand-dark); }
+.search-commit { margin-inline-end: 4px; }
+
 .feed-filter {
   display: flex;
   flex-direction: column;
@@ -573,7 +600,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   border-radius: 10px;
-  background: #edf0f4;
+  background: var(--color-bg-hover);
   padding: 4px;
 }
 

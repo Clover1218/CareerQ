@@ -7,6 +7,7 @@ import { useUserStore } from "@/stores/user";
 import FeedCard from "@/components/FeedCard.vue";
 import FeedCardSkeleton from "@/components/FeedCardSkeleton.vue";
 import FeedFilterPanel from "@/components/FeedFilterPanel.vue";
+import RoundtableFeature from "@/components/RoundtableFeature.vue";
 
 defineOptions({ name: "QuestionListView" });
 
@@ -192,52 +193,63 @@ onActivated(async () => {
 
 <template>
   <div class="feed-page mx-auto w-full">
-    <div v-if="!user" class="guest-notice">
-      <span>游客浏览中，登录后可参与问答和互动</span>
-      <router-link :to="{ path: '/login', query: { redirect: route.fullPath } }">立即登录 →</router-link>
+    <header class="editorial-heading">
+      <div>
+        <h1>公开问答</h1>
+        <p v-if="!user">
+          游客可直接浏览，<router-link :to="{ path: '/login', query: { redirect: route.fullPath } }">登录后参与问答</router-link>。
+        </p>
+        <p v-else>搜索求职问题，看看招聘者怎么说。</p>
+      </div>
+      <router-link v-if="!user || user.role === 'student'" class="editorial-button is-primary" to="/ask">＋ 公开提问</router-link>
+    </header>
+    <div class="editorial-feed-grid">
+      <section class="editorial-feed-main" aria-label="公开问题列表">
+        <FeedFilterPanel class="mb-4" @change="applyFilters" @refresh="refreshFeed" />
+
+        <p v-if="error" class="m-0 mb-3 text-14 text-danger">{{ error }}</p>
+
+        <div
+          v-if="dismissed"
+          class="mb-3 flex items-center justify-between gap-3 rounded-card border border-line bg-surface px-4 py-2.5"
+        >
+          <span class="min-w-0 truncate text-14 text-regular">
+            已减少「{{ dismissed.item.title }}」这类内容
+          </span>
+          <button class="aux-btn shrink-0" :disabled="undoing" @click="undoDismiss">
+            {{ undoing ? "撤销中…" : "撤销" }}
+          </button>
+        </div>
+
+        <div
+          ref="listRef"
+          class="feed-list flex flex-col gap-3"
+          :class="{ 'list-locked': lockedHeight !== null }"
+          :style="lockedHeight !== null ? { height: `${lockedHeight}px` } : undefined"
+          :aria-busy="loading"
+        >
+          <template v-if="showResetSkeletons">
+            <FeedCardSkeleton v-for="n in skeletonCount" :key="`skeleton-${n}`" />
+          </template>
+          <FeedCard v-for="q in items" :key="q.id" :item="q" @dismiss="dismiss" />
+          <template v-if="showMoreSkeletons">
+            <FeedCardSkeleton v-for="n in MORE_SKELETON_COUNT" :key="`more-skeleton-${n}`" />
+          </template>
+        </div>
+
+        <p v-if="!loading && items.length === 0" class="m-0 py-10 text-center text-14 text-muted">
+          {{ emptyText }}
+        </p>
+
+        <div v-if="cursor" class="mt-5 text-center">
+          <button class="aux-btn" :disabled="loading" @click="load(false)">
+            {{ loading ? "加载中…" : "加载更多" }}
+          </button>
+        </div>
+        <p v-else-if="!loading && !error && items.length" class="feed-end">问题已经看完咯</p>
+      </section>
+      <RoundtableFeature />
     </div>
-    <FeedFilterPanel class="mb-5" @change="applyFilters" @refresh="refreshFeed" />
-
-    <p v-if="error" class="m-0 mb-3 text-14 text-danger">{{ error }}</p>
-
-    <div
-      v-if="dismissed"
-      class="mb-3 flex items-center justify-between gap-3 rounded-card border border-line bg-surface px-4 py-2.5"
-    >
-      <span class="min-w-0 truncate text-14 text-regular">
-        已减少「{{ dismissed.item.title }}」这类内容
-      </span>
-      <button class="aux-btn shrink-0" :disabled="undoing" @click="undoDismiss">
-        {{ undoing ? "撤销中…" : "撤销" }}
-      </button>
-    </div>
-
-    <div
-      ref="listRef"
-      class="feed-list flex flex-col gap-5"
-      :class="{ 'list-locked': lockedHeight !== null }"
-      :style="lockedHeight !== null ? { height: `${lockedHeight}px` } : undefined"
-      :aria-busy="loading"
-    >
-      <template v-if="showResetSkeletons">
-        <FeedCardSkeleton v-for="n in skeletonCount" :key="`skeleton-${n}`" />
-      </template>
-      <FeedCard v-for="q in items" :key="q.id" :item="q" @dismiss="dismiss" />
-      <template v-if="showMoreSkeletons">
-        <FeedCardSkeleton v-for="n in MORE_SKELETON_COUNT" :key="`more-skeleton-${n}`" />
-      </template>
-    </div>
-
-    <p v-if="!loading && items.length === 0" class="m-0 py-10 text-center text-14 text-muted">
-      {{ emptyText }}
-    </p>
-
-    <div v-if="cursor" class="mt-5 text-center">
-      <button class="aux-btn" :disabled="loading" @click="load(false)">
-        {{ loading ? "加载中…" : "加载更多" }}
-      </button>
-    </div>
-
   </div>
 </template>
 
@@ -247,27 +259,22 @@ onActivated(async () => {
   min-height: calc(100vh - 120px);
 }
 
-.guest-notice {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
-  border: 1px solid var(--color-brand-border);
-  border-radius: 10px;
-  background: var(--color-brand-soft);
-  padding: 11px 14px;
-  color: var(--color-text-regular);
-  font-size: 13px;
-  line-height: 20px;
+.editorial-feed-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 322px;
+  align-items: start;
+  gap: 24px;
+}
+.editorial-feed-main { min-width: 0; }
+
+@media (max-width: 900px) {
+  .editorial-feed-grid { grid-template-columns: minmax(0, 1fr) 270px; gap: 15px; }
+}
+@media (max-width: 720px) {
+  .editorial-feed-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
-.guest-notice a {
-  flex-shrink: 0;
-  color: var(--color-brand);
-  font-weight: 600;
-  white-space: nowrap;
-}
+.feed-end { text-align: center; margin: 18px 0 0; font-size: 13px; color: var(--color-text-muted); }
 
 .list-locked > :deep(.feed-skeleton) {
   flex: 1 1 0;

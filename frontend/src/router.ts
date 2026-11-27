@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from "vue-router";
 import { useUserStore } from "@/stores/user";
 import QuestionListView from "./views/QuestionListView.vue";
 
+const RoundtableView = () => import("./views/RoundtableView.vue");
 const LoginView = () => import("./views/LoginView.vue");
 const RegisterView = () => import("./views/RegisterView.vue");
 const QuestionDetailView = () => import("./views/QuestionDetailView.vue");
@@ -28,6 +29,7 @@ export const router = createRouter({
     // 公开页面：未注册也能浏览
     { path: "/", component: QuestionListView },
     { path: "/questions/:id", component: QuestionDetailView },
+    { path: "/roundtable", name: "roundtable", component: RoundtableView },
     { path: "/hr-shares", name: "hr-shares", component: PublicHrSharesView },
     { path: "/hr-shares/:id", name: "hr-share-detail", component: PublicHrShareDetailView },
     // 未注册可进入登录/注册
@@ -60,7 +62,7 @@ export const router = createRouter({
   ],
 });
 
-const PUBLIC_PATHS = ["/", "/login", "/register"];
+const PUBLIC_PATHS = ["/", "/login", "/register", "/roundtable"];
 
 router.beforeEach(async (to) => {
   const isPublic = PUBLIC_PATHS.includes(to.path) || to.path.startsWith("/questions/")

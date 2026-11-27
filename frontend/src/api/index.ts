@@ -23,6 +23,22 @@ export interface UserBrief {
   position?: string | null;
 }
 
+export interface RoundtableFeatured {
+  questionId: number;
+  title: string;
+  authorCount: number;
+  answerCount: number;
+  seats: { answerId: number; author: UserBrief }[];
+}
+
+export interface RoundtableState {
+  week: string;
+  closesOn: string;
+  featured?: RoundtableFeatured | null;
+  candidates: { questionId: number; title: string; votes: number }[];
+  myVote?: number | null;
+}
+
 export interface Question {
   id: number;
   scope: "public";
@@ -687,6 +703,18 @@ export const api = {
     if (params.limit) query.set("limit", String(params.limit));
     const suffix = query.toString();
     return request<TagItem[]>(suffix ? `/tags?${suffix}` : "/tags");
+  },
+
+  roundtable(): Promise<RoundtableState> {
+    return request<RoundtableState>("/roundtable");
+  },
+
+  nominateRoundtableTopic(week: string, questionId: number): Promise<RoundtableState> {
+    return request<RoundtableState>("/roundtable/nominations", { method: "POST", body: { week, questionId } });
+  },
+
+  voteRoundtableTopic(week: string, questionId: number): Promise<RoundtableState> {
+    return request<RoundtableState>("/roundtable/vote", { method: "PUT", body: { week, questionId } });
   },
 
   getQuestion(id: number): Promise<QuestionDetail> {

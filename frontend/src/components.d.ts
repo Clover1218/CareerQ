@@ -43,6 +43,7 @@ declare module 'vue' {
     ProfileDrawer: typeof import('./components/ProfileDrawer.vue')['default']
     PublicAuthorLink: typeof import('./components/PublicAuthorLink.vue')['default']
     ReportDialog: typeof import('./components/ReportDialog.vue')['default']
+    RoundtableFeature: typeof import('./components/RoundtableFeature.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     StudentFavorites: typeof import('./components/StudentFavorites.vue')['default']
