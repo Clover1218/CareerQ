@@ -7,10 +7,15 @@ import { useUserStore } from "@/stores/user";
 import FeedCard from "@/components/FeedCard.vue";
 import FeedCardSkeleton from "@/components/FeedCardSkeleton.vue";
 import FeedFilterPanel from "@/components/FeedFilterPanel.vue";
+import ClinicLanding from "@/components/ClinicLanding.vue";
+import HrDiscussionCard from "@/components/HrDiscussionCard.vue";
+import { clinicAskLocation, clinicRoomsLocation, clinicTopic } from "@/utils/clinicTopics";
 
 defineOptions({ name: "QuestionListView" });
 
 const route = useRoute();
+const topic = clinicTopic(route.params.topic);
+const canAsk = computed(() => !user.value || user.value.role === "student");
 const { user } = storeToRefs(useUserStore());
 const items = ref<QuestionFeedItem[]>([]);
 const cursor = ref<string | null>(null);
@@ -71,7 +76,7 @@ async function load(reset = false) {
     const page = await api.feedQuestions(
       {
         q: value.q || undefined,
-        tags: value.tags.map((name) => tagSlugMap.value[name] ?? name),
+        tags: [...new Set(topic ? [topic.tag, ...value.tags] : value.tags)].map((name) => tagSlugMap.value[name] ?? name),
         period: value.from ? undefined : value.period,
         from: value.from,
         to: value.to,
@@ -192,52 +197,75 @@ onActivated(async () => {
 
 <template>
   <div class="feed-page mx-auto w-full">
-    <div v-if="!user" class="guest-notice">
-      <span>游客浏览中，登录后可参与问答和互动</span>
-      <router-link :to="{ path: '/login', query: { redirect: route.fullPath } }">立即登录 →</router-link>
+    <ClinicLanding v-if="!topic" :viewer-role="user?.role ?? null" />
+    <router-link v-if="topic" class="editorial-back" :to="clinicRoomsLocation">← 返回诊室列表</router-link>
+    <header v-if="topic" class="editorial-heading clinic-room-heading" :data-room="topic.id">
+      <div class="clinic-room-title">
+        <span class="clinic-door-icon" aria-hidden="true"></span>
+        <div>
+          <h1>{{ topic.name }}诊室</h1>
+          <p>{{ topic.hint }}</p>
+        </div>
+      </div>
+      <router-link v-if="canAsk" class="editorial-button is-primary"
+        :to="clinicAskLocation(topic)"
+      >在本诊室提问</router-link>
+    </header>
+    <h2 v-else id="public-questions" class="clinic-list-title">全部问答</h2>
+    <div class="editorial-feed-grid">
+      <section class="editorial-feed-main" aria-label="公开问题列表">
+        <FeedFilterPanel class="mb-4" :in-clinic="!!topic" @change="applyFilters" @refresh="refreshFeed" />
+
+        <p v-if="error" class="m-0 mb-3 text-14 text-danger">{{ error }}</p>
+
+        <div
+          v-if="dismissed"
+          class="mb-3 flex items-center justify-between gap-3 rounded-card border border-line bg-surface px-4 py-2.5"
+        >
+          <span class="min-w-0 truncate text-14 text-regular">
+            已减少「{{ dismissed.item.title }}」这类内容
+          </span>
+          <button class="aux-btn shrink-0" :disabled="undoing" @click="undoDismiss">
+            {{ undoing ? "撤销中…" : "撤销" }}
+          </button>
+        </div>
+
+        <div
+          ref="listRef"
+          class="feed-list flex flex-col gap-3"
+          :class="{ 'list-locked': lockedHeight !== null }"
+          :style="lockedHeight !== null ? { height: `${lockedHeight}px` } : undefined"
+          :aria-busy="loading"
+        >
+          <template v-if="showResetSkeletons">
+            <FeedCardSkeleton v-for="n in skeletonCount" :key="`skeleton-${n}`" />
+          </template>
+          <FeedCard v-for="q in items" :key="q.id" :item="q" :current-room="topic?.id" @dismiss="dismiss" />
+          <template v-if="showMoreSkeletons">
+            <FeedCardSkeleton v-for="n in MORE_SKELETON_COUNT" :key="`more-skeleton-${n}`" />
+          </template>
+        </div>
+
+        <p v-if="!loading && items.length === 0" class="m-0 py-10 text-center text-14 text-muted">
+          {{ emptyText }}
+        </p>
+
+        <div v-if="cursor" class="mt-5 text-center">
+          <button class="aux-btn" :disabled="loading" @click="load(false)">
+            {{ loading ? "加载中…" : "加载更多" }}
+          </button>
+        </div>
+        <p v-else-if="!loading && !error && items.length" class="feed-end">问题已经看完咯</p>
+      </section>
+      <aside v-if="canAsk || !topic" class="clinic-sidebar">
+        <section v-if="canAsk" class="clinic-progress" aria-label="提问流程">
+          <h2>提问流程</h2>
+          <ol><li v-if="!topic">选择诊室</li><li>提交问题</li><li>审核后公开</li><li>收到 HR 建议</li></ol>
+          <router-link class="editorial-button" to="/me">查看我的问答 →</router-link>
+        </section>
+        <HrDiscussionCard v-if="!topic" />
+      </aside>
     </div>
-    <FeedFilterPanel class="mb-5" @change="applyFilters" @refresh="refreshFeed" />
-
-    <p v-if="error" class="m-0 mb-3 text-14 text-danger">{{ error }}</p>
-
-    <div
-      v-if="dismissed"
-      class="mb-3 flex items-center justify-between gap-3 rounded-card border border-line bg-surface px-4 py-2.5"
-    >
-      <span class="min-w-0 truncate text-14 text-regular">
-        已减少「{{ dismissed.item.title }}」这类内容
-      </span>
-      <button class="aux-btn shrink-0" :disabled="undoing" @click="undoDismiss">
-        {{ undoing ? "撤销中…" : "撤销" }}
-      </button>
-    </div>
-
-    <div
-      ref="listRef"
-      class="feed-list flex flex-col gap-5"
-      :class="{ 'list-locked': lockedHeight !== null }"
-      :style="lockedHeight !== null ? { height: `${lockedHeight}px` } : undefined"
-      :aria-busy="loading"
-    >
-      <template v-if="showResetSkeletons">
-        <FeedCardSkeleton v-for="n in skeletonCount" :key="`skeleton-${n}`" />
-      </template>
-      <FeedCard v-for="q in items" :key="q.id" :item="q" @dismiss="dismiss" />
-      <template v-if="showMoreSkeletons">
-        <FeedCardSkeleton v-for="n in MORE_SKELETON_COUNT" :key="`more-skeleton-${n}`" />
-      </template>
-    </div>
-
-    <p v-if="!loading && items.length === 0" class="m-0 py-10 text-center text-14 text-muted">
-      {{ emptyText }}
-    </p>
-
-    <div v-if="cursor" class="mt-5 text-center">
-      <button class="aux-btn" :disabled="loading" @click="load(false)">
-        {{ loading ? "加载中…" : "加载更多" }}
-      </button>
-    </div>
-
   </div>
 </template>
 
@@ -247,27 +275,40 @@ onActivated(async () => {
   min-height: calc(100vh - 120px);
 }
 
-.guest-notice {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
-  border: 1px solid var(--color-brand-border);
-  border-radius: 10px;
-  background: var(--color-brand-soft);
-  padding: 11px 14px;
-  color: var(--color-text-regular);
-  font-size: 13px;
-  line-height: 20px;
+.editorial-feed-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 322px;
+  align-items: start;
+  gap: 24px;
+}
+.editorial-feed-grid:not(:has(.clinic-sidebar)) { grid-template-columns: minmax(0, 1fr); }
+.editorial-feed-main { min-width: 0; }
+.clinic-sidebar { display: grid; min-width: 0; gap: 14px; }
+.clinic-list-title {
+  margin: 0 0 11px;
+  font-size: 22px;
+  scroll-margin-top: calc(var(--topbar-height, 85px) + 14px);
+}
+.clinic-room-heading { align-items: center; padding: 18px 20px; border-radius: 16px; border: 1px solid var(--color-border-default); background: var(--room-surface); }
+.clinic-room-title { display: flex; align-items: center; gap: 14px; }
+.clinic-room-title > .clinic-door-icon { color: var(--room-accent); font-size: 30px; }
+.clinic-progress { background: var(--color-bg-surface); border: 1px solid var(--color-border-default); border-radius: 15px; padding: 15px 17px; }
+.clinic-progress h2 { margin: 0 0 7px; font-size: 16px; }
+.clinic-progress ol { margin: 0 0 12px; padding-left: 20px; font-size: 14px; line-height: 1.9; color: var(--color-text-regular); }
+.clinic-progress li::marker { color: var(--color-brand); font-weight: 700; }
+@media (max-width: 520px) {
+  .clinic-room-heading { flex-wrap: wrap; }
 }
 
-.guest-notice a {
-  flex-shrink: 0;
-  color: var(--color-brand);
-  font-weight: 600;
-  white-space: nowrap;
+@media (max-width: 900px) {
+  .editorial-feed-grid { grid-template-columns: minmax(0, 1fr) 270px; gap: 15px; }
 }
+@media (max-width: 720px) {
+  .editorial-feed-grid { grid-template-columns: minmax(0, 1fr); }
+  .clinic-sidebar { grid-row: 1; }
+}
+
+.feed-end { text-align: center; margin: 18px 0 0; font-size: 13px; color: var(--color-text-muted); }
 
 .list-locked > :deep(.feed-skeleton) {
   flex: 1 1 0;

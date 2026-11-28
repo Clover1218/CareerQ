@@ -57,7 +57,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/api/v1/questions/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/tags/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/feed/questions").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/feed/questions",
+                                "/api/v1/roundtable", "/api/v1/roundtable/featured").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/hr-shares", "/api/v1/hr-shares/{id}").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/avatars/**").permitAll()
                         .requestMatchers(

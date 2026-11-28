@@ -195,8 +195,7 @@ a {
   white-space: nowrap;
 }
 
-.topbar-ask:hover,
-.topbar-ask.router-link-active {
+.topbar-ask:hover {
   background: var(--color-brand-dark);
   color: var(--color-white);
 }

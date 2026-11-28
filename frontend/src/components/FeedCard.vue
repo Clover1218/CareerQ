@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { useDialog, useMessage } from "naive-ui";
@@ -13,14 +13,18 @@ import {
   type ViewerState,
 } from "@/api";
 import { useUserStore } from "@/stores/user";
+import ClinicRoomLabels from "./ClinicRoomLabels.vue";
 import FeedIcon from "./FeedIcon.vue";
 import PublicAuthorLink from "./PublicAuthorLink.vue";
-import ReportDialog from "./ReportDialog.vue";
 import { buildAnswerThreads, detailThreadItems, type AnswerThread as Conversation } from "@/utils/answerThreads";
 import { removedAnswerText } from "@/utils/answerRemoval";
+import { supplementalClinicTags } from "@/utils/clinicTopics";
+
+const ReportDialog = defineAsyncComponent(() => import("./ReportDialog.vue"));
 
 const props = defineProps<{
   item: QuestionFeedItem;
+  currentRoom?: string;
 /** 我的问答列表：派生展示状态，用于标题右侧状态标签 */
   displayStatus?: string;
   /** 学生个人中心提问列表：兼容旧聚合状态，用于标题右侧状态标签 */
@@ -42,11 +46,13 @@ const userStore = useUserStore();
 const { user } = storeToRefs(userStore);
 
 const expanded = ref(false);
+const supplementalTags = computed(() => supplementalClinicTags(props.item.tags));
 const excerptBlockRef = ref<HTMLElement | null>(null);
 const excerptRef = ref<HTMLElement | null>(null);
 const excerptOverflows = ref(false);
 let excerptObserver: ResizeObserver | undefined;
 let excerptMeasureFrame: number | undefined;
+let authorObserver: IntersectionObserver | undefined;
 const threadOpen = ref(false);
 const loadingContent = ref(false);
 const loadingThread = ref(false);
@@ -105,11 +111,11 @@ watch(
   },
 );
 
-const authorName = computed(() => content.value?.question.author.nickname ?? "");
+const author = computed(() => props.item.author ?? content.value?.question.author);
 const createdAt = computed(() => content.value?.question.createdAt ?? props.item.createdAt);
 const detailLink = computed(() => ({
   path: `/questions/${props.item.id}`,
-  query: props.ownerMode ? undefined : { from: "feed" },
+  query: props.ownerMode ? undefined : { from: "feed", ...(route.fullPath !== "/" ? { returnTo: route.fullPath } : {}) },
 }));
 const replyLabel = computed(() => {
   if (threadOpen.value) return "收起回答";
@@ -186,7 +192,7 @@ function reportError(e: unknown, fallback: string) {
   message.error(text);
 }
 
-async function ensureContent() {
+async function ensureContent(showError = true) {
   if (content.value) return;
   if (contentRequest) return contentRequest;
   const viewerId = user.value?.id;
@@ -207,7 +213,7 @@ async function ensureContent() {
       counts.favoriteCount = data.question.favoriteCount;
       applyReplyCounts(data.question, countsVersion);
     } catch (e) {
-      reportError(e, "加载全文失败");
+      if (showError) reportError(e, "加载全文失败");
     } finally {
       loadingContent.value = false;
       contentRequest = null;
@@ -253,8 +259,12 @@ async function loadThread() {
 async function measureExcerpt() {
   await nextTick();
   const element = excerptRef.value;
-  if (!element || expanded.value) return;
+  const block = excerptBlockRef.value;
+  if (!element || !block || expanded.value) return;
+  // 按摘要可用的完整宽度测量，避免按钮占位后反过来影响截断判断。
+  element.style.width = `${block.clientWidth}px`;
   excerptOverflows.value = element.scrollHeight > element.clientHeight + 1;
+  element.style.removeProperty("width");
 }
 
 function scheduleExcerptMeasurement() {
@@ -291,7 +301,6 @@ async function toggleThread() {
     return;
   }
   threadOpen.value = true;
-  // 作者信息随回答区一起加载，不额外发请求；加载完成只改动底部信息行内容
   if (!props.ownerMode) {
     void ensureContent();
   }
@@ -559,10 +568,20 @@ onMounted(() => {
   void measureExcerpt();
   // 本人列表及旧摘要没有 viewer，显示时读取服务端状态。
   if (user.value && props.item.viewer == null && interactive.value) void ensureContent();
+  // 兼容旧列表接口，只在卡片进入视口附近时读取缺失的作者。
+  if (!props.ownerMode && !props.item.author && excerptBlockRef.value) {
+    authorObserver = new IntersectionObserver(([entry]) => {
+      if (!entry?.isIntersecting) return;
+      authorObserver?.disconnect();
+      void ensureContent(false);
+    }, { rootMargin: "100px" });
+    authorObserver.observe(excerptBlockRef.value);
+  }
 });
 onBeforeUnmount(() => {
   document.removeEventListener("click", closeMenu);
   excerptObserver?.disconnect();
+  authorObserver?.disconnect();
   if (excerptMeasureFrame !== undefined) cancelAnimationFrame(excerptMeasureFrame);
   if (blurTimer) clearTimeout(blurTimer);
 });
@@ -576,10 +595,10 @@ onBeforeUnmount(() => {
   >
     <div class="question-card">
       <div class="card-meta">
-        <div class="topic-tags" aria-label="问题标签">
-          <span v-for="tag in !ownerMode || expanded ? item.tags : item.tags.slice(0, 3)" :key="tag" class="topic-tag">{{ tag }}</span>
-          <button v-if="ownerMode && !expanded && item.tags.length > 3" type="button" class="topic-tag topic-tag-more" aria-label="展开全部问题标签和全文" @click="toggleExpand">+{{ item.tags.length - 3 }}</button>
-          <span v-if="!item.tags.length" class="topic-tag">公开问答</span>
+        <div class="topic-tags" aria-label="所属诊室和问题标签">
+          <ClinicRoomLabels :tags="item.tags" :current-room="currentRoom" />
+          <span v-for="tag in !ownerMode || expanded ? supplementalTags : supplementalTags.slice(0, 3)" :key="tag" class="topic-tag">{{ tag }}</span>
+          <button v-if="ownerMode && !expanded && supplementalTags.length > 3" type="button" class="topic-tag topic-tag-more" aria-label="展开全部问题标签和全文" @click="toggleExpand">+{{ supplementalTags.length - 3 }}</button>
         </div>
         <time v-if="!ownerMode" class="card-time" :datetime="createdAt" :title="formatRelativeTime(createdAt)">{{ formatTime(createdAt) }}</time>
       </div>
@@ -599,17 +618,22 @@ onBeforeUnmount(() => {
         <span aria-hidden="true"></span>因为你关注「{{ item.matchedTags.join("、") }}」
       </p>
 
-      <div ref="excerptBlockRef" class="excerpt-block">
-        <p ref="excerptRef" class="question-excerpt" :class="expanded ? 'question-excerpt--full' : 'line-clamp-3'">{{ expanded ? content?.question.body ?? item.excerpt : item.excerpt }}</p>
-        <div v-if="ownerMode || expanded || excerptOverflows" class="flex justify-end">
-          <button type="button" class="aux-btn read-more" @click="toggleExpand">
-            {{ expanded ? "收起问题 ↑" : ownerMode ? "阅读全文 ↓" : "展开问题 ↓" }}
+      <div ref="excerptBlockRef" class="excerpt-block"
+        :class="{ 'excerpt-block--truncated': !ownerMode && !expanded && excerptOverflows }">
+        <p :id="`question-excerpt-${item.id}`" ref="excerptRef" class="question-excerpt"
+          :class="expanded ? 'question-excerpt--full' : ownerMode ? 'line-clamp-3' : 'question-excerpt--preview line-clamp-2'"
+        >{{ expanded ? content?.question.body ?? item.excerpt : item.excerpt }}</p>
+        <div v-if="ownerMode || expanded || excerptOverflows" class="excerpt-toggle-row">
+          <button type="button" class="editorial-button read-more" :aria-expanded="expanded"
+            :aria-controls="`question-excerpt-${item.id}`" @click="toggleExpand">
+            {{ expanded ? "收起问题" : ownerMode ? "阅读全文" : "展开问题" }}
+            <span aria-hidden="true">{{ expanded ? "↑" : "↓" }}</span>
           </button>
         </div>
       </div>
 
-      <div v-if="ownerMode || (expanded && authorName)" class="author-row">
-        <PublicAuthorLink v-if="!ownerMode && content && authorName" :user-id="content.question.author.id" :nickname="authorName" :avatar-url="content.question.author.avatarUrl" :size="26" />
+      <div v-if="ownerMode || author" class="author-row">
+        <PublicAuthorLink v-if="!ownerMode && author" :user-id="author.id" :nickname="author.nickname" :avatar-url="author.avatarUrl" :size="26" />
         <time v-if="ownerMode" class="shrink-0 whitespace-nowrap">提问于 {{ formatTime(createdAt) }}</time>
       </div>
 
@@ -888,7 +912,7 @@ onBeforeUnmount(() => {
 }
 
 .question-card {
-  padding: 20px 22px 12px;
+  padding: 15px 18px 12px;
   border-radius: 12px;
   background: var(--color-bg-surface);
 }
@@ -1013,6 +1037,13 @@ onBeforeUnmount(() => {
   margin-top: 10px;
 }
 
+.excerpt-block--truncated {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  column-gap: 8px;
+}
+
 .question-excerpt {
   margin: 0;
   color: var(--color-text-regular);
@@ -1027,21 +1058,30 @@ onBeforeUnmount(() => {
   animation: excerpt-reveal 180ms ease-out;
 }
 
+.question-excerpt--preview { white-space: normal; }
+
 @keyframes excerpt-reveal {
   from { opacity: 0.45; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
+.excerpt-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.excerpt-block--truncated .excerpt-toggle-row { margin-top: 0; }
+
 .read-more {
-  min-height: 32px;
-  padding: 5px 0 0;
-  color: var(--color-brand);
+  min-height: 26px;
+  padding: 2px 8px;
+  border-color: var(--color-brand-border);
+  background: var(--color-brand-soft);
   font-size: 13px;
 }
 
-.read-more:hover {
-  color: var(--color-brand-dark);
-}
+.read-more:hover { background: var(--color-bg-hover); }
 
 .author-row {
   min-width: 0;
@@ -1089,13 +1129,13 @@ onBeforeUnmount(() => {
 }
 
 .feed-card--summary .discussion-toggle:is(:hover, :focus-visible) {
-  background: #e3edff;
+  background: var(--color-bg-hover);
   color: var(--color-brand);
 }
 
 .feed-card--summary .discussion-toggle:active {
   border-color: var(--color-brand);
-  background: #d9e7ff;
+  background: var(--color-brand-soft);
 }
 
 @media (prefers-reduced-motion: no-preference) {

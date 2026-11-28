@@ -83,7 +83,7 @@ async function submit() {
 
 <template>
   <div class="card register-card">
-    <h2>注册职问桥</h2>
+    <h2>注册 CareerQ</h2>
     <p class="muted register-intro">选择你的身份，开启职场问答交流。</p>
 
     <form @submit.prevent="submit">

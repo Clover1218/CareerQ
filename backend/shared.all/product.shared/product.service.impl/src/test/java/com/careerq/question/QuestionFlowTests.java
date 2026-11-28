@@ -202,7 +202,7 @@ class QuestionFlowTests {
     }
 
     @Test
-    void publicFeedReturnsBodyAndContentReturnsAuthor() throws Exception {
+    void publicFeedAndContentReturnBodyAndPublicAuthor() throws Exception {
         MockHttpSession student = login("13800000106");
         String longBody = "这是一段用于验证全文展示的较长问题描述，不限制字数也不应被截断。".repeat(4);
         long questionId = createQuestion(student, "public", "公开问答全文展开测试", longBody,
@@ -216,7 +216,8 @@ class QuestionFlowTests {
                 .andExpect(jsonPath("$.data.items[0].excerpt").value(longBody))
                 .andExpect(jsonPath("$.data.items[0].truncated").doesNotExist())
                 .andExpect(jsonPath("$.data.items[0].body").doesNotExist())
-                .andExpect(jsonPath("$.data.items[0].author").doesNotExist())
+                .andExpect(jsonPath("$.data.items[0].author.id").isNumber())
+                .andExpect(jsonPath("$.data.items[0].author.nickname").value("测试用户"))
                 .andExpect(jsonPath("$.data.items[0].replyCount").value(0))
                 .andExpect(jsonPath("$.data.items[0].favoriteCount").value(0));
 

@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, useSlots, watch, type CSSProperties } from "vue";
 import { api, type TagCategory, type TagItem } from "../api";
 
-const props = withDefaults(defineProps<{ modelValue: string[]; max?: number }>(), { max: 5 });
+const props = withDefaults(defineProps<{ modelValue: string[]; max?: number; excludedTag?: string }>(), { max: 5 });
 const emit = defineEmits<{ "update:modelValue": [value: string[]] }>();
 const slots = useSlots();
 const customTrigger = computed(() => Boolean(slots.trigger));
@@ -28,6 +28,7 @@ const activeCategory = ref(RECOMMENDED);
 const keyword = ref("");
 const appliedKeyword = ref("");
 const tags = ref<TagItem[]>([]);
+const availableTags = computed(() => tags.value.filter(tag => tag.name !== props.excludedTag));
 const draft = ref<string[]>([]);
 const loading = ref(false);
 const loadError = ref("");
@@ -235,12 +236,12 @@ function isDisabled(tag: TagItem) {
               {{ loadError }}
               <button type="button" class="tag-picker-retry" @click="loadTags">重试</button>
             </p>
-            <p v-else-if="tags.length === 0" class="tag-picker-state">
+            <p v-else-if="availableTags.length === 0" class="tag-picker-state">
               {{ isSearching ? "没有匹配的标签" : "该分类暂无标签" }}
             </p>
             <div v-else class="tag-picker-chips">
               <button
-                v-for="tag in tags"
+                v-for="tag in availableTags"
                 :key="tag.id"
                 type="button"
                 class="tag-chip is-option"
