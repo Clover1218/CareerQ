@@ -641,13 +641,13 @@ onBeforeUnmount(() => {
         <button v-if="ownerMode" type="button" class="discussion-toggle" :aria-expanded="threadOpen" aria-label="查看或参与回答" @click="toggleThread">
           <FeedIcon name="comment" :size="18" />
           <span>{{ replyLabel }}</span>
-          <span class="discussion-arrow" aria-hidden="true">{{ threadOpen ? "↑" : "→" }}</span>
+          <span class="discussion-arrow" aria-hidden="true">{{ threadOpen ? "↑" : ">" }}</span>
         </button>
         <router-link v-else :to="detailLink" class="discussion-toggle" aria-label="查看问答详情">
           <FeedIcon name="comment" :size="18" />
           <span v-if="counts.answerCount || counts.followupCount">{{ replyLabel }}</span>
           <span class="detail-entry-label">查看详情</span>
-          <span class="discussion-arrow" aria-hidden="true">→</span>
+          <span class="discussion-arrow" aria-hidden="true">></span>
         </router-link>
 
         <div class="question-actions">

@@ -71,10 +71,10 @@ onMounted(refresh);
   <section class="student-messages message-center">
     <nav class="messages-breadcrumb" aria-label="消息中心导航">
       <router-link to="/me" class="editorial-button">
-        <span aria-hidden="true">←</span> 返回个人中心
+        <span aria-hidden="true"><</span> 返回个人中心
       </router-link>
       <router-link :to="{ name: 'clinic-home' }" class="editorial-button is-primary">
-        前往职场门诊 <span aria-hidden="true">→</span>
+        前往职场门诊 <span aria-hidden="true">></span>
       </router-link>
     </nav>
     <header class="messages-heading"><div><p>学生 · 站内通知</p><h1>消息中心 <span v-if="notices.counts && notices.counts.total > 0">{{ notices.counts.total }} 条未读</span></h1><p>查看 HR 的建议、收到的赞和内容审核结果。</p></div><div class="heading-actions"><button type="button" :disabled="busy" @click="refresh">刷新</button><button type="button" :disabled="busy || !snapshotId || notices.counts?.total === 0" @click="markAll">{{ markingAll ? '标记中…' : '全部标为已读' }}</button></div></header>
@@ -84,10 +84,10 @@ onMounted(refresh);
     <p v-if="error" class="message-error" role="alert">{{ error }} <button type="button" @click="refresh">重试</button></p>
     <div class="message-list" :aria-busy="loading">
       <div v-if="loading && !items.length" class="message-empty">正在读取消息…</div>
-      <div v-else-if="!items.length && !error" class="message-empty"><strong>{{ unreadOnly ? '当前没有未读消息' : '暂时没有消息' }}</strong><p>{{ unreadOnly ? '可以关闭未读筛选，查看已读消息。' : '收到新的回答、点赞或审核结果后，会在这里通知你。' }}</p><router-link :to="clinicRoomsLocation">去诊室提问 →</router-link></div>
+      <div v-else-if="!items.length && !error" class="message-empty"><strong>{{ unreadOnly ? '当前没有未读消息' : '暂时没有消息' }}</strong><p>{{ unreadOnly ? '可以关闭未读筛选，查看已读消息。' : '收到新的回答、点赞或审核结果后，会在这里通知你。' }}</p><router-link :to="clinicRoomsLocation">去诊室提问 ></router-link></div>
       <article v-for="item in items" :key="item.id" class="notification-card" :class="{ unread: !item.readAt }" :data-notification-id="item.id">
         <span class="notification-icon" :class="item.category">{{ item.category === 'reply' ? '答' : item.category === 'like' ? '赞' : '审' }}</span>
-        <div class="notification-main"><div class="notification-title"><h2>{{ item.title }}</h2><span v-if="!item.readAt" class="unread-dot" aria-label="未读"></span><time>{{ formatTime(item.createdAt) }}</time></div><p v-if="item.questionTitle" class="notification-question">关于《{{ item.questionTitle }}》</p><p class="notification-message">{{ item.message }}</p><div class="notification-actions"><button v-if="item.destination === 'question'" type="button" :disabled="busy" @click="readNotification(item, true)">{{ openingId === item.id ? '打开中…' : item.category === 'reply' ? '查看回复 →' : '查看内容 →' }}</button><span v-else class="unavailable">相关内容已不可查看</span><button v-if="!item.readAt" type="button" class="mark-read" :disabled="busy" @click="readNotification(item)">标为已读</button><span v-else class="read-label">已读</span></div></div>
+        <div class="notification-main"><div class="notification-title"><h2>{{ item.title }}</h2><span v-if="!item.readAt" class="unread-dot" aria-label="未读"></span><time>{{ formatTime(item.createdAt) }}</time></div><p v-if="item.questionTitle" class="notification-question">关于《{{ item.questionTitle }}》</p><p class="notification-message">{{ item.message }}</p><div class="notification-actions"><button v-if="item.destination === 'question'" type="button" :disabled="busy" @click="readNotification(item, true)">{{ openingId === item.id ? '打开中…' : item.category === 'reply' ? '查看回复 >' : '查看内容 >' }}</button><span v-else class="unavailable">相关内容已不可查看</span><button v-if="!item.readAt" type="button" class="mark-read" :disabled="busy" @click="readNotification(item)">标为已读</button><span v-else class="read-label">已读</span></div></div>
       </article>
     </div>
     <div v-if="items.length || pageNumber > 1" class="message-pagination"><button type="button" :disabled="busy || pageNumber <= 1" @click="navigate(category, unreadOnly, pages.slice(0, -1))">上一页</button><span>第 {{ pageNumber }} 页</span><button type="button" :disabled="busy || nextCursor == null" @click="nextCursor != null && navigate(category, unreadOnly, [...pages, nextCursor])">下一页</button></div>

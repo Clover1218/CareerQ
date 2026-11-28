@@ -83,7 +83,7 @@ watch([() => userStore.user?.id, nominationId], () => void load(), { immediate: 
 
 <template>
   <section class="discussion-page">
-    <router-link class="editorial-back" :to="{ name: 'clinic-home', hash: '#hr-discussion' }">← 返回职场门诊</router-link>
+    <router-link class="editorial-back" :to="{ name: 'clinic-home', hash: '#hr-discussion' }">< 返回职场门诊</router-link>
     <header class="discussion-page-header">
       <h1>下期 HR 共议</h1>
       <p>从学生推荐的公开问题中选出下期共议题目。每位学生每周一票，截止前可以改投。</p>
@@ -127,7 +127,7 @@ watch([() => userStore.user?.id, nominationId], () => void load(), { immediate: 
           @click="shown += 8">显示更多问题</button>
       </div>
       <router-link class="editorial-button discussion-browse" :to="{ name: 'clinic-home', hash: '#public-questions' }">
-        去问答列表看看 <span aria-hidden="true">→</span>
+        去问答列表看看 <span aria-hidden="true">></span>
       </router-link>
     </template>
   </section>

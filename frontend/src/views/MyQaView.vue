@@ -385,7 +385,7 @@ watch(() => route.query.edit, edit => {
       />
       <div class="flex flex-wrap items-center gap-4 text-14 text-muted">
         <span>{{ education || '学校、专业与年级待完善' }}</span>
-        <router-link v-if="user?.id" :to="{ name: 'public-profile', params: { id: user.id } }">查看我的公开主页 →</router-link>
+        <router-link v-if="user?.id" :to="{ name: 'public-profile', params: { id: user.id } }">查看我的公开主页 ></router-link>
       </div>
     </div>
   </section>

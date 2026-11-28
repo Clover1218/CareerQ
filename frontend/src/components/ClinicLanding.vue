@@ -28,7 +28,7 @@ defineProps<{ viewerRole: User["role"] | null }>();
         </span>
         <span class="room-hint">{{ topic.hint }}</span>
         <span class="room-example">「{{ topic.example }}」</span>
-        <span class="room-action">进入诊室 <span aria-hidden="true">→</span></span>
+        <span class="room-action">进入诊室 <span aria-hidden="true">></span></span>
       </router-link>
     </div>
   </section>

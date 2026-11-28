@@ -593,7 +593,7 @@ onMounted(async () => {
   <div class="question-detail-page">
   <div class="detail-navigation">
     <button type="button" class="back-link" @click="returnToPreviousPage">
-      <span aria-hidden="true">←</span> {{ returnLabel }}
+      <span aria-hidden="true"><</span> {{ returnLabel }}
     </button>
   </div>
   <p v-if="loading && !detail" class="card detail-loading" role="status">正在加载问答…</p>

@@ -121,7 +121,7 @@ async function submit() {
 
 <template>
   <div class="card public-ask-form">
-    <router-link v-if="topic" class="editorial-back" :to="clinicRoomLocation(topic)">← 返回{{ topic.name }}诊室</router-link>
+    <router-link v-if="topic" class="editorial-back" :to="clinicRoomLocation(topic)">< 返回{{ topic.name }}诊室</router-link>
     <header v-if="topic" class="ask-room-heading" :data-room="topic.id">
       <span class="clinic-door-icon" aria-hidden="true"></span>
       <div>
@@ -132,7 +132,7 @@ async function submit() {
     <template v-else>
       <h2>我要提问</h2>
       <p class="muted ask-audience">审核通过后，其他人就能看到你的问题，HR 可以选择回答。</p>
-      <router-link class="editorial-back" :to="clinicRoomsLocation">选择诊室 →</router-link>
+      <router-link class="editorial-back" :to="clinicRoomsLocation">选择诊室 ></router-link>
     </template>
     <div class="draft-status" role="status">
       <span v-if="!saved" class="error">草稿未能保存，请先保留内容，暂勿关闭页面。</span>

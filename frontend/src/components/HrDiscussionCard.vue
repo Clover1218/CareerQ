@@ -95,7 +95,7 @@ onActivated(load);
               <strong>{{ seat.author.nickname }}</strong>
               <small v-if="seat.author.company || seat.author.position">{{ [seat.author.company, seat.author.position].filter(Boolean).join(' · ') }}</small>
             </span>
-            <span class="author-arrow" aria-hidden="true">→</span>
+            <span class="author-arrow" aria-hidden="true">></span>
           </router-link>
         </li>
       </ul>
@@ -103,7 +103,7 @@ onActivated(load);
         还有 {{ discussion.authorCount - discussion.seats.length }} 位答主，进入讨论查看
       </p>
       <div class="discussion-actions">
-        <router-link class="editorial-button is-primary" :to="questionLink()">查看讨论 <span aria-hidden="true">→</span></router-link>
+        <router-link class="editorial-button is-primary" :to="questionLink()">查看讨论 <span aria-hidden="true">></span></router-link>
         <router-link v-if="canAnswer" class="editorial-button"
           :to="{ ...questionLink(), query: { ...questionLink().query, focus: 'answer' } }">参与回答</router-link>
       </div>
@@ -111,7 +111,7 @@ onActivated(load);
     <p v-else class="discussion-status">暂无讨论。学生可以推荐想听多位 HR 解答的问题。</p>
 
     <footer v-if="ballotAvailable && !failed" class="discussion-footer">
-      <router-link :to="{ name: 'hr-discussions' }">下期提名与投票 <span aria-hidden="true">→</span></router-link>
+      <router-link :to="{ name: 'hr-discussions' }">下期提名与投票 <span aria-hidden="true">></span></router-link>
     </footer>
   </section>
 </template>

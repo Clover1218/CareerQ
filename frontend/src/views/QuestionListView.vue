@@ -198,7 +198,7 @@ onActivated(async () => {
 <template>
   <div class="feed-page mx-auto w-full">
     <ClinicLanding v-if="!topic" :viewer-role="user?.role ?? null" />
-    <router-link v-if="topic" class="editorial-back" :to="clinicRoomsLocation">← 返回诊室列表</router-link>
+    <router-link v-if="topic" class="editorial-back" :to="clinicRoomsLocation">< 返回诊室列表</router-link>
     <header v-if="topic" class="editorial-heading clinic-room-heading" :data-room="topic.id">
       <div class="clinic-room-title">
         <span class="clinic-door-icon" aria-hidden="true"></span>
@@ -261,7 +261,7 @@ onActivated(async () => {
         <section v-if="canAsk" class="clinic-progress" aria-label="提问流程">
           <h2>提问流程</h2>
           <ol><li v-if="!topic">选择诊室</li><li>提交问题</li><li>审核后公开</li><li>收到 HR 建议</li></ol>
-          <router-link class="editorial-button" to="/me">查看我的问答 →</router-link>
+          <router-link class="editorial-button" to="/me">查看我的问答 ></router-link>
         </section>
         <HrDiscussionCard v-if="!topic" />
       </aside>

@@ -36,7 +36,7 @@ const statusLabels: Record<string, string> = {
     <div class="followup" :class="{ highlighted }">
       <div class="followup-heading">
         <PublicAuthorLink :user-id="followup.author.id" :nickname="followup.author.nickname" :avatar-url="followup.author.avatarUrl" :size="26" />
-        <strong>学生追问</strong><span>→ {{ targetName }}</span>
+        <strong>学生追问</strong><span>> {{ targetName }}</span>
         <span v-if="canReply && replyState === 'pending'" class="tag">待你回复</span>
         <span v-else-if="canReply && replyState === 'reviewing'" class="tag">你的回复审核中</span>
       </div>

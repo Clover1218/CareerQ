@@ -261,7 +261,7 @@ onActivated(async () => {
 
     <div v-if="pendingFollowupCount > 0" class="workspace-followup-alert" role="status">
       <div><strong>{{ pendingFollowupCount }} 条追问待回复</strong><p>来自你回答过的 {{ pendingQuestionCount }} 个问题</p></div>
-      <button type="button" class="editorial-button" @click="openPendingFollowups">查看新追问 <span aria-hidden="true">→</span></button>
+      <button type="button" class="editorial-button" @click="openPendingFollowups">查看新追问 <span aria-hidden="true">></span></button>
     </div>
 
     <div class="workspace-tabs" role="group" aria-label="问题分类">
@@ -361,7 +361,7 @@ onActivated(async () => {
         <div class="question-action">
           <button type="button" class="open-question" :class="{ 'is-primary': questionAction(item) !== 'view' }" @click="openQuestion(item)">
             {{ questionActionLabels[questionAction(item)] }}
-            <span aria-hidden="true">→</span>
+            <span aria-hidden="true">></span>
           </button>
         </div>
       </article>
