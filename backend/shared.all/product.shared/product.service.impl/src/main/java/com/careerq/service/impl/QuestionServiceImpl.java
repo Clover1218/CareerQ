@@ -138,7 +138,8 @@ public class QuestionServiceImpl implements QuestionService {
         int size = Math.clamp(limit, 1, 50);
         List<QuestionDO> rows = questionDao.list(PUBLIC, VISIBLE, cursor, tagFilter, false, size + 1);
         boolean hasNext = rows.size() > size;
-        List<QuestionFeedItem> items = rows.stream().limit(size).map(this::toFeedItem).toList();
+        List<QuestionDO> pageRows = hasNext ? rows.subList(0, size) : rows;
+        List<QuestionFeedItem> items = toFeedItems(pageRows, Map.of());
         return new PageResult<>(items, hasNext ? rows.get(size - 1).getId() : null);
     }
 
@@ -184,7 +185,7 @@ public class QuestionServiceImpl implements QuestionService {
             QuestionDO last = pageRows.get(pageRows.size() - 1);
             nextCursor = new FeedSeekCursor("latest", filter.hash(), last.getCreatedAt(), last.getId()).encode();
         }
-        return new FeedPage(toFeedItems(pageRows, viewer), nextCursor);
+        return new FeedPage(toFeedItems(pageRows, loadViewerStates(viewer, pageRows)), nextCursor);
     }
 
     private FeedPage feedScored(AuthUser viewer, FeedFilter filter, String cursor, int size) {
@@ -217,11 +218,13 @@ public class QuestionServiceImpl implements QuestionService {
         }
         int end = Math.min(start + size, ordered.size());
         var pageRows = ordered.subList(start, end);
-        var viewerStates = loadViewerStates(viewer, pageRows.stream().map(ScoredQuestion::question).toList());
+        var questions = pageRows.stream().map(ScoredQuestion::question).toList();
+        var viewerStates = loadViewerStates(viewer, questions);
+        var authors = loadPublicAuthors(questions);
         List<QuestionFeedItem> items = pageRows.stream()
                 .map(item -> toFeedItem(item.question(),
                         item.tags().stream().map(QuestionTagDO::getName).toList(), item.matchedTags(),
-                        viewerStates.get(item.question().getId())))
+                        authors.get(item.question().getAuthorId()), viewerStates.get(item.question().getId())))
                 .toList();
         boolean hasMore = end < ordered.size() && page.page() + 1 < FeedTuning.MAX_PAGE;
         return new FeedPage(items, hasMore ? page.next().encode() : null);
@@ -405,18 +408,27 @@ public class QuestionServiceImpl implements QuestionService {
         return diversify(filterNegatives(scored, size));
     }
 
-    private List<QuestionFeedItem> toFeedItems(List<QuestionDO> rows, AuthUser viewer) {
+    private List<QuestionFeedItem> toFeedItems(List<QuestionDO> rows, Map<Long, ViewerState> viewerStates) {
         if (rows.isEmpty()) {
             return List.of();
         }
         Map<Long, List<QuestionTagDO>> tagsByQuestion = loadQuestionTags(rows);
-        Map<Long, ViewerState> viewerStates = loadViewerStates(viewer, rows);
+        Map<Long, UserBrief> authors = loadPublicAuthors(rows);
         return rows.stream()
                 .map(question -> toFeedItem(question,
                         tagsByQuestion.getOrDefault(question.getId(), List.of()).stream()
                                 .map(QuestionTagDO::getName).toList(),
-                        List.of(), viewerStates.get(question.getId())))
+                        List.of(), authors.get(question.getAuthorId()), viewerStates.get(question.getId())))
                 .toList();
+    }
+
+    private Map<Long, UserBrief> loadPublicAuthors(List<QuestionDO> questions) {
+        List<Long> ids = questions.stream().map(QuestionDO::getAuthorId).distinct().toList();
+        Map<Long, UserBrief> authors = new LinkedHashMap<>();
+        for (var user : userDao.findPublicAuthors(ids)) {
+            authors.put(user.getId(), new UserBrief(user.getId(), user.getNickname(), user.getAvatarUrl()));
+        }
+        return authors;
     }
 
     private Map<Long, ViewerState> loadViewerStates(AuthUser viewer, List<QuestionDO> rows) {
@@ -790,15 +802,8 @@ new HrAnswerSummary(answer.getId(), answer.getFollowupId(),
         }
     }
 
-    private QuestionFeedItem toFeedItem(QuestionDO question) {
-        return toFeedItem(question, tagDao.findNamesByQuestionId(question.getId()), List.of());
-    }
-
-    private QuestionFeedItem toFeedItem(QuestionDO question, List<String> tags, List<String> matchedTags) {
-        return toFeedItem(question, tags, matchedTags, null);
-    }
-
-    private QuestionFeedItem toFeedItem(QuestionDO question, List<String> tags, List<String> matchedTags, ViewerState viewer) {
+    private QuestionFeedItem toFeedItem(QuestionDO question, List<String> tags, List<String> matchedTags,
+                                        UserBrief author, ViewerState viewer) {
         int answerCount = question.getAnswerCount();
         int followupCount = question.getFollowupCount();
         return new QuestionFeedItem(
@@ -806,6 +811,7 @@ new HrAnswerSummary(answer.getId(), answer.getFollowupId(),
                 question.getTitle(),
                 question.getBody() == null ? "" : question.getBody(),
                 tags,
+                author == null ? new UserBrief(question.getAuthorId(), "用户") : author,
                 answerCount,
                 followupCount,
                 answerCount + followupCount,

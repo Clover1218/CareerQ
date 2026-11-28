@@ -101,7 +101,7 @@ function initial(name?: string | null): string {
         aria-label="返回公开问答"
         @click="emit('home')"
       >
-        ←
+        <
       </button>
     </div>
   </aside>

@@ -1,19 +1,27 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
-import { onBeforeRouteLeave, useRouter } from "vue-router";
+import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
 import { useDialog, useMessage } from "naive-ui";
 import { api } from "../api";
 import TagPicker from "../components/TagPicker.vue";
+import { clinicRoomLocation, clinicRoomsLocation, clinicTopic } from "@/utils/clinicTopics";
 import { useUserStore } from "@/stores/user";
 import { clearAskDraft, draftFingerprint, forgetRecoveredAskDraft, preserveAskDraft, readAskDraft, recoveredAskDrafts, saveAskDraft, type RecoveredAskDraft } from "@/utils/askDraft";
 
 const router = useRouter();
+const route = useRoute();
+const topic = clinicTopic(route.query.topic);
 const userStore = useUserStore();
 const ownerId = userStore.user?.role === "student" ? userStore.user.id : null;
 const restoredDraft = ownerId == null ? null : readAskDraft(ownerId);
 const title = ref(restoredDraft?.title ?? "");
 const body = ref(restoredDraft?.body ?? "");
-const tags = ref<string[]>(restoredDraft?.tags ?? []);
+const tags = ref(restoredDraft?.tags ?? []);
+const maxSupplementalTags = topic ? 4 : 5;
+const supplementalTags = computed({
+  get: () => topic ? tags.value.filter(tag => tag !== topic.tag) : tags.value,
+  set: (value: string[]) => { tags.value = value; },
+});
 const error = ref("");
 const loading = ref(false);
 const dialog = useDialog();
@@ -25,7 +33,7 @@ let clearing = false;
 const hasDraft = computed(() => !!(title.value || body.value || tags.value.length));
 const recoveries = ref(ownerId == null ? [] : recoveredAskDrafts(ownerId));
 const currentDraft = () => ({ title: title.value, body: body.value, tags: [...tags.value] });
-let lastSavedFingerprint = draftFingerprint(currentDraft());
+let lastSavedFingerprint = draftFingerprint(restoredDraft ?? { title: "", body: "", tags: [] });
 function persist() {
   if (finished || clearing || ownerId == null) return;
   const draft = currentDraft();
@@ -74,9 +82,13 @@ function restoreRecovery(item: RecoveredAskDraft) {
 
 async function submit() {
   if (loading.value) return;
-  if (ownerId == null) { void router.replace({ path: "/login", query: { redirect: "/ask" } }); return; }
+  if (ownerId == null) { void router.replace({ path: "/login", query: { redirect: route.fullPath } }); return; }
   if (!title.value.trim() || !body.value.trim()) {
     error.value = "标题和描述不能为空";
+    return;
+  }
+  if (supplementalTags.value.length > maxSupplementalTags) {
+    error.value = `诊室已占用一个标签名额，请将补充标签调整到 ${maxSupplementalTags} 个以内。`;
     return;
   }
   loading.value = true;
@@ -85,7 +97,7 @@ async function submit() {
     const created = await api.createQuestion({
       title: title.value.trim(),
       body: body.value.trim(),
-      tags: tags.value,
+      tags: topic ? [topic.tag, ...supplementalTags.value] : tags.value,
       scope: "public",
     });
     if (created.status === "rejected") {
@@ -95,7 +107,10 @@ async function submit() {
     finished = true;
     if (!clearAskDraft(ownerId, lastSavedFingerprint)) message.warning("问题已提交，本机草稿暂未清除，可稍后手动清空。");
     loading.value = false;
-    await router.push(`/questions/${created.id}`);
+    await router.push({
+      path: `/questions/${created.id}`,
+      query: topic ? { from: "ask", returnTo: router.resolve(clinicRoomLocation(topic)).path } : undefined,
+    });
   } catch (e: any) {
     error.value = e.message;
   } finally {
@@ -105,8 +120,20 @@ async function submit() {
 </script>
 
 <template>
-  <div class="card">
-    <h2>我要提问</h2>
+  <div class="card public-ask-form">
+    <router-link v-if="topic" class="editorial-back" :to="clinicRoomLocation(topic)">< 返回{{ topic.name }}诊室</router-link>
+    <header v-if="topic" class="ask-room-heading" :data-room="topic.id">
+      <span class="clinic-door-icon" aria-hidden="true"></span>
+      <div>
+        <h2>向{{ topic.name }}诊室提问</h2>
+        <p>审核通过后，问题会显示在诊室里，HR 可以回答。</p>
+      </div>
+    </header>
+    <template v-else>
+      <h2>我要提问</h2>
+      <p class="muted ask-audience">审核通过后，其他人就能看到你的问题，HR 可以选择回答。</p>
+      <router-link class="editorial-back" :to="clinicRoomsLocation">选择诊室 ></router-link>
+    </template>
     <div class="draft-status" role="status">
       <span v-if="!saved" class="error">草稿未能保存，请先保留内容，暂勿关闭页面。</span>
       <span v-else-if="hasDraft">{{ restored ? '已恢复上次未完成的草稿。' : '草稿已自动保存在本机。' }}离开或刷新后可继续编辑。</span>
@@ -124,16 +151,28 @@ async function submit() {
       <textarea v-model="body" maxlength="5000" placeholder="补充背景、你已尝试的方法、希望得到什么建议" />
     </div>
     <div class="field">
-      <label>文章标签（最多 5 个）</label>
-      <TagPicker v-model="tags" :max="5" />
+      <label>{{ topic ? '补充标签' : '问题标签' }}（最多 {{ maxSupplementalTags }} 个）</label>
+      <TagPicker v-model="supplementalTags" :max="maxSupplementalTags" :excluded-tag="topic?.tag" />
     </div>
     <p v-if="error" class="error">{{ error }}</p>
-    <button class="primary" :disabled="loading" @click="submit">{{ loading ? "提交中…" : "提交" }}</button>
+    <button class="primary" :disabled="loading" @click="submit">{{ loading ? "提交中…" : "提交问题" }}</button>
     </fieldset>
   </div>
 </template>
 
 <style scoped>
+.ask-room-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 14px;
+  border-radius: 10px;
+  background: var(--room-surface);
+}
+.ask-room-heading > .clinic-door-icon { color: var(--room-accent); font-size: 24px; }
+.ask-room-heading h2 { margin: 0 0 4px; font-size: 20px; }
+.ask-room-heading p { margin: 0; color: var(--color-text-regular); font-size: 14px; }
 .question-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
 .draft-status { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; color: #7b8798; font-size: 12px; line-height: 1.8; margin-bottom: 20px; }
 .draft-recoveries { padding: 12px 15px; margin-bottom: 18px; border-radius: 6px; background: #f2f6fd; color: #71849f; font-size: 12px; }.draft-recoveries summary { cursor: pointer; }.draft-recoveries > div { display: flex; justify-content: space-between; gap: 15px; padding-top: 12px; }.draft-recoveries span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.draft-recoveries button { flex-shrink: 0; }

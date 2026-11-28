@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface UserDao {
@@ -25,6 +26,14 @@ public interface UserDao {
 
     @Select("select * from users where id = #{id}")
     Optional<UserDO> findById(Long id);
+
+    @Select("""
+            <script>
+            select id, nickname, avatar_url from users where id in
+            <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+            </script>
+            """)
+    List<UserDO> findPublicAuthors(@Param("ids") List<Long> ids);
 
     @Select("select * from users where phone_hash = #{phoneHash}")
     Optional<UserDO> findByPhoneHash(String phoneHash);

@@ -159,7 +159,7 @@ onBeforeUnmount(() => {
         aria-label="返回公开问答"
         @click="emit('home')"
       >
-        ←
+        <
       </button>
     </div>
   </aside>

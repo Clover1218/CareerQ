@@ -5,6 +5,7 @@ import QuestionListView from "./views/QuestionListView.vue";
 const LoginView = () => import("./views/LoginView.vue");
 const RegisterView = () => import("./views/RegisterView.vue");
 const QuestionDetailView = () => import("./views/QuestionDetailView.vue");
+const HrDiscussionsView = () => import("./views/HrDiscussionsView.vue");
 const AskView = () => import("./views/AskView.vue");
 const MyQaView = () => import("./views/MyQaView.vue");
 const HrWorkspaceView = () => import("./views/HrWorkspaceView.vue");
@@ -21,13 +22,21 @@ const AdminReviewWorkspaceView = () => import("./views/AdminReviewWorkspaceView.
 
 export const router = createRouter({
   history: createWebHistory("/careerq/"),
-  scrollBehavior(_to, _from, savedPosition) {
-    return savedPosition ?? { top: 0 };
+  scrollBehavior(to, _from, savedPosition) {
+    if (savedPosition) return savedPosition;
+    if (to.name === "clinic-home" && ["#clinic-rooms", "#public-questions", "#hr-discussion"].includes(to.hash)) {
+      const section = document.getElementById(to.hash.slice(1));
+      if (section) return { el: section, top: Number.parseFloat(getComputedStyle(section).scrollMarginTop) };
+    }
+    return { top: 0 };
   },
   routes: [
     // 公开页面：未注册也能浏览
-    { path: "/", component: QuestionListView },
+    { path: "/", name: "clinic-home", component: QuestionListView },
+    { path: "/browse", redirect: { name: "clinic-home", hash: "#public-questions" } },
+    { path: "/clinic/:topic(career|resume|interview|intern)", name: "clinic-topic", component: QuestionListView },
     { path: "/questions/:id", component: QuestionDetailView },
+    { path: "/hr-discussions", name: "hr-discussions", component: HrDiscussionsView },
     { path: "/hr-shares", name: "hr-shares", component: PublicHrSharesView },
     { path: "/hr-shares/:id", name: "hr-share-detail", component: PublicHrShareDetailView },
     // 未注册可进入登录/注册
@@ -63,8 +72,8 @@ export const router = createRouter({
 const PUBLIC_PATHS = ["/", "/login", "/register"];
 
 router.beforeEach(async (to) => {
-  const isPublic = PUBLIC_PATHS.includes(to.path) || to.path.startsWith("/questions/")
-    || to.name === "hr-shares" || to.name === "hr-share-detail";
+  const isPublic = PUBLIC_PATHS.includes(to.path) || to.name === "clinic-topic" || to.path.startsWith("/questions/")
+    || to.name === "hr-shares" || to.name === "hr-share-detail" || to.name === "hr-discussions";
   if (isPublic) {
     return true;
   }

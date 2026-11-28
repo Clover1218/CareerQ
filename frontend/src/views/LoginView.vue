@@ -44,8 +44,8 @@ async function login() {
 </script>
 
 <template>
-  <div class="card" style="max-width: 420px; margin: 40px auto">
-    <h2>登录职问桥</h2>
+  <div class="card public-login-card">
+    <h2>登录 CareerQ</h2>
     <p v-if="returnTo.startsWith('/users/')" class="muted">登录后即可查看该用户的主页。</p>
     <p class="muted">dev 环境验证码固定为 123456；演示账号 13800000001（学生）/ 13800000003、13800000008（运营）/ 13800000007（仲裁运营）/ HR：13800000002 陈静怡、13800000004 王浩然、13800000005 李梦琪、13800000006 张帆</p>
 
@@ -65,10 +65,36 @@ async function login() {
     <button class="primary" style="width: 100%" :disabled="loading" @click="login">
       {{ loading ? "登录中…" : "登录" }}
     </button>
-    <p class="muted" style="text-align: center; margin-top: 12px">
-      还没有账号？<router-link :to="{ path: '/register', query: { redirect: returnTo } }">去注册</router-link>
-      <span> · </span>
-      <router-link to="/">先随便逛逛</router-link>
-    </p>
+    <nav class="login-alternatives" aria-label="注册与浏览">
+      <router-link class="editorial-button register-entry" :to="{ path: '/register', query: { redirect: returnTo } }">
+        注册账号
+      </router-link>
+      <router-link class="editorial-button" to="/">游客浏览</router-link>
+    </nav>
   </div>
 </template>
+
+<style scoped>
+.login-alternatives {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.login-alternatives .editorial-button {
+  min-height: 42px;
+  font-size: 14px;
+}
+
+.register-entry {
+  border-color: var(--color-brand-border);
+  background: var(--color-brand-soft);
+}
+
+.register-entry:hover {
+  border-color: var(--color-brand);
+}
+</style>

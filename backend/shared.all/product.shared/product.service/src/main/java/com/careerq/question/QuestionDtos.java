@@ -69,12 +69,13 @@ String displayStatus,
     public record HrAnsweredPublicQuestionView(QuestionView question, boolean hasPendingAnswer) {
     }
 
-    /** 公开 feed 摘要：不含作者；正文不做字数截断，由前端按行折叠。 */
+    /** 公开 feed 卡片：包含公开作者信息，正文由前端按行折叠。 */
     public record QuestionFeedItem(
             Long id,
             String title,
             String excerpt,
             List<String> tags,
+            UserBrief author,
             int answerCount,
             int followupCount,
             int replyCount,

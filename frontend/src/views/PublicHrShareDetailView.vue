@@ -55,7 +55,7 @@ onBeforeUnmount(() => controller.abort());
 <template>
   <section class="hr-shares" aria-label="HR 分享详情">
     <router-link :to="returnTo" custom v-slot="{ href, navigate }">
-      <a :href="href" class="hr-share-back" @click="returnToList($event); navigate($event)">← {{ returnTo === '/hr-shares' ? '返回 HR 分享' : '返回公开主页' }}</a>
+      <a :href="href" class="hr-share-back" @click="returnToList($event); navigate($event)">< {{ returnTo === '/hr-shares' ? '返回 HR 分享' : '返回公开主页' }}</a>
     </router-link>
 
     <article v-if="share" class="hr-share-article detail-enter">

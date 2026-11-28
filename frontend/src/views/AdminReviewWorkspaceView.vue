@@ -208,7 +208,7 @@ onMounted(() => {
           aria-label="返回审核列表"
           @click="goReviewList"
         >
-          ←
+          <
         </button>
 
         <n-config-provider abstract :theme-overrides="selectTheme">

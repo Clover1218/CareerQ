@@ -109,6 +109,12 @@ function open(category: MessageCategory) {
 </template>
 
 <style scoped>
+@media (max-width: 480px) {
+  .msg-panel { left: auto; right: 0; transform: translateY(-4px); }
+  .msg-menu:hover .msg-panel,
+  .msg-menu:focus-within .msg-panel { transform: translateY(0); }
+}
+
 .msg-menu {
   position: relative;
   display: flex;
@@ -174,7 +180,8 @@ function open(category: MessageCategory) {
 .msg-panel {
   position: absolute;
   top: calc(100% + 8px);
-  right: 0;
+  left: 50%;
+  right: auto;
   z-index: 40;
   width: 176px;
   padding: 6px 0;
@@ -184,7 +191,7 @@ function open(category: MessageCategory) {
   box-shadow: 0 4px 16px -8px rgba(0, 0, 0, 0.25);
   opacity: 0;
   visibility: hidden;
-  transform: translateY(-4px);
+  transform: translateX(-50%) translateY(-4px);
   /* 收起时延迟 200ms，给鼠标留出移动到面板的时间 */
   transition:
     opacity 0.15s ease 0.2s,
@@ -197,7 +204,7 @@ function open(category: MessageCategory) {
 .msg-menu:focus-within .msg-panel {
   opacity: 1;
   visibility: visible;
-  transform: translateY(0);
+  transform: translateX(-50%) translateY(0);
   pointer-events: auto;
   /* 展开时立即响应，不加延迟 */
   transition-delay: 0s;

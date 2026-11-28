@@ -8,9 +8,10 @@ import FeedIcon from "@/components/FeedIcon.vue";
 import MessageMenu from "@/components/MessageMenu.vue";
 import ProfileDrawer from "@/components/ProfileDrawer.vue";
 import { SESSION_SIGNAL_KEY, SESSION_REFRESH_EVENT } from "@/utils/sessionSync";
+import { clinicAskLocation, clinicRoomsLocation, clinicTopic } from "@/utils/clinicTopics";
 
 // Naive UI 主题与 Figma token 对齐，避免组件库默认蓝与设计稿脱节
-const themeOverrides: GlobalThemeOverrides = {
+const adminTheme: GlobalThemeOverrides = {
   common: {
     primaryColor: "#2F6FED",
     primaryColorHover: "#1D4FC4",
@@ -33,6 +34,39 @@ const logoutCancel = ref<HTMLButtonElement | null>(null);
 let topbarObserver: ResizeObserver | undefined;
 
 const isAdminPage = computed(() => ["admin-review", "admin-review-workspace"].includes(String(route.name)));
+
+const themeOverrides = computed<GlobalThemeOverrides>(() => isAdminPage.value ? adminTheme : {
+  common: {
+    ...adminTheme.common,
+    primaryColor: "#803a35",
+    primaryColorHover: "#914640",
+    primaryColorPressed: "#642a27",
+    borderRadius: "8px",
+    fontFamily: '"DM Sans", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif',
+    textColorBase: "#252421",
+    borderColor: "#e4ddd1",
+    bodyColor: "#f8f5f0",
+    cardColor: "#fffdf9",
+    modalColor: "#fffdf9",
+  },
+});
+
+const widePages = ["my-qa", "student-messages", "hr-workbench", "hr-profile", "hr-messages", "hr-posts", "hr-post-new", "hr-post-editor"];
+const mainClasses = computed(() => isAdminPage.value ? ["admin-shell"] : [
+  widePages.includes(String(route.name)) ? "wide-shell" : "container",
+  { "editorial-shell": route.path === "/" || route.name === "clinic-topic" || route.name === "hr-discussions"
+    || route.path.startsWith("/questions/") },
+]);
+
+const activeClinicNav = computed(() => route.name === "clinic-home" || route.name === "clinic-topic" || route.name === "hr-discussions"
+  || (route.path.startsWith("/questions/") && route.query.from !== "hr"));
+const activeHrNav = computed(() => route.name === "hr-workbench"
+  || (route.path.startsWith("/questions/") && route.query.from === "hr"));
+const askRoom = computed(() => {
+  if (route.name === "clinic-topic") return clinicTopic(route.params.topic);
+  if (route.path === "/ask") return clinicTopic(route.query.topic);
+});
+const askLocation = computed(() => askRoom.value ? clinicAskLocation(askRoom.value) : clinicRoomsLocation);
 
 function syncTopbarHeight() {
   if (!topbar.value) return;
@@ -111,6 +145,7 @@ watch(
   (admin) => {
     document.body.classList.toggle("admin-mode", admin);
     document.documentElement.classList.toggle("admin-mode", admin);
+    document.documentElement.classList.toggle("careerq-public-theme", !admin);
   },
   { immediate: true },
 );
@@ -144,7 +179,7 @@ onUnmounted(() => {
   document.removeEventListener("visibilitychange", syncStudentSession);
   document.body.style.overflow = "";
   document.body.classList.remove("admin-mode");
-  document.documentElement.classList.remove("admin-mode");
+  document.documentElement.classList.remove("admin-mode", "careerq-public-theme");
 });
 
 onMounted(refresh);
@@ -159,11 +194,11 @@ watch(() => route.fullPath, refresh);
         <n-notification-provider>
           <n-loading-bar-provider>
             <header v-if="!isAdminPage" ref="topbar" class="topbar" :inert="accountDialogOpen">
-              <router-link class="brand" to="/" aria-label="CareerQ 首页">CareerQ</router-link>
+              <router-link class="brand" to="/" aria-label="CareerQ 首页"><span class="brand-mark" aria-hidden="true"></span>CareerQ</router-link>
               <nav class="nav" aria-label="主导航">
-                <router-link to="/">公开问答</router-link>
+                <router-link to="/" :class="{ 'is-section-active': activeClinicNav }">职场门诊</router-link>
                 <router-link to="/hr-shares" :class="{ 'router-link-active': route.name === 'hr-share-detail' }">HR 分享</router-link>
-                <router-link v-if="user?.role === 'hr'" to="/hr">HR 工作台</router-link>
+                <router-link v-if="user?.role === 'hr'" to="/hr" :class="{ 'is-section-active': activeHrNav }">HR 工作台</router-link>
                 <router-link
                   v-if="user?.role === 'hr'"
                   to="/hr/posts"
@@ -174,7 +209,9 @@ watch(() => route.fullPath, refresh);
                 </router-link>
               </nav>
               <div class="account">
-                <router-link v-if="user?.role === 'student' || !user" class="topbar-ask" to="/ask">提问</router-link>
+                <router-link v-if="user?.role === 'student' || !user" class="topbar-ask" :to="askLocation">
+                  {{ askRoom ? "提问" : "选诊室提问" }}
+                </router-link>
                 <template v-if="user">
                   <MessageMenu />
                   <button
@@ -201,12 +238,12 @@ watch(() => route.fullPath, refresh);
                 </div>
               </div>
             </header>
-<main :inert="accountDialogOpen" :class="isAdminPage ? 'admin-shell' : ['my-qa', 'student-messages', 'hr-workbench', 'hr-profile', 'hr-messages', 'hr-posts', 'hr-post-new', 'hr-post-editor'].includes(String(route.name)) ? 'wide-shell' : 'container'">
+            <main :inert="accountDialogOpen" :class="mainClasses">
               <router-view v-slot="{ Component, route: currentRoute }">
                 <keep-alive include="QuestionListView,PublicHrSharesView,HrWorkspaceView,HrProfileView,HrMessagesView">
                   <component
                     :is="Component"
-                    :key="currentRoute.path === '/' ? 'public-feed' : user?.role === 'student' ? `student-${user.id}-${currentRoute.fullPath}` : ['hr-posts', 'hr-post-new', 'hr-post-editor'].includes(String(currentRoute.name)) ? `${user?.id}-${currentRoute.fullPath}` : ['hr-profile', 'hr-messages'].includes(String(currentRoute.name)) ? `${String(currentRoute.name)}-${user?.id}` : currentRoute.name === 'hr-workbench' ? 'hr-workbench' : currentRoute.fullPath"
+                    :key="['clinic-home', 'clinic-topic'].includes(String(currentRoute.name)) ? currentRoute.path : user?.role === 'student' ? `student-${user.id}-${currentRoute.fullPath}` : ['hr-posts', 'hr-post-new', 'hr-post-editor'].includes(String(currentRoute.name)) ? `${user?.id}-${currentRoute.fullPath}` : ['hr-profile', 'hr-messages'].includes(String(currentRoute.name)) ? `${String(currentRoute.name)}-${user?.id}` : currentRoute.name === 'hr-workbench' ? 'hr-workbench-' + user?.id : currentRoute.fullPath"
                   />
                 </keep-alive>
               </router-view>

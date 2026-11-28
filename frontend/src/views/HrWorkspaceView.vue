@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onActivated, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
+import ClinicRoomLabels from "@/components/ClinicRoomLabels.vue";
 import FeedIcon from "@/components/FeedIcon.vue";
 import { canWithdrawAnswer, useAnswerWithdrawal } from "@/composables/useAnswerWithdrawal";
 import { answerStatusLabel, removedAnswerText } from "@/utils/answerRemoval";
+import { supplementalClinicTags } from "@/utils/clinicTopics";
 import {
   api,
   type HrAnsweredQuestion,
@@ -74,7 +76,6 @@ const tabs: { id: WorkTab; label: string; icon: "clock" | "comment" | "edit" }[]
   { id: "answeredPublic", label: "已回答公开问题", icon: "comment" },
   { id: "answeredMine", label: "我回答过的", icon: "edit" },
 ];
-const activeTabIndex = computed(() => tabs.findIndex((tab) => tab.id === activeTab.value));
 
 function mapQuestion(question: Question): WorkItem {
   return {
@@ -154,6 +155,25 @@ async function loadPage(cursor: WorkCursor | null): Promise<boolean> {
   }
 }
 
+async function refreshFollowupSummary() {
+  const tab = activeTab.value;
+  if (tab === "answeredMine") return;
+  try {
+    const summary = await api.hrAnsweredQuestions(undefined, 1);
+    if (activeTab.value === tab) {
+      pendingQuestionCount.value = summary.pendingQuestionCount;
+      pendingFollowupCount.value = summary.pendingFollowupCount;
+    }
+  } catch {
+    // The workbench lists stay available if the optional summary fails.
+  }
+}
+
+function openPendingFollowups() {
+  answeredFilter.value = "pending";
+  selectTab("answeredMine");
+}
+
 function selectTab(tab: WorkTab) {
   if (activeTab.value === tab) return;
   activeTab.value = tab;
@@ -207,16 +227,21 @@ function refreshList() {
   nextCursor.value = null;
   items.value = [];
   void loadPage(null);
+  void refreshFollowupSummary();
 }
 
 watch([activeTab, answeredFilter], refreshList);
 
-onMounted(() => void loadPage(null));
+onMounted(() => {
+  void loadPage(null);
+  void refreshFollowupSummary();
+});
 onActivated(async () => {
   if (!activatedBefore) {
     activatedBefore = true;
     return;
   }
+  void refreshFollowupSummary();
   await loadPage(cursorHistory.value[cursorHistory.value.length - 1] ?? null);
   if (returnScrollY.value !== null) {
     await nextTick();
@@ -230,12 +255,16 @@ onActivated(async () => {
 <template>
   <section class="hr-workspace">
     <header class="workspace-heading">
-      <p class="workspace-kicker">职业问答 · 答主工作区</p>
       <h1>HR 工作台</h1>
-      <p class="workspace-description">浏览学生的公开问题，分享经验，并跟进你回答过的问题。</p>
+      <p class="workspace-description">回答各诊室的学生问题，跟进你收到的追问。</p>
     </header>
 
-    <div class="workspace-tabs" role="group" aria-label="问题分类" :style="{ '--active-tab-index': activeTabIndex }">
+    <div v-if="pendingFollowupCount > 0" class="workspace-followup-alert" role="status">
+      <div><strong>{{ pendingFollowupCount }} 条追问待回复</strong><p>来自你回答过的 {{ pendingQuestionCount }} 个问题</p></div>
+      <button type="button" class="editorial-button" @click="openPendingFollowups">查看新追问 <span aria-hidden="true">></span></button>
+    </div>
+
+    <div class="workspace-tabs" role="group" aria-label="问题分类">
       <button
         v-for="tab in tabs"
         :key="tab.id"
@@ -306,7 +335,8 @@ onActivated(async () => {
           <p class="question-excerpt">{{ item.body }}</p>
           <div class="question-footer">
             <div class="tag-list">
-              <span v-for="tag in item.tags.slice(0, 3)" :key="tag" class="question-tag">{{ tag }}</span>
+              <ClinicRoomLabels :tags="item.tags" />
+              <span v-for="tag in supplementalClinicTags(item.tags).slice(0, 3)" :key="tag" class="question-tag">{{ tag }}</span>
             </div>
             <span>{{ item.answerCount }} 个回答</span>
             <span>{{ item.followupCount }} 条追问</span>
@@ -329,9 +359,9 @@ onActivated(async () => {
           </div>
         </div>
         <div class="question-action">
-          <button type="button" class="open-question" @click="openQuestion(item)">
+          <button type="button" class="open-question" :class="{ 'is-primary': questionAction(item) !== 'view' }" @click="openQuestion(item)">
             {{ questionActionLabels[questionAction(item)] }}
-            <span aria-hidden="true">→</span>
+            <span aria-hidden="true">></span>
           </button>
         </div>
       </article>
@@ -356,7 +386,7 @@ onActivated(async () => {
 
 <style scoped>
 .hr-workspace {
-  width: min(100% - 32px, 1080px);
+  width: min(100% - 32px, 1160px);
   margin: 0 auto;
   padding: 34px 0 64px;
 }
@@ -365,16 +395,17 @@ onActivated(async () => {
   margin-bottom: 22px;
 }
 
-.workspace-kicker {
-  margin: 0 0 8px;
-  color: #596579;
-  font-size: 13px;
-  font-weight: 600;
+.workspace-followup-alert {
+  display: flex; justify-content: space-between; align-items: center; gap: 9px;
+  margin: 0 0 14px; padding: 12px 15px; border: 1px solid var(--color-brand-border);
+  border-left: 3px solid var(--color-brand); border-radius: 10px; background: var(--color-brand-soft);
 }
-
+.workspace-followup-alert strong { color: var(--color-brand-dark); font-size: 15px; }
+.workspace-followup-alert p { margin: 4px 0 0; color: var(--color-text-regular); font-size: 12px; }
 .workspace-heading h1 {
   margin: 0;
-  font-size: 30px;
+  font-size: clamp(30px, 4vw, 47px);
+  letter-spacing: -.045em;
   line-height: 1.25;
 }
 
@@ -386,30 +417,12 @@ onActivated(async () => {
 }
 
 .workspace-tabs {
-  --tab-inset: 4px;
-  --tab-gap: 4px;
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--tab-gap);
-  width: min(100%, 540px);
-  border: 1px solid var(--color-border-default);
-  border-radius: 12px;
-  background: var(--color-bg-feed);
-  padding: var(--tab-inset);
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(8px, 3vw, 23px);
+  border-bottom: 1px solid var(--color-border-default);
 }
 
-.workspace-tabs::before {
-  content: "";
-  position: absolute;
-  inset: var(--tab-inset) auto var(--tab-inset) var(--tab-inset);
-  width: calc((100% - 2 * (var(--tab-inset) + var(--tab-gap))) / 3);
-  border-radius: 8px;
-  background: var(--color-brand-soft);
-  box-shadow: inset 0 0 0 1px var(--color-brand-border), 0 1px 2px rgb(23 32 51 / 5%);
-  transform: translateX(calc(var(--active-tab-index) * (100% + var(--tab-gap))));
-  pointer-events: none;
-}
 
 .workspace-tab {
   position: relative;
@@ -438,10 +451,9 @@ onActivated(async () => {
   color: var(--color-text-primary);
 }
 
-.workspace-tab.active { color: var(--color-brand-dark); }
+.workspace-tab.active { color: var(--color-brand-dark); box-shadow: inset 0 -2px var(--color-brand); }
 
 @media (prefers-reduced-motion: no-preference) {
-  .workspace-tabs::before { transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1); }
   .workspace-tab { transition: background-color 150ms ease, color 150ms ease, transform 80ms ease; }
 }
 
@@ -495,7 +507,7 @@ onActivated(async () => {
   gap: 4px;
   border: 1px solid var(--color-border-default);
   border-radius: 6px;
-  background: #f0f2f5;
+  background: var(--color-bg-hover);
   padding: 3px;
 }
 
@@ -510,7 +522,7 @@ onActivated(async () => {
 }
 
 .filter-buttons button.active {
-  background: #fff;
+  background: var(--color-bg-surface);
   color: var(--color-text-primary);
   box-shadow: 0 1px 2px #1118271a;
   font-weight: 600;
@@ -521,17 +533,18 @@ onActivated(async () => {
 }
 
 .question-list {
-  display: flex;
-  flex-direction: column;
-  border-top: 1px solid var(--color-border-default);
+  display: grid;
+  gap: 10px;
 }
 
 .question-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 24px;
-  padding: 22px 4px;
-  border-bottom: 1px solid var(--color-border-default);
+  gap: 20px;
+  padding: 16px 18px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 15px;
+  background: var(--color-bg-surface);
 }
 
 .question-main {
@@ -570,8 +583,8 @@ onActivated(async () => {
 }
 
 .status-active {
-  background: #edf2fa;
-  color: #485d7e;
+  background: var(--color-brand-soft);
+  color: var(--color-brand-dark);
 }
 
 .status-review {
@@ -619,15 +632,14 @@ onActivated(async () => {
 
 .question-tag {
   border-radius: 4px;
-  background: #f0f2f5;
+  background: var(--color-bg-hover);
   padding: 3px 7px;
-  color: #586273;
+  color: var(--color-text-regular);
 }
 
 .question-action {
   display: flex;
-  align-items: flex-start;
-  padding-top: 28px;
+  align-items: center;
 }
 
 .open-question {
@@ -636,20 +648,27 @@ onActivated(async () => {
   gap: 8px;
   min-height: 36px;
   white-space: nowrap;
-  border: 1px solid #cbd7eb;
+  border: 1px solid var(--color-border-default);
   border-radius: 5px;
-  background: #fff;
+  background: var(--color-bg-surface);
   padding: 0 11px;
-  color: #2f5ca8;
+  color: var(--color-brand);
   font: inherit;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
 }
 
+.open-question.is-primary {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+  color: var(--color-white);
+}
+.open-question.is-primary:hover { background: var(--color-brand-dark); color: var(--color-white); }
+
 .open-question:hover {
   border-color: var(--color-brand);
-  background: #f6f9ff;
+  background: var(--color-bg-feed);
 }
 
 .my-answer-preview {
@@ -680,7 +699,7 @@ onActivated(async () => {
 }
 
 .my-answer-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
-.withdraw-answer { border: 1px solid #e4c9c9; border-radius: 4px; background: #fff; color: #9b4141; padding: 4px 8px; font: inherit; font-size: 12px; cursor: pointer; }
+.withdraw-answer { border: 1px solid #e4c9c9; border-radius: 4px; background: var(--color-bg-surface); color: #9b4141; padding: 4px 8px; font: inherit; font-size: 12px; cursor: pointer; }
 .withdraw-answer:disabled { cursor: wait; opacity: .6; }
 
 .answer-published {
@@ -757,7 +776,7 @@ onActivated(async () => {
   min-height: 34px;
   border: 1px solid var(--color-border-default);
   border-radius: 5px;
-  background: #fff;
+  background: var(--color-bg-surface);
   color: var(--color-text-regular);
   font: inherit;
   cursor: pointer;
@@ -786,7 +805,7 @@ onActivated(async () => {
   }
 
   .workspace-heading h1 {
-    font-size: 25px;
+    font-size: 30px;
   }
 
   .workspace-description {
@@ -797,7 +816,7 @@ onActivated(async () => {
   .question-row {
     grid-template-columns: minmax(0, 1fr);
     gap: 14px;
-    padding: 17px 2px;
+    padding: 13px 12px;
   }
 
   .question-action {

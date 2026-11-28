@@ -37,11 +37,11 @@ onMounted(load);
     <div class="favorites-heading"><p>收藏的公开问题和回答，随时回来继续阅读。</p><button type="button" :disabled="loading || removing !== null" @click="load">刷新收藏</button></div>
     <p v-if="error" class="error" role="alert">{{ error }} <button type="button" @click="load">重试</button></p>
     <p v-if="loading && !items.length" class="favorites-empty">正在读取收藏…</p>
-    <div v-else-if="!items.length && !error" class="favorites-empty"><h3>还没有收藏内容</h3><p>在公开问答中点击星标，把有帮助的内容留在这里。</p><router-link to="/">去公开问答看看 →</router-link></div>
+    <div v-else-if="!items.length && !error" class="favorites-empty"><h3>还没有收藏内容</h3><p>在公开问答中点击星标，把有帮助的内容留在这里。</p><router-link to="/">去公开问答看看 ></router-link></div>
     <article v-for="item in items" :key="`${item.targetType}-${item.targetId}`" class="favorite-card">
       <div class="favorite-meta"><span>{{ item.targetType === 'question' ? '公开问题' : 'HR 回答' }}</span><time>收藏于 {{ item.createdAt.replace('T', ' ').slice(0, 16) }}</time></div>
       <h2><router-link :to="destination(item)">{{ item.title }}</router-link></h2><p>{{ item.excerpt }}</p>
-      <div class="favorite-actions"><router-link :to="destination(item)">查看内容 →</router-link><button type="button" :disabled="removing !== null || loading" @click="remove(item)">{{ removing === item.targetId ? '取消中…' : '取消收藏' }}</button></div>
+      <div class="favorite-actions"><router-link :to="destination(item)">查看内容 ></router-link><button type="button" :disabled="removing !== null || loading" @click="remove(item)">{{ removing === item.targetId ? '取消中…' : '取消收藏' }}</button></div>
     </article>
     <div v-if="items.length || pages.length" class="favorite-pagination"><button type="button" :disabled="loading || removing !== null || !pages.length" @click="navigate(pages.slice(0, -1))">上一页</button><span>第 {{ pages.length + 1 }} 页</span><button type="button" :disabled="loading || removing !== null || nextCursor == null" @click="nextCursor != null && navigate([...pages, nextCursor])">下一页</button></div>
     <p v-if="items.length && !loading && !error && nextCursor == null" class="favorites-end">收藏已经看完咯</p>

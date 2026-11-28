@@ -125,7 +125,7 @@ onBeforeUnmount(() => controller.abort());
 
 <template>
   <section class="public-profile-page">
-    <button class="profile-back" type="button" @click="goBack">← 返回</button>
+    <button class="profile-back" type="button" @click="goBack">< 返回</button>
     <p v-if="error" class="card profile-state" role="alert">{{ error }} <button type="button" @click="load">重试</button></p>
     <p v-else-if="!profile" class="card profile-state" role="status">正在加载主页…</p>
     <template v-else>
@@ -173,19 +173,19 @@ onBeforeUnmount(() => controller.abort());
             <time>{{ item.createdAt.replace('T', ' ').slice(0, 16) }}</time>
             <h3><RouterLink :to="questionLink(item.id)">{{ item.title }}</RouterLink></h3>
             <p class="content-excerpt">{{ item.excerpt }}</p>
-            <footer><span>{{ item.answerCount }} 个回答 · {{ item.followupCount }} 条追问</span><RouterLink :to="questionLink(item.id)">查看详情 →</RouterLink></footer>
+            <footer><span>{{ item.answerCount }} 个回答 · {{ item.followupCount }} 条追问</span><RouterLink :to="questionLink(item.id)">查看详情 ></RouterLink></footer>
           </article>
           <article v-for="item in answers" :key="item.id" class="card content-card">
             <div class="entry-meta"><span class="topic">{{ item.followupId == null ? "主回答" : "追问回复" }}</span><time>{{ item.createdAt.replace('T', ' ').slice(0, 16) }}</time></div>
             <h3><RouterLink :to="questionLink(item.questionId, item.id)">{{ item.title }}</RouterLink></h3>
             <p class="content-excerpt">{{ item.excerpt }}</p>
-            <footer><span>{{ item.likeCount }} 获赞 · {{ item.usefulCount }} 有用</span><RouterLink :to="questionLink(item.questionId, item.id)">查看原回答 →</RouterLink></footer>
+            <footer><span>{{ item.likeCount }} 获赞 · {{ item.usefulCount }} 有用</span><RouterLink :to="questionLink(item.questionId, item.id)">查看原回答 ></RouterLink></footer>
           </article>
           <article v-for="item in shares" :key="item.id" class="card content-card">
             <time>{{ item.publishedAt.slice(0, 10) }}</time>
             <h3><RouterLink :to="{ name: 'hr-share-detail', params: { id: item.id }, query: { from: 'public-profile', returnTo: route.fullPath } }">{{ item.title }}</RouterLink></h3>
             <p class="content-excerpt">{{ item.excerpt }}</p>
-            <footer><span>{{ item.tags.join(' · ') }}</span><RouterLink :to="{ name: 'hr-share-detail', params: { id: item.id }, query: { from: 'public-profile', returnTo: route.fullPath } }">阅读全文 →</RouterLink></footer>
+            <footer><span>{{ item.tags.join(' · ') }}</span><RouterLink :to="{ name: 'hr-share-detail', params: { id: item.id }, query: { from: 'public-profile', returnTo: route.fullPath } }">阅读全文 ></RouterLink></footer>
           </article>
         </div>
         <nav v-if="!loading && !listError && (hasItems || pages.length)" class="profile-pagination" aria-label="公开内容分页">

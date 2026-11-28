@@ -136,15 +136,21 @@ class FeedFlowTests {
 
     @Test
     void guestFeedReturnsColdStartItemsWithoutMatchedTags() throws Exception {
-        MockHttpSession creator = register("13900000601");
-        long questionId = createQuestion(creator, "游客也能看到的推荐问题", "简历");
+        TestSession creator = registerWithId("13900000601");
+        String avatarUrl = "/api/v1/avatars/creator.png";
+        jdbcTemplate.update("update users set avatar_url = ? where id = ?", avatarUrl, creator.userId());
+        long questionId = createQuestion(creator.session(), "游客也能看到的推荐问题", "简历");
 
-        JsonNode page = feed(null, "?limit=50");
-        JsonNode item = itemOf(page, questionId);
-
-        assertThat(item).isNotNull();
-        assertThat(item.path("matchedTags").isArray()).isTrue();
-        assertThat(matchedTags(item)).isEmpty();
+        for (String sort : List.of("recommend", "latest", "hot")) {
+            JsonNode item = itemOf(feed(null, "?limit=50&sort=" + sort), questionId);
+            assertThat(item).isNotNull();
+            assertThat(item.path("matchedTags").isArray()).isTrue();
+            assertThat(matchedTags(item)).isEmpty();
+            JsonNode author = item.path("author");
+            assertThat(author.path("id").asLong()).isEqualTo(creator.userId());
+            assertThat(author.path("nickname").asText()).isEqualTo("推荐流测试");
+            assertThat(author.path("avatarUrl").asText()).isEqualTo(avatarUrl);
+        }
     }
 
     @Test

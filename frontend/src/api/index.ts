@@ -23,6 +23,24 @@ export interface UserBrief {
   position?: string | null;
 }
 
+export interface FeaturedHrDiscussion {
+  questionId: number;
+  title: string;
+  tags: string[];
+  selectedByVote: boolean;
+  answerCount: number;
+  authorCount: number;
+  seats: { answerId: number; author: UserBrief }[];
+}
+
+export interface HrDiscussionBallot {
+  week: string;
+  closesOn: string;
+  featured?: FeaturedHrDiscussion | null;
+  candidates: { questionId: number; title: string; votes: number }[];
+  myVote?: number | null;
+}
+
 export interface Question {
   id: number;
   scope: "public";
@@ -74,12 +92,13 @@ export interface HrAnsweredPublicQuestion {
   hasPendingAnswer: boolean;
 }
 
-/** 公开 feed 卡片初始态：只有标题和摘要，不含作者与正文 */
+/** 公开 feed 卡片：正文由前端按行折叠，旧接口可能省略公开作者。 */
 export interface QuestionFeedItem {
   id: number;
   title: string;
   excerpt: string;
   tags: string[];
+  author?: UserBrief;
   answerCount: number;
   followupCount: number;
   replyCount: number;
@@ -695,6 +714,22 @@ export const api = {
 
   getQuestionContent(id: number): Promise<QuestionContent> {
     return request<QuestionContent>(`/questions/${id}/content`);
+  },
+
+  featuredHrDiscussion(): Promise<FeaturedHrDiscussion | null> {
+    return request<FeaturedHrDiscussion | null>("/roundtable/featured");
+  },
+
+  hrDiscussionBallot(): Promise<HrDiscussionBallot> {
+    return request<HrDiscussionBallot>("/roundtable");
+  },
+
+  nominateHrDiscussion(week: string, questionId: number): Promise<HrDiscussionBallot> {
+    return request<HrDiscussionBallot>("/roundtable/nominations", { method: "POST", body: { week, questionId } });
+  },
+
+  voteHrDiscussion(week: string, questionId: number): Promise<HrDiscussionBallot> {
+    return request<HrDiscussionBallot>("/roundtable/vote", { method: "PUT", body: { week, questionId } });
   },
 
   getQuestionThread(id: number): Promise<Thread> {
